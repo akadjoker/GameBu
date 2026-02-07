@@ -131,10 +131,10 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
     proc->privates[0] = makeDouble(0); // x
     proc->privates[1] = makeDouble(0); // y
     proc->privates[2] = makeInt(0); // z
-    proc->privates[3] = makeInt(0);    // graph
+    proc->privates[3] = makeInt(-1);    // graph
     proc->privates[4] = makeInt(0);    // angle
     proc->privates[5] = makeInt(100);  // size
-    proc->privates[6] = makeInt(68);    // flags
+    proc->privates[6] = makeInt(0);    // flags
     proc->privates[7] = makeInt(-1);   // id
     proc->privates[8] = makeInt(-1);   // father
     proc->privates[9] = makeInt(255);  // red

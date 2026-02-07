@@ -758,6 +758,9 @@ private:
     static const int dx[8];
     static const int dy[8];
 
+
+    std::vector<Vector2> result;
+
     float manhattan(int dx, int dy) const;
     float euclidean(int dx, int dy) const;
     float octile(int dx, int dy) const;
@@ -787,6 +790,16 @@ public:
     Vector2 gridToWorldFloat(float gx, float gy) const;
 
     void loadFromImage(const char *imagePath, int threshold = 128);
+
+    int getResultCount() const { return (int)result.size(); }
+
+    Vector2 getResultPoint(int idx) const;
+    
+
+    bool findPathEx(int sx, int sy, int ex, int ey,
+                  int diag = 1,
+                  PathAlgorithm algo = PATH_ASTAR,
+                  PathHeuristic heur = PF_MANHATTAN);   
 
     std::vector<Vector2> findPath(int sx, int sy, int ex, int ey,
                                   int diag = 1,
@@ -829,13 +842,13 @@ void InitScene();
 void DestroyScene();
 void RenderScene();
 
-// NOVO: Funções do sistema de fading
+
 void StartFade(float targetAlpha, float speed, Color color = BLACK);
 void UpdateFade(float dt);
 bool IsFadeComplete();
 float GetFadeProgress();
 
-// NOVO: Funções específicas para fade in/out
+
 void FadeIn(float speed, Color color = BLACK);
 void FadeOut(float speed, Color color = BLACK);
 

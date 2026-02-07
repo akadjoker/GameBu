@@ -260,6 +260,8 @@ Matrix2D Entity::GetAbsoluteTransformation() const
     float finalX = (float)(x - l.scroll_x);
     float finalY = (float)(y - l.scroll_y);
     float scale_final = (float)size / 100.0f;
+
+   // Info("Entity %d absolute transformation: pos=(%f, %f) scroll=(%f, %f) size=%f", id, finalX, finalY, l.scroll_x, l.scroll_y, scale_final);
  
 
     return GetRelativeTransformation(
@@ -285,6 +287,24 @@ Vector2 Entity::getPoint(int pointIdx) const
 
 void Entity::render()
 {
+
+    if(graph == -1)
+    {
+         // Renderizar filhos de trás
+        for (Entity *child : childsBack)
+        {
+            if (child->isVisible() && !child->isDead() && child->ready)
+                child->render();
+        }
+        // Renderizar filhos da frente
+        for (Entity *child : childFront)
+        {
+            if (child->isVisible() && !child->isDead() && child->ready)
+                child->render();
+        }
+
+        return;
+    }
     Graph *g = gGraphLib.getGraph(graph);
     if (!g)
         return;

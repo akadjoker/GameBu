@@ -180,11 +180,13 @@ int native_clamp(Interpreter *vm, int argCount, Value *args)
         int v = args[0].asInt();
         int lo = args[1].asInt();
         int hi = args[2].asInt();
-        if (v < lo) {
+        if (v < lo)
+        {
             vm->push(vm->makeInt(lo));
             return 1;
         }
-        if (v > hi) {
+        if (v > hi)
+        {
             vm->push(vm->makeInt(hi));
             return 1;
         }
@@ -196,11 +198,13 @@ int native_clamp(Interpreter *vm, int argCount, Value *args)
     double lo = args[1].asNumber();
     double hi = args[2].asNumber();
 
-    if (v < lo) {
+    if (v < lo)
+    {
         vm->push(vm->makeDouble(lo));
         return 1;
     }
-    if (v > hi) {
+    if (v > hi)
+    {
         vm->push(vm->makeDouble(hi));
         return 1;
     }
@@ -255,12 +259,12 @@ int native_math_sign(Interpreter *vm, int argCount, Value *args)
     }
 
     double val = args[0].asNumber();
-    if (val > 0) 
+    if (val > 0)
     {
         vm->push(vm->makeDouble(1));
         return 1;
     }
-    if (val < 0) 
+    if (val < 0)
     {
         vm->push(vm->makeDouble(-1));
         return 1;
@@ -334,8 +338,8 @@ int native_math_tanh(Interpreter *vm, int argCount, Value *args)
     return 1;
 }
 
-
-static double CLAMP(double x, double min, double max) { return x < min ? min : x > max ? max : x; }
+static double CLAMP(double x, double min, double max) { return x < min ? min : x > max ? max
+                                                                                       : x; }
 
 int native_math_smoothstep(Interpreter *vm, int argCount, Value *args)
 {
@@ -386,7 +390,6 @@ int native_math_smootherstep(Interpreter *vm, int argCount, Value *args)
     {
         vm->runtimeError("smootherstep expects 1 or 3 arguments");
         return 0;
-
     }
 
     t = CLAMP((t - edge0) / (edge1 - edge0), 0.0, 1.0);
@@ -419,7 +422,6 @@ double hermite(double value1, double tangent1, double value2, double tangent2, d
     return result;
 }
 
-
 float repeat(double t, double length)
 {
     return CLAMP(t - std::floor(t / length) * length, 0.0f, length);
@@ -429,7 +431,6 @@ double ping_pong(double t, double length)
     t = repeat(t, length * 2.0f);
     return length - std::abs(t - length);
 }
-
 
 int native_math_hermite(Interpreter *vm, int argCount, Value *args)
 {
@@ -464,7 +465,18 @@ int native_math_ping_pong(Interpreter *vm, int argCount, Value *args)
     return 1;
 }
 
-
+// abs(value) -> absolute value
+ int native_abs(Interpreter *vm, int argCount, Value *args)
+{
+    if (argCount != 1 || !args[0].isNumber())
+    {
+        Error("abs expects 1 number argument");
+        vm->pushDouble(0);
+        return 1;
+    }
+    vm->pushDouble(fabs(args[0].asNumber()));
+    return 1;
+}
 
 void Interpreter::registerMath()
 {
@@ -499,6 +511,7 @@ void Interpreter::registerMath()
         .addFunction("repeat", native_math_repeat, 2)
         .addFunction("ping_pong", native_math_ping_pong, 2)
 
+        .addFunction("abs", native_abs, 1)
         .addFunction("clamp", native_clamp, 3)
         .addFunction("min", native_min, 2)
         .addFunction("max", native_max, 2)

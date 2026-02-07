@@ -270,6 +270,138 @@ void Mask::loadFromImage(const char *imagePath, int threshold)
     UnloadImage(img);
 }
 
+Vector2 Mask::getResultPoint(int idx) const
+{
+    if (idx < 0 || idx >= (int)result.size())
+        return {0, 0};
+    return result[idx];
+}
+
+bool Mask::findPathEx(int sx, int sy, int ex, int ey, int diag, PathAlgorithm algo, PathHeuristic heur)
+{
+
+   result.clear();
+
+    // Reset nodes
+    for (int i = 0; i < width * height; i++)
+    {
+        grid[i].f = grid[i].g = grid[i].h = 0.0f;
+        grid[i].state = NS_UNVISITED;
+        grid[i].parent_idx = -1;
+    }
+    openList.clear();
+
+    // Validação
+    if (!isWalkable(sx, sy) || !isWalkable(ex, ey))
+        return false;
+
+    int start_idx = sx + sy * width;
+    int end_idx = ex + ey * width;
+
+    // Inicializa nó inicial
+    GridNode &start = grid[start_idx];
+    start.g = 0.0f;
+
+    if (algo == PATH_ASTAR)
+    {
+        int ddx = std::abs(sx - ex);
+        int ddy = std::abs(sy - ey);
+        start.h = calcHeuristic(ddx, ddy, heur, diag);
+    }
+    else
+    {
+        start.h = 0.0f;
+    }
+
+    start.f = start.g + start.h;
+    start.parent_idx = -1;
+    start.state = NS_OPEN;
+    openList.push(start_idx);
+
+    int dirs = diag ? 8 : 4;
+
+    while (!openList.empty())
+    {
+        int curr_idx = openList.pop();
+        GridNode *current = &grid[curr_idx];
+
+        if (current->state == NS_CLOSED)
+        {
+            continue;
+        }
+
+        current->state = NS_CLOSED;
+
+        if (curr_idx == end_idx)
+        {
+            int idx = end_idx;
+            while (idx != -1)
+            {
+                int gx = idx % width;
+                int gy = idx / width;
+                result.push_back(gridToWorldFloat((float)gx, (float)gy));
+                idx = grid[idx].parent_idx;
+            }
+            std::reverse(result.begin(), result.end());
+            return true;
+        }
+
+        int cx = curr_idx % width;
+        int cy = curr_idx / width;
+
+        for (int i = 0; i < dirs; i++)
+        {
+            int nx = cx + dx[i];
+            int ny = cy + dy[i];
+
+            if (!isWalkable(nx, ny))
+                continue;
+            if (!isValidDiagonal(cx, cy, nx, ny))
+                continue;
+
+            int n_idx = nx + ny * width;
+            GridNode *neighbor = &grid[n_idx];
+
+            if (neighbor->state == NS_CLOSED)
+                continue;
+
+            float cost = ((nx != cx) && (ny != cy)) ? 1.41421356f : 1.0f;
+            float ng = current->g + cost;
+
+            if (neighbor->state == NS_UNVISITED || ng < neighbor->g)
+            {
+                neighbor->g = ng;
+                neighbor->parent_idx = curr_idx;
+
+                if (algo == PATH_ASTAR)
+                {
+                    int ddx = std::abs(nx - ex);
+                    int ddy = std::abs(ny - ey);
+                    neighbor->h = calcHeuristic(ddx, ddy, heur, diag);
+                }
+                else
+                {
+                    neighbor->h = 0.0f;
+                }
+
+                neighbor->f = neighbor->g + neighbor->h;
+
+                if (neighbor->state == NS_UNVISITED)
+                {
+                    neighbor->state = NS_OPEN;
+                    openList.push(n_idx);
+                }
+                else // NS_OPEN
+                {
+                    openList.update(n_idx);
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 std::vector<Vector2> Mask::findPath(int sx, int sy, int ex, int ey,
                                     int diag,
                                     PathAlgorithm algo,

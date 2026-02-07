@@ -680,6 +680,105 @@ namespace BindingsProcess
  
 
 
+    // fget_angle(processID) -> angle from this process to target process (degrees)
+    int native_fget_angle(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        if (argCount != 1)
+        {
+            Error("fget_angle expects 1 argument (processID)");
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        int targetId = (int)args[0].asNumber();
+        Process *target = vm->findProcessById(targetId);
+        if (!target)
+        {
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        double x1 = proc->privates[0].asNumber();
+        double y1 = proc->privates[1].asNumber();
+        double x2 = target->privates[0].asNumber();
+        double y2 = target->privates[1].asNumber();
+
+        double dx = x2 - x1;
+        double dy = -(y2 - y1); // flip Y for screen coords
+        double angle = atan2(dy, dx) * 180.0 / PI;
+        vm->pushDouble(angle);
+        return 1;
+    }
+
+    // fget_dist(processID) -> distance from this process to target process
+    int native_fget_dist(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        if (argCount != 1)
+        {
+            Error("fget_dist expects 1 argument (processID)");
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        int targetId = (int)args[0].asNumber();
+        Process *target = vm->findProcessById(targetId);
+        if (!target)
+        {
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        double x1 = proc->privates[0].asNumber();
+        double y1 = proc->privates[1].asNumber();
+        double x2 = target->privates[0].asNumber();
+        double y2 = target->privates[1].asNumber();
+
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        vm->pushDouble(sqrt(dx * dx + dy * dy));
+        return 1;
+    }
+
+    // turn_to(processID, step) -> rotate this process's angle toward target by step degrees
+    int native_turn_to(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("turn_to expects 2 arguments (processID, step)");
+            return 0;
+        }
+
+        int targetId = (int)args[0].asNumber();
+        double step = fabs(args[1].asNumber());
+
+        Process *target = vm->findProcessById(targetId);
+        if (!target)
+            return 0;
+
+        double x1 = proc->privates[0].asNumber();
+        double y1 = proc->privates[1].asNumber();
+        double x2 = target->privates[0].asNumber();
+        double y2 = target->privates[1].asNumber();
+
+        double dx = x2 - x1;
+        double dy = -(y2 - y1);
+        double targetAngle = atan2(dy, dx) * 180.0 / PI;
+        double current = proc->privates[4].asNumber();
+
+        double diff = fmod(targetAngle - current, 360.0);
+        if (diff > 180.0) diff -= 360.0;
+        if (diff < -180.0) diff += 360.0;
+
+        double newAngle;
+        if (fabs(diff) <= step)
+            newAngle = targetAngle;
+        else
+            newAngle = current + (diff > 0 ? step : -step);
+
+        proc->privates[4] = vm->makeDouble(newAngle);
+        return 0;
+    }
+
     int native_collision(Interpreter *vm, Process *proc, int argCount, Value *args)
     {
         if (argCount != 3 || !args[0].isString() || !args[1].isNumber() || !args[2].isNumber())
@@ -782,7 +881,9 @@ namespace BindingsProcess
         vm.registerNativeProcess("set_visible", native_set_visible, 1);
         vm.registerNativeProcess("flip", native_flip, 2);
 
-
-
+        // Game math (process-aware, DIV-style)
+        vm.registerNativeProcess("fget_angle", native_fget_angle, 1);
+        vm.registerNativeProcess("fget_dist", native_fget_dist, 1);
+        vm.registerNativeProcess("turn_to", native_turn_to, 2);
     }
 }

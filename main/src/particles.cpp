@@ -1038,13 +1038,48 @@ namespace BindingsParticles
         return 1;
     }
 
+    void* ctor_native_create_emitter(Interpreter *vm, int argCount, Value *args)
+    {
+           
+            //persitente, graph, maxParticles
+            if (argCount != 3)
+            {
+                Error("create_emitter expects 3 arguments (persistent, graph, maxParticles)");
+                vm->pushNil();
+                return nullptr;
+            }
+            if (!args[0].isBool() || !args[1].isInt() || !args[2].isInt())
+            {
+                Error("create_emitter expects arguments (bool persistent, int graph, int maxParticles)");
+                vm->pushNil();
+                return nullptr;
+            }
+            bool persistent = args[0].as.boolean;
+            int graph = (int)args[1].asInt();
+            int maxParticles = (int)args[2].asInt();
+            EmitterType type = persistent ? EMITTER_CONTINUOUS : EMITTER_ONESHOT;
+            Emitter *emitter = gParticleSystem.spawn(type, graph, maxParticles);
+   
+            Warning("Emitter created from constructor, but it's recommended to use create_emitter native function for better error handling and integration with the scripting environment.");
+        
+            
+            return emitter;
+    }
+
+    void dtor_native_destroy_emitter(Interpreter *vm, void* data)
+    {
+        
+        
+    }
+    
+
     void registerAll(Interpreter &vm)
     {
 
         NativeClassDef *emitter = vm.registerNativeClass(
             "Emitter",
-            nullptr,
-            nullptr,
+            ctor_native_create_emitter,
+            dtor_native_destroy_emitter,
             3,
             false);
 

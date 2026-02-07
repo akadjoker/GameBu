@@ -983,7 +983,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                  }
 
                 // Push ID do processo criado
-                PUSH(makeProcess(instance->id));
+                PUSH(makeInt(instance->id));
             }
             else if (callee.isStruct())
             {

@@ -495,6 +495,8 @@ int main(int argc, char *argv[])
     SetTraceLogLevel(LOG_NONE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE.c_str());
     InitSound();
+    InitScene();
+
     camera.target = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
     camera.offset = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
     camera.rotation = 0.0f;
@@ -517,7 +519,6 @@ int main(int argc, char *argv[])
     SetWindowTitle(WINDOW_TITLE.c_str());
     SetWindowState(flags);
     SetTargetFPS(60);
-    InitScene();
 
  
 
@@ -535,13 +536,14 @@ int main(int argc, char *argv[])
         ClearBackground(BACKGROUND_COLOR);
         
         
+        vm.update(dt);
+
         BeginMode2D(camera);
-        
+
         RenderScene();
         gParticleSystem.update(dt);
-        vm.render();        
-        vm.update(dt);
-        
+        vm.render();
+
         gParticleSystem.draw();
         
         EndMode2D();

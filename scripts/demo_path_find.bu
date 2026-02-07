@@ -1,0 +1,81 @@
+print("=== Path Find API Demo ===");
+
+var WINDOW_WIDTH = 800;
+var WINDOW_HEIGHT = 600;
+
+set_window_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+set_window_title("Path Find API Demo");
+
+var GREEN = Color(0, 255, 0, 255);
+var RED = Color(255, 0, 0, 255);
+var WHITE = Color(255, 255, 255, 255);
+
+// Grid 14x10 com celulas de 32px
+var nav = Path(14, 10, 32);
+
+// Obstaculos definidos diretamente (sem tilemap)
+var x = 2;
+while (x < 12)
+{
+    nav.set_occupied(x, 6);
+    x += 1;
+}
+
+var (gx, gy) = nav.world_to_grid(64, 64);
+print("world_to_grid(64,64) -> " + gx + ", " + gy);
+
+var (wx0, wy0) = nav.grid_to_world(10, 1);
+print("grid_to_world(10,1) -> " + wx0 + ", " + wy0);
+
+// Rota deterministica: reta horizontal de (1,1) ate (10,1)
+// find retorna x1,y1,x2,y2,... (flat)
+var (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y,
+     p5x, p5y, p6x, p6y, p7x, p7y, p8x, p8y, p9x, p9y) =
+    nav.find(1, 1, 10, 1, 0, PATH_ASTAR, PF_MANHATTAN);
+
+process path_debug()
+{
+    loop
+    {
+        set_screen_space(false);
+
+        // Segmentos
+        set_color(0, 255, 0);
+        draw_line(p0x * 32 + 16, p0y * 32 + 16, p1x * 32 + 16, p1y * 32 + 16);
+        draw_line(p1x * 32 + 16, p1y * 32 + 16, p2x * 32 + 16, p2y * 32 + 16);
+        draw_line(p2x * 32 + 16, p2y * 32 + 16, p3x * 32 + 16, p3y * 32 + 16);
+        draw_line(p3x * 32 + 16, p3y * 32 + 16, p4x * 32 + 16, p4y * 32 + 16);
+        draw_line(p4x * 32 + 16, p4y * 32 + 16, p5x * 32 + 16, p5y * 32 + 16);
+        draw_line(p5x * 32 + 16, p5y * 32 + 16, p6x * 32 + 16, p6y * 32 + 16);
+        draw_line(p6x * 32 + 16, p6y * 32 + 16, p7x * 32 + 16, p7y * 32 + 16);
+        draw_line(p7x * 32 + 16, p7y * 32 + 16, p8x * 32 + 16, p8y * 32 + 16);
+        draw_line(p8x * 32 + 16, p8y * 32 + 16, p9x * 32 + 16, p9y * 32 + 16);
+
+        // Pontos
+        draw_circle(p0x * 32 + 16, p0y * 32 + 16, 3, true);
+        draw_circle(p1x * 32 + 16, p1y * 32 + 16, 3, true);
+        draw_circle(p2x * 32 + 16, p2y * 32 + 16, 3, true);
+        draw_circle(p3x * 32 + 16, p3y * 32 + 16, 3, true);
+        draw_circle(p4x * 32 + 16, p4y * 32 + 16, 3, true);
+        draw_circle(p5x * 32 + 16, p5y * 32 + 16, 3, true);
+        draw_circle(p6x * 32 + 16, p6y * 32 + 16, 3, true);
+        draw_circle(p7x * 32 + 16, p7y * 32 + 16, 3, true);
+        draw_circle(p8x * 32 + 16, p8y * 32 + 16, 3, true);
+        draw_circle(p9x * 32 + 16, p9y * 32 + 16, 3, true);
+
+        // Start / End
+        set_color(255, 0, 0);
+        draw_circle(p0x * 32 + 16, p0y * 32 + 16, 6, false);
+        set_color(255, 255, 255);
+        draw_circle(p9x * 32 + 16, p9y * 32 + 16, 6, false);
+
+        set_screen_space(true);
+        set_color(255, 255, 255);
+        draw_text("Path demo: start=(1,1) end=(10,1)", 10, 10, 16);
+        draw_text("Class Path + set_occupied + find", 10, 30, 16);
+
+        frame;
+    }
+}
+
+path_debug();

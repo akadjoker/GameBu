@@ -242,6 +242,7 @@ void SetLayerSize(int layer, int x, int y, int width, int height)
             gScene.layers[i].size.width = width;
             gScene.layers[i].size.height = height;
         }
+        Warning("SetLayerSize: layer < 0, applying size to all layers");
         return;
     }
 
@@ -274,6 +275,7 @@ void SetScroll(double x, double y)
     gScene.scroll_x = x;
     gScene.scroll_y = y;
 
+  //  Info("SetScroll called with x=%f y=%f", x, y);
  
     int screenWidth = gScene.width;
     int screenHeight = gScene.height;

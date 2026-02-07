@@ -1371,6 +1371,8 @@ void Scene::initCollision(Rectangle worldBounds)
 
 void Scene::updateCollision()
 {
+    if (!staticTree)
+        return;
 
     staticTree->clear();
     staticEntities.clear();
