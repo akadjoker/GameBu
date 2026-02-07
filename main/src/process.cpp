@@ -680,6 +680,70 @@ namespace BindingsProcess
  
 
 
+    int native_collision(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        if (argCount != 3 || !args[0].isString() || !args[1].isNumber() || !args[2].isNumber())
+        {
+            vm->pushInt(-1);
+            return 1;
+        }
+
+        Entity *entity = requireEntity(proc, "collision");
+        if (!entity || !entity->shape || !(entity->flags & B_COLLISION) || !entity->ready)
+        {
+            vm->pushInt(-1);
+            return 1;
+        }
+
+      
+        double x = args[1].asNumber();
+        double y = args[2].asNumber();
+
+        // Guarda posição original
+        double old_x = entity->x, old_y = entity->y;
+        entity->x = x;
+        entity->y = y;
+        entity->markTransformDirty();
+        entity->updateBounds();
+
+        // Itera processos vivos do tipo pedido
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *other = alive[i];
+            if (!other || other == proc) continue;
+            if (!other->userData) continue;
+            if (!compare_strings(other->name, args[0].asString())) continue;
+
+            Entity *otherEntity = (Entity *)other->userData;
+            if (!otherEntity || !otherEntity->shape) continue;
+            if (!(otherEntity->flags & B_COLLISION)) continue;
+            if (otherEntity->flags & B_DEAD) continue;
+
+            if (CheckCollisionRecs(entity->getBounds(), otherEntity->getBounds()))
+            {
+                if (entity->intersects(otherEntity))
+                {
+                    entity->x = old_x;
+                    entity->y = old_y;
+                    entity->markTransformDirty();
+                    entity->bounds_dirty = true;
+                    vm->pushInt(other->id);
+                    return 1;
+                }
+            }
+        }
+
+        // Restaura posição
+        entity->x = old_x;
+        entity->y = old_y;
+        entity->markTransformDirty();
+        entity->bounds_dirty = true;
+
+        vm->pushInt(-1);
+        return 1;
+    }
+
     void registerAll(Interpreter &vm)
     {
         vm.registerNativeProcess("advance", native_advance, 1);
@@ -699,6 +763,7 @@ namespace BindingsProcess
         vm.registerNativeProcess("disable_collision", native_disable_collision, 0);
         vm.registerNativeProcess("place_free", native_place_free, 2);
         vm.registerNativeProcess("place_meeting", native_place_meeting, 2);
+        vm.registerNativeProcess("collision", native_collision, 3);
         vm.registerNativeProcess("atach", native_atach, 2);
         vm.registerNativeProcess("out_screen", native_out_screen, 0);
         vm.registerNativeProcess("set_layer", native_set_layer, 1);

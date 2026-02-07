@@ -403,7 +403,293 @@ Emitter *ParticleSystem::spawn(EmitterType type, int graph, int maxParticles)
     emitters.push_back(e);
     return e;
 }
+// ============================================================================
+// FOLHAS CAINDO (leaves)
+// ============================================================================
+Emitter *ParticleSystem::createFallingLeaves(Vector2 pos, int graph, float width)
+{
+    Emitter *e = spawn(EMITTER_CONTINUOUS, graph, 30);
+    e->pos = pos;
+    e->spawnZone = {-width/2, 0, width, 10};
+    e->dir = {0, 1};
+    e->spread = 0.5f;
+    e->rate = 5.0f;  // Bem devagar
+    e->speedMin = 30.0f;
+    e->speedMax = 60.0f;
+    e->particleLife = 5.0f;
 
+    e->colorStart = (Color){150, 200, 80, 255};   // Verde
+    e->colorEnd = (Color){200, 150, 50, 255};     // Marrom
+    e->sizeStart = 3.0f;
+    e->sizeEnd = 3.0f;
+
+    e->gravity = {0, 20.0f};  // Cai devagar
+    e->drag = 0.95f;
+
+    e->angularVelMin = -3.0f;
+    e->angularVelMax = 3.0f;
+
+    e->blendMode = BLEND_ALPHA;
+
+    return e;
+}
+
+// ============================================================================
+// PEGADAS/POEIRA DOS PÉS (footstep dust)
+// ============================================================================
+Emitter *ParticleSystem::createFootstepDust(Vector2 pos, int graph)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 8);
+    e->pos = pos;
+    e->dir = {0, -0.5f};
+    e->spread = PI;  // 180 graus
+    e->rate = 1000.0f;
+    e->speedMin = 20.0f;
+    e->speedMax = 50.0f;
+    e->particleLife = 0.5f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = ColorAlpha(BEIGE, 0.6f);
+    e->colorEnd = ColorAlpha(BROWN, 0.0f);
+    e->sizeStart = 2.0f;
+    e->sizeEnd = 5.0f;
+
+    e->gravity = {0, -10.0f};  // Sobe levemente
+    e->drag = 0.9f;
+
+    e->blendMode = BLEND_ALPHA;
+
+    return e;
+}
+// ============================================================================
+// CONJURAÇÃO MÁGICA (magic casting)
+// ============================================================================
+Emitter *ParticleSystem::createMagicCast(Vector2 pos, int graph, Color magicColor)
+{
+    Emitter *e = spawn(EMITTER_CONTINUOUS, graph, 50);
+    e->pos = pos;
+    e->dir = {0, 0};
+    e->spread = 2.0f * PI;
+    e->rate = 80.0f;
+    e->speedMin = 30.0f;
+    e->speedMax = 80.0f;
+    e->particleLife = 0.5f;
+
+    e->colorStart = ColorAlpha(magicColor, 0.9f);
+    e->colorEnd = ColorAlpha(WHITE, 0.0f);
+    e->sizeStart = 5.0f;
+    e->sizeEnd = 0.5f;
+
+    e->gravity = {0, -80.0f};  // Sobe em espiral
+    e->drag = 0.2f;
+
+    e->angularVelMin = -8.0f;
+    e->angularVelMax = 8.0f;
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+
+// ============================================================================
+// PORTAL/TELETRANSPORTE
+// ============================================================================
+Emitter *ParticleSystem::createPortal(Vector2 pos, int graph)
+{
+    Emitter *e = spawn(EMITTER_CONTINUOUS, graph, 60);
+    e->pos = pos;
+    e->dir = {0, 0};
+    e->spread = 2.0f * PI;
+    e->rate = 100.0f;
+    e->speedMin = 10.0f;
+    e->speedMax = 40.0f;
+    e->particleLife = 1.2f;
+
+    e->colorStart = (Color){100, 100, 255, 255};  // Azul elétrico
+    e->colorEnd = (Color){200, 100, 255, 0};      // Roxo
+    e->sizeStart = 6.0f;
+    e->sizeEnd = 1.0f;
+
+    e->gravity = {0, 0};
+    e->drag = 0.8f;
+
+    e->angularVelMin = -10.0f;
+    e->angularVelMax = 10.0f;
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+// ============================================================================
+// MUZZLE FLASH (flash do disparo de arma)
+// ============================================================================
+Emitter *ParticleSystem::createMuzzleFlash(Vector2 pos, int graph, Vector2 shootDirection)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 8);
+    e->pos = pos;
+    e->dir = shootDirection;
+    e->spread = 0.5f;  // Cone estreito na direção do tiro
+    e->rate = 1000.0f;
+    e->speedMin = 80.0f;
+    e->speedMax = 150.0f;
+    e->particleLife = 0.1f;  // Muito rápido!
+    e->lifetime = 0.01f;
+
+    e->colorStart = (Color){255, 255, 200, 255};  // Branco amarelado
+    e->colorEnd = (Color){255, 150, 0, 0};        // Laranja -> transparente
+    e->sizeStart = 22.0f;
+    e->sizeEnd = 2.0f;
+
+    e->gravity = {0, 0};
+    e->drag = 0.95f;
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+
+// ============================================================================
+// CASQUILHOS EJETADOS (shell ejection)
+// ============================================================================
+Emitter *ParticleSystem::createShellEjection(Vector2 pos, int graph, bool facingRight)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 1);  // Só 1 casquilho
+    e->pos = pos;
+    e->dir = facingRight ? Vector2{1, -0.5f} : Vector2{-1, -0.5f};
+    e->spread = 0.3f;
+    e->rate = 1000.0f;
+    e->speedMin = 100.0f;
+    e->speedMax = 150.0f;
+    e->particleLife = 0.8f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = (Color){200, 180, 100, 255};  // Cor de bronze
+    e->colorEnd = (Color){150, 130, 80, 255};
+    e->sizeStart = 2.0f;
+    e->sizeEnd = 2.0f;
+
+    e->gravity = {0, 600.0f};  // Cai como objeto sólido
+    e->drag = 0.3f;
+
+    e->angularVelMin = -15.0f;  // Roda muito!
+    e->angularVelMax = 15.0f;
+
+    e->blendMode = BLEND_ALPHA;
+
+    return e;
+}
+
+// ============================================================================
+// TRACER DE BALA (rastro luminoso da bala)
+// ============================================================================
+Emitter *ParticleSystem::createBulletTracer(Vector2 startPos, Vector2 endPos, int graph)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 5);
+    Vector2 direction = Vector2Normalize(Vector2Subtract(endPos, startPos));
+    
+    e->pos = startPos;
+    e->dir = direction;
+    e->spread = 0.05f;  // Quase linha reta
+    e->rate = 1000.0f;
+    e->speedMin = 2000.0f;  // Muito rápido!
+    e->speedMax = 2500.0f;
+    e->particleLife = 0.15f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = (Color){255, 255, 100, 255};
+    e->colorEnd = (Color){255, 200, 0, 0};
+    e->sizeStart = 3.0f;
+    e->sizeEnd = 0.5f;
+
+    e->gravity = {0, 0};
+    e->drag = 0.0f;  // Sem arrasto
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+
+// ============================================================================
+// RICOCHETE (quando bala bate na parede)
+// ============================================================================
+Emitter *ParticleSystem::createRicochet(Vector2 pos, int graph, Vector2 normal)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 15);
+    e->pos = pos;
+    e->dir = normal;  // Reflete na direção da normal
+    e->spread = 1.2f;
+    e->rate = 1000.0f;
+    e->speedMin = 100.0f;
+    e->speedMax = 250.0f;
+    e->particleLife = 0.4f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = (Color){255, 255, 150, 255};  // Faísca amarela
+    e->colorEnd = (Color){255, 100, 0, 0};
+    e->sizeStart = 2.0f;
+    e->sizeEnd = 0.5f;
+
+    e->gravity = {0, 400.0f};
+    e->drag = 0.5f;
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+// ============================================================================
+// ESCUDO DE ENERGIA (hit effect)
+// ============================================================================
+Emitter *ParticleSystem::createShieldHit(Vector2 pos, int graph, Vector2 hitDirection)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 25);
+    e->pos = pos;
+    e->dir = Vector2Scale(hitDirection, -1);  // Oposto ao impacto
+    e->spread = PI / 2;  // 90 graus
+    e->rate = 1000.0f;
+    e->speedMin = 50.0f;
+    e->speedMax = 150.0f;
+    e->particleLife = 0.5f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = (Color){100, 200, 255, 255};  // Azul claro
+    e->colorEnd = (Color){255, 255, 255, 0};
+    e->sizeStart = 8.0f;
+    e->sizeEnd = 2.0f;
+
+    e->gravity = {0, 0};
+    e->drag = 0.9f;
+
+    e->blendMode = BLEND_ADDITIVE;
+
+    return e;
+}
+// ============================================================================
+// NUVEM DE POEIRA (dust cloud - ao cair algo pesado)
+// ============================================================================
+Emitter *ParticleSystem::createDustCloud(Vector2 pos, int graph, float radius)
+{
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 40);
+    e->pos = pos;
+    e->dir = {0, 0};
+    e->spread = 2.0f * PI;
+    e->rate = 1000.0f;
+    e->speedMin = 50.0f;
+    e->speedMax = 150.0f;
+    e->particleLife = 1.5f;
+    e->lifetime = 0.01f;
+
+    e->colorStart = ColorAlpha(BEIGE, 0.7f);
+    e->colorEnd = ColorAlpha(BROWN, 0.0f);
+    e->sizeStart = 3.0f;
+    e->sizeEnd = 15.0f;  // Expande muito
+
+    e->gravity = {0, 0};
+    e->drag = 0.95f;  // Para aos poucos
+
+    e->blendMode = BLEND_ALPHA;
+
+    return e;
+}
 // ============================================================================
 // IMPACTO NO CHÃO (quando player aterrissa)
 // ============================================================================
@@ -463,9 +749,9 @@ Emitter *ParticleSystem::createWallImpact(Vector2 pos, int graph, bool hitFromLe
 // ============================================================================
 // RASTRO DE CORRIDA (trail contínuo enquanto anda)
 // ============================================================================
-Emitter *ParticleSystem::createRunTrail(Vector2 pos, int graph)
+Emitter *ParticleSystem::createRunTrail(Vector2 pos, int graph,float size_start,float size_end)
 {
-    Emitter *e = spawn(EMITTER_CONTINUOUS, graph, 30);
+    Emitter *e = spawn(EMITTER_ONESHOT, graph, 30);
     e->pos = pos;
     e->dir = {0, 0}; // Espalhado
     e->spread = 2.0f * PI; // 360 graus
@@ -476,8 +762,8 @@ Emitter *ParticleSystem::createRunTrail(Vector2 pos, int graph)
 
     e->colorStart = ColorAlpha(LIGHTGRAY, 0.5f);
     e->colorEnd = ColorAlpha(GRAY, 0.0f);
-    e->sizeStart = 2.0f;
-    e->sizeEnd = 1.0f;
+   e->sizeStart = size_start;
+    e->sizeEnd = size_end;
 
     e->gravity = {0, 0};
     e->drag = 0.9f; // Para rápido

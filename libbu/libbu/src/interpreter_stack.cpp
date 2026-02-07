@@ -566,19 +566,25 @@ Process *Interpreter::callProcess(ProcessDef *proc, int argCount)
     if (argCount > 0)
     {
         Fiber *procFiber = &instance->fibers[0];
+        int localSlot = 0;
 
-        // Copia args da stack atual para a fiber do processo
         for (int i = 0; i < argCount; i++)
         {
-            procFiber->stack[i] = currentFiber->stackTop[-argCount + i];
-        }
-        procFiber->stackTop = procFiber->stack + argCount;
+            Value arg = currentFiber->stackTop[-argCount + i];
 
-        // Mapeia args para privates POR POSIÇÃO (para processos)
-        for (int i = 0; i < argCount && i < MAX_PRIVATES; i++)
-        {
-            instance->privates[i] = procFiber->stack[i];
+            if (i < (int)proc->argsNames.size() && proc->argsNames[i] != 255)
+            {
+                // Arg mapeia para um private (x, y, etc.) - copia direto
+                instance->privates[proc->argsNames[i]] = arg;
+            }
+            else
+            {
+                // Arg é um local normal
+                procFiber->stack[localSlot] = arg;
+                localSlot++;
+            }
         }
+        procFiber->stackTop = procFiber->stack + localSlot;
 
         // Remove args da stack atual
         currentFiber->stackTop -= argCount;

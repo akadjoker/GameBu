@@ -484,6 +484,89 @@ namespace BindingsParticles
         return 1;
     }
 
+    int native_create_muzzle_flash(Interpreter *vm, int argCount, Value *args)
+    {
+         NativeClassDef * emitterClassDef  = nullptr;
+        if (!vm->tryGetNativeClassDef("Emitter", &emitterClassDef))
+        {
+            Error("Emitter class is not registered !");
+            vm->pushNil();
+            return 1;
+        }
+
+        // Implementação de exemplo para criar um flash de arma
+        if (argCount != 4)
+        {
+            Error("create_muzzle_flash expects 4 arguments (x, y, graph, shootDirection)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isInt() || !args[3].isNativeStructInstance())
+        {
+            Error("create_muzzle_flash expects arguments ( x,  y,  graph, shootDirection)");
+            vm->pushNil();
+            return 1;
+        }
+       
+        float x = (float)args[0].asNumber();
+        float y = (float)args[1].asNumber();
+        int graph = (int)args[2].asInt();
+        auto *inst = args[3].asNativeStructInstance();
+        Vector2 *shootDirection = (Vector2 *)inst->data;
+
+        Emitter *emitter = gParticleSystem.createMuzzleFlash({x, y}, graph, *shootDirection);
+       
+         Value nodeValue = vm->makeNativeClassInstance(false);
+        NativeClassInstance *instance = nodeValue.asNativeClassInstance();
+        instance->klass = emitterClassDef;
+        instance->userData = (void *)emitter;
+        vm->push(nodeValue);
+
+        return 1;
+    }
+
+    int native_create_shell_ejection(Interpreter *vm, int argCount, Value *args)
+    {
+         NativeClassDef * emitterClassDef  = nullptr;
+        if (!vm->tryGetNativeClassDef("Emitter", &emitterClassDef))
+        {
+            Error("Emitter class is not registered !");
+            vm->pushNil();
+            return 1;
+        }
+
+        // Implementação de exemplo para criar uma ejeção de cartucho
+        if (argCount != 4)
+        {
+            Error("create_shell_ejection expects 4 arguments (x, y, graph, facingRight)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isInt() || !args[3].isBool())
+        {
+            Error("create_shell_ejection expects arguments ( x,  y,  graph, facingRight)");
+            vm->pushNil();
+            return 1;
+        }
+       
+        float x = (float)args[0].asNumber();
+        float y = (float)args[1].asNumber();
+        int graph = (int)args[2].asInt();
+        bool facingRight = args[3].as.boolean;
+
+        Emitter *emitter = gParticleSystem.createShellEjection({x, y}, graph, facingRight);
+       
+         Value nodeValue = vm->makeNativeClassInstance(false);
+        NativeClassInstance *instance = nodeValue.asNativeClassInstance();
+        instance->klass = emitterClassDef;
+        instance->userData = (void *)emitter;
+        vm->push(nodeValue);
+
+        return 1;
+    }
+
+ 
+
     int native_create_emitter(Interpreter *vm, int argCount, Value *args)
     {
          NativeClassDef * emitterClassDef  = nullptr;
@@ -663,15 +746,15 @@ namespace BindingsParticles
         }
 
        
-        if (argCount != 3)
+        if (argCount != 5)
         {
-            Error("create_run_trail expects 3 arguments (x, y, graph)");
+            Error("create_run_trail expects 5 arguments (x, y, graph, size_min, size_max)");
             vm->pushNil();
             return 1;
         }
-        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isInt())
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isInt() || !args[3].isNumber() || !args[4].isNumber())
         {
-            Error("create_run_trail expects arguments ( x,  y,  graph)");
+            Error("create_run_trail expects arguments ( x,  y,  graph, size_min, size_max)");
             vm->pushNil();
             return 1;
         }
@@ -679,9 +762,11 @@ namespace BindingsParticles
         float x = (float)args[0].asNumber();
         float y = (float)args[1].asNumber();
         int graph = (int)args[2].asInt();
+        float size_min = (float)args[3].asNumber();
+        float size_max = (float)args[4].asNumber();
         
 
-        Emitter *emitter = gParticleSystem.createRunTrail({x, y}, graph);
+        Emitter *emitter = gParticleSystem.createRunTrail({x, y}, graph, size_min, size_max);
        
          Value nodeValue = vm->makeNativeClassInstance(false);
         NativeClassInstance *instance = nodeValue.asNativeClassInstance();
@@ -992,13 +1077,15 @@ namespace BindingsParticles
         vm.registerNative("create_landing_dust", native_create_landing_dust, 4);
         vm.registerNative("create_wall_impact", native_create_wall_impact, 6);
         vm.registerNative("create_water_splash", native_create_water_splash, 3);
-        vm.registerNative("create_run_trail", native_create_run_trail, 3);
+        vm.registerNative("create_run_trail", native_create_run_trail, 5);
         vm.registerNative("create_speed_lines", native_create_speed_lines, 5);
         vm.registerNative("create_collect_effect", native_create_collect_effect, 4);
         vm.registerNative("create_power_up_aura", native_create_power_up_aura, 4);
         vm.registerNative("create_sparkle", native_create_sparkle, 3);
         vm.registerNative("create_blood_splatter", native_create_blood_splatter, 5);
         vm.registerNative("create_rain", native_create_rain, 4);
+        vm.registerNative("create_shell_ejection", native_create_shell_ejection, 4);
+        vm.registerNative("create_muzzle_flash", native_create_muzzle_flash, 4);
 
     }
 }

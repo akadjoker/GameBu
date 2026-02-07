@@ -943,23 +943,26 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 if (argCount > 0)
                 {
                     Fiber *procFiber = &instance->fibers[0];
+                    int localSlot = 0;
 
                     for (int i = 0; i < argCount; i++)
                     {
-                        procFiber->stack[i] = fiber->stackTop[-(argCount - i)];
-                        if (blueprint->argsNames.size() > 0)
+                        Value arg = fiber->stackTop[-(argCount - i)];
+
+                        if (i < (int)blueprint->argsNames.size() && blueprint->argsNames[i] != 255)
                         {
-                            uint8 index = blueprint->argsNames[i];
-                            if (index != 255)
-                            {
-                                instance->privates[index] = procFiber->stack[i];
-                            }
+                            // Arg mapeia para um private (x, y, etc.) - copia direto
+                            instance->privates[blueprint->argsNames[i]] = arg;
+                        }
+                        else
+                        {
+                            // Arg é um local normal
+                            procFiber->stack[localSlot] = arg;
+                            localSlot++;
                         }
                     }
 
-                    procFiber->stackTop = procFiber->stack + argCount;
-
-                    // Os argumentos viram locals[0], locals[1]...
+                    procFiber->stackTop = procFiber->stack + localSlot;
                 }
 
                 // Remove callee + args da stack atual

@@ -696,17 +696,14 @@ void Entity::updateBounds()
 
 RectangleShape::RectangleShape(int x, int y, int w, int h) : PolygonShape(4)
 {
-    float half_w = w * 0.5f;
-    float half_h = h * 0.5f;
-    
-    points[0].x = -half_w;
-    points[0].y = -half_h;
-    points[1].x = half_w;
-    points[1].y = -half_h;
-    points[2].x = half_w;
-    points[2].y = half_h;
-    points[3].x = -half_w;
-    points[3].y = half_h;
+   float hw = w * 0.5f;
+    float hh = h * 0.5f;
+
+    // x e y aqui funcionam como o "centro local" da box
+    points[0] = { x - hw, y - hh };
+    points[1] = { x + hw, y - hh };
+    points[2] = { x + hw, y + hh };
+    points[3] = { x - hw, y + hh };
     
     calcNormals();
 }
@@ -874,7 +871,7 @@ bool Entity::place_free(double x, double y)
     }
     if (!ready)
     {
-        Info("place_free: entity not ready");
+      //  Info("place_free: entity not ready");
         return true;
     }
 

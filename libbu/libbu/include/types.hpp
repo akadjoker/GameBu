@@ -7,7 +7,7 @@ typedef const char* (*FileLoaderCallback)(const char* filename, size_t* outSize,
 
 
 
-static constexpr int MAX_PRIVATES = 16;
+static constexpr int MAX_PRIVATES = 20;
  
 static constexpr int STACK_MAX = 1024;
 static constexpr int FRAMES_MAX = 1024;

@@ -561,6 +561,14 @@ enum class PrivateIndex : uint8
   FLAGS = 6,
   ID = 7,
   FATHER = 8,
+  iRED = 9,
+  iGREEN = 10,
+  iBLUE = 11,
+  iALPHA = 12,
+  TAG = 13,
+  STATE = 14,
+  SPEED = 15,
+  GROUP = 16,
 
 };
 
@@ -1048,6 +1056,7 @@ public:
   uint32 getTotalProcesses() const;
   uint32 getTotalAliveProcesses() const;
   Process *findProcessById(uint32 id);
+  const Vector<Process *>& getAliveProcesses() const { return aliveProcesses; }
 
   void destroyFunction(Function *func);
   void addFiber(Process *proc, Function *func);

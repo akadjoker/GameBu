@@ -200,7 +200,7 @@ namespace Bindings
         if (argCount != 1)
         {
             Error("proc expects 1 argument (process id)");
-                vm->pushNil();
+            vm->pushNil();
             return 1;
         }
         if (!args[0].isNumber())
@@ -286,6 +286,45 @@ namespace Bindings
         }
 
         return 0;
+    }
+
+    int native_exists(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            vm->pushBool(false);
+            return 1;
+        }
+
+        uint32 id = (uint32)args[0].asNumber();
+        Process *target = vm->findProcessById(id);
+        vm->pushBool(target != nullptr);
+        return 1;
+    }
+
+    int native_get_id(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isString())
+        {
+            vm->pushInt(-1);
+            return 1;
+        }
+
+        const char *typeName = args[0].asStringChars();
+
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (proc && proc->name && strcmp(proc->name->chars(), typeName) == 0)
+            {
+                vm->push(vm->makeProcess(proc->id));
+                return 1;
+            }
+        }
+
+        vm->pushInt(-1);
+        return 1;
     }
 
     int native_load_sound(Interpreter *vm, int argCount, Value *args)
@@ -574,7 +613,7 @@ namespace Bindings
         }
 
         int layer = (int)args[0].asInt();
-        
+
         return 0;
     }
 
@@ -598,7 +637,7 @@ namespace Bindings
         return 0;
     }
 
-     int native_set_tile_map_solid(Interpreter *vm, int argCount, Value *args)
+    int native_set_tile_map_solid(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2)
         {
@@ -617,7 +656,6 @@ namespace Bindings
         SetTileMapSolid(layer, solid);
         return 0;
     }
-
 
     int native_set_tile_map_spacing(Interpreter *vm, int argCount, Value *args)
     {
@@ -656,6 +694,46 @@ namespace Bindings
         double margin = args[1].asNumber();
 
         SetTileMapMargin(layer, margin);
+        return 0;
+    }
+
+    int native_set_tile_debug(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3)
+        {
+            Error("set_tile_debug expects 3 arguments (layer, grid, ids)");
+            return 0;
+        }
+        if (!args[0].isInt() || !args[1].isBool() || !args[2].isBool())
+        {
+            Error("set_tile_debug expects 1 int and 2 bool arguments (layer, grid, ids)");
+            return 0;
+        }
+
+        int layer = (int)args[0].asInt();
+        bool grid = args[1].asBool();
+        bool ids = args[2].asBool();
+
+        SetTileMapDebug(layer, grid != 0, ids != 0);
+        return 0;
+    }
+    int native_set_tile_map_color(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2)
+        {
+            Error("set_tile_map_color expects 2 arguments (layer, color)");
+            return 0;
+        }
+        if (!args[0].isInt() || !args[1].isNativeStructInstance())
+        {
+            Error("set_tile_map_color expects 2 int arguments (layer, color)");
+            return 0;
+        }
+
+        auto *inst = args[1].asNativeStructInstance();
+        Color *color = (Color *)inst->data;
+        int layer = (int)args[0].asInt();
+        SetTileMapColor(layer, *color);
         return 0;
     }
 
@@ -793,9 +871,6 @@ namespace Bindings
         return 1;
     }
 
-
-  
-
     void registerAll(Interpreter &vm)
     {
 
@@ -809,6 +884,8 @@ namespace Bindings
         vm.registerNative("type", native_type, 1);
         vm.registerNative("proc", native_proc, 1);
         vm.registerNative("signal", native_signal, 2);
+        vm.registerNative("exists", native_exists, 1);
+        vm.registerNative("get_id", native_get_id, 1);
         vm.registerNative("play_sound", native_play_sound, 3);
         vm.registerNative("stop_sound", native_stop_sound, 1);
         vm.registerNative("is_sound_playing", native_is_sound_playing, 1);
@@ -827,6 +904,8 @@ namespace Bindings
         vm.registerNative("set_tile_map_solid", native_set_tile_map_solid, 2);
         vm.registerNative("set_tile_map_margin", native_set_tile_map_margin, 2);
         vm.registerNative("set_tile_map_mode", native_set_tile_map_mode, 2);
+        vm.registerNative("set_tile_map_color", native_set_tile_map_color, 2);
+        vm.registerNative("set_tile_debug", native_set_tile_debug, 3);
         vm.registerNative("set_tile_map_iso_compression", native_set_tile_map_iso_compression, 2);
         vm.registerNative("set_tile_map_tile", native_set_tile_map_tile, 4);
         vm.registerNative("get_tile_map_tile", native_get_tile_map_tile, 3);

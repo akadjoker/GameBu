@@ -6,19 +6,194 @@ namespace BindingsDraw
 {
 
     Color currentColor = WHITE;
+    bool currentScreenSpace = true;
+
+    struct TextCommand
+    {
+        String *text;
+        int x, y, size;
+        Color color;
+    };
+
+    struct RectangleCommand
+    {
+        int x, y, width, height;
+        bool fill;
+        Color color;
+    };
+
+    struct CircleCommand
+    {
+        int centerX, centerY, radius;
+        bool fill;
+        Color color;
+    };
+
+    struct LineCommand
+    {
+        int x1, y1, x2, y2;
+        Color color;
+    };
+
+    struct DrawCommand
+    {
+
+        enum Type
+        {
+            LINE,
+            POINT,
+            TEXT,
+            CIRCLE,
+            RECTANGLE
+        } type;
+
+        union
+        {
+            LineCommand line;
+            TextCommand text;
+            CircleCommand circle;
+            RectangleCommand rectangle;
+        };
+    };
+
+    static Vector<DrawCommand> screenCommands;
+ 
+
+
+    void RenderScreenCommands()
+    {
+        
+        for (size_t i = 0; i < screenCommands.size(); i++)
+        {
+            DrawCommand &cmd = screenCommands[i];
+            switch (cmd.type)
+            {
+            case DrawCommand::LINE:
+                DrawLine(cmd.line.x1, cmd.line.y1, cmd.line.x2, cmd.line.y2, cmd.line.color);
+                break;
+            case DrawCommand::POINT:
+                DrawPixel(cmd.line.x1, cmd.line.y1, cmd.line.color);
+                break;
+            case DrawCommand::TEXT:
+                DrawText(cmd.text.text->chars(), cmd.text.x, cmd.text.y, cmd.text.size, cmd.text.color);
+                break;
+            case DrawCommand::CIRCLE:
+                if (cmd.circle.fill)
+                    DrawCircle(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius, cmd.circle.color);
+                else
+                    DrawCircleLines(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius, cmd.circle.color);
+                break;
+            case DrawCommand::RECTANGLE:
+                if (cmd.rectangle.fill)
+                    DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width, cmd.rectangle.height, cmd.rectangle.color);
+                else
+                    DrawRectangleLines(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width, cmd.rectangle.height, cmd.rectangle.color);
+                break;
+            }
+        }
+     
+    
+    }
+
+    void resetDrawCommands()
+    {
+        screenCommands.clear();
+         
+    }
+
+   
+
+     void addPointCommand(int x, int y, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::POINT;
+            cmd.line = {x, y, x, y, currentColor};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            DrawPixel(x, y, currentColor);
+        }
+    }
+
+     void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::LINE;
+            cmd.line = {x1, y1, x2, y2, currentColor};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            DrawLine(x1, y1, x2, y2, currentColor);
+        }
+    }
+
+     void addTextCommand(String *text, int x, int y, int size, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::TEXT;
+            cmd.text = {text, x, y, size, currentColor};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            DrawText(text->chars(), x, y, size, currentColor);
+        }
+    }
+
+    void addCircleCommand(int centerX, int centerY, int radius, bool fill, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::CIRCLE;
+            cmd.circle = {centerX, centerY, radius, fill, currentColor};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            if (fill)
+                DrawCircle(centerX, centerY, radius, currentColor);
+            else
+                DrawCircleLines(centerX, centerY, radius, currentColor);
+        }
+    }
+
+     void addRectangleCommand(int x, int y, int width, int height, bool fill, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::RECTANGLE;
+            cmd.rectangle = {x, y, width, height, fill, currentColor};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            if (fill)
+                DrawRectangle(x, y, width, height, currentColor);
+            else
+                DrawRectangleLines(x, y, width, height, currentColor);
+        }
+    }
 
     static int native_line(Interpreter *vm, int argCount, Value *args)
     {
-        if (argCount != 5)
+        if (argCount != 4)
         {
-            Error("line expects 5 arguments (x1, y1, x2, y2, color)");
+            Error("line expects 4 arguments (x1, y1, x2, y2)");
             return 0;
         }
-        if (!args[0].isNumber() || !args[1].isNumber() ||
-            !args[2].isNumber() || !args[3].isNumber() ||
-            !args[4].isNumber())
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
         {
-            Error("line expects 5 number arguments (x1, y1, x2, y2, color)");
+            Error("line expects 4 number arguments (x1, y1, x2, y2)");
             return 0;
         }
 
@@ -26,10 +201,51 @@ namespace BindingsDraw
         int y1 = (int)args[1].asNumber();
         int x2 = (int)args[2].asNumber();
         int y2 = (int)args[3].asNumber();
-        int colorValue = (int)args[4].asNumber();
 
-       
-        DrawLine(x1, y1, x2, y2, currentColor);
+        addLineCommand(x1, y1, x2, y2, currentScreenSpace);
+
+        return 0;
+    }
+
+    static int native_point(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2)
+        {
+            Error("point expects 2 arguments (x, y)");
+            return 0;
+        }
+        if (!args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("point expects 2 number arguments (x, y)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        addPointCommand(x, y, currentScreenSpace);
+
+        return 0;
+    }
+
+    static int native_text(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 4)
+        {
+            Error("text expects 4 arguments (text, x, y, size)");
+            return 0;
+        }
+        if (!args[0].isString() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
+        {
+            Error("text expects 1 string and 3 number arguments (text, x, y, size)");
+            return 0;
+        }
+
+        String *text = args[0].asString();
+        int x = (int)args[1].asNumber();
+        int y = (int)args[2].asNumber();
+        int size = (int)args[3].asNumber();
+        addTextCommand(text, x, y, size, currentScreenSpace);
+
         return 0;
     }
 
@@ -40,22 +256,16 @@ namespace BindingsDraw
             Error("circle expects 4 arguments (centerX, centerY, radius, fill)");
             return 0;
         }
-        if (!args[0].isNumber() || !args[1].isNumber() ||
-            !args[2].isNumber() || !args[3].isNumber())
-        {
-            Error("circle expects 4 number arguments (centerX, centerY, radius, fill)");
-            return 0;
-        }
 
         int centerX = (int)args[0].asNumber();
         int centerY = (int)args[1].asNumber();
         int radius = (int)args[2].asNumber();
         int fill = (int)args[3].asNumber();
+
+        addCircleCommand(centerX, centerY, radius, fill != 0, currentScreenSpace);
+
         
-        if (fill)
-            DrawCircle(centerX, centerY, radius, currentColor);
-        else
-            DrawCircleLines(centerX, centerY, radius, currentColor);
+
         return 0;
     }
 
@@ -80,10 +290,7 @@ namespace BindingsDraw
         int height = (int)args[3].asNumber();
         int fill = (int)args[4].asNumber();
 
-        if (fill)
-            DrawRectangle(x, y, width, height, currentColor);
-        else
-            DrawRectangleLines(x, y, width, height, currentColor);
+        addRectangleCommand(x, y, width, height, fill != 0, currentScreenSpace);
         return 0;
     }
 
@@ -94,7 +301,6 @@ namespace BindingsDraw
             Error("set_color expects 3 arguments (red, green, blue)");
             return 0;
         }
-         
 
         if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
         {
@@ -127,6 +333,21 @@ namespace BindingsDraw
         return 0;
     }
 
+    static int native_set_screen_space(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1)
+        {
+            Error("set_screen_space expects 1 argument (enabled)");
+            return 0;
+        }
+        if (!args[0].isBool())
+        {
+            Error("set_screen_space expects a boolean argument (enabled)");
+            return 0;
+        }
+        currentScreenSpace = args[0].asBool();
+        return 0;
+    }
 
     int native_start_fade(Interpreter *vm, int argCount, Value *args)
     {
@@ -143,7 +364,6 @@ namespace BindingsDraw
 
         float targetAlpha = (float)args[0].asNumber();
         float speed = (float)args[1].asNumber();
-      
 
         StartFade(targetAlpha, speed, currentColor);
         return 0;
@@ -221,7 +441,7 @@ namespace BindingsDraw
         v->a = (uint8)args[3].asNumber();
     }
 
-     void registerColor(Interpreter &vm)
+    void registerColor(Interpreter &vm)
     {
         auto *color = vm.registerNativeStruct(
             "Color",
@@ -235,14 +455,36 @@ namespace BindingsDraw
         vm.addStructField(color, "a", offsetof(Color, a), FieldType::BYTE);
     }
 
+    static void vector2_ctor(Interpreter *vm, void *buffer, int argc, Value *args)
+    {
+        Vector2 *vec = (Vector2 *)buffer;
+        vec->x = args[0].asNumber();
+        vec->y = args[1].asNumber();
+    }
+
+    void registerVector2(Interpreter &vm)
+    {
+        auto *vec2 = vm.registerNativeStruct(
+            "Vec2",
+            sizeof(Vector2),
+            vector2_ctor,
+            nullptr);
+
+        vm.addStructField(vec2, "x", offsetof(Vector2, x), FieldType::FLOAT);
+        vm.addStructField(vec2, "y", offsetof(Vector2, y), FieldType::FLOAT);
+    }
+
     void registerAll(Interpreter &vm)
     {
-        
-        vm.registerNative("line", native_line, 5);
-        vm.registerNative("circle", native_circle, 4);
-        vm.registerNative("rectangle", native_rectangle, 5);
+
+        vm.registerNative("draw_line", native_line, 4);
+        vm.registerNative("draw_circle", native_circle, 4);
+        vm.registerNative("draw_point", native_point, 2);
+        vm.registerNative("draw_text", native_text, 4);
+        vm.registerNative("draw_rectangle", native_rectangle, 5);
         vm.registerNative("set_color", native_set_color, 3);
         vm.registerNative("set_alpha", native_set_alpha, 1);
+        vm.registerNative("set_screen_space", native_set_screen_space, 1);
 
         vm.registerNative("start_fade", native_start_fade, 2);
         vm.registerNative("is_fade_complete", native_is_fade_complete, 0);
@@ -251,5 +493,6 @@ namespace BindingsDraw
         vm.registerNative("fade_in", native_fade_in, 1);
         vm.registerNative("fade_out", native_fade_out, 1);
         registerColor(vm);
+        registerVector2(vm);
     }
 }

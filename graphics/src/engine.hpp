@@ -417,19 +417,30 @@ public:
     Emitter *createWaterSplash(Vector2 pos, int graph);
 
     // Movimento do Player
-    Emitter *createRunTrail(Vector2 pos, int graph);
+    Emitter *createRunTrail(Vector2 pos, int graph,float size_start,float size_end);
     Emitter *createSpeedLines(Vector2 pos, int graph, Vector2 velocity);
 
     // Coleta e Power-ups
     Emitter *createCollectEffect(Vector2 pos, int graph, Color itemColor);
     Emitter *createPowerUpAura(Vector2 pos, int graph, Color auraColor);
     Emitter *createSparkle(Vector2 pos, int graph);
+    Emitter *createMagicCast(Vector2 pos, int graph, Color magicColor);
+    Emitter *createPortal(Vector2 pos, int graph);
+    Emitter *createShieldHit(Vector2 pos, int graph, Vector2 hitDirection);
 
     // Dano e Combat
     Emitter *createBloodSplatter(Vector2 pos, int graph, Vector2 hitDirection);
+    Emitter *createMuzzleFlash(Vector2 pos, int graph, Vector2 shootDirection);
+    Emitter *createShellEjection(Vector2 pos, int graph, bool facingRight);
+    Emitter *createBulletTracer(Vector2 startPos, Vector2 endPos, int graph);
+    Emitter *createRicochet(Vector2 pos, int graph, Vector2 normal);
 
     // Ambiente
     Emitter *createRain(Vector2 pos, int graph, float width);
+    Emitter *createFallingLeaves(Vector2 pos, int graph, float width);
+    Emitter *createFootstepDust(Vector2 pos, int graph);
+    Emitter *createDustCloud(Vector2 pos, int graph, float radius);
+
 
     void update(float dt);
     void draw();
@@ -573,7 +584,10 @@ public:
     float iso_compression = 0.5f;
     float offset_x = 0.0f;
     float offset_y = 0.0f;
+    Color tint = WHITE;
     GridType grid_type = ORTHO;
+    bool show_grids = false;
+    bool show_ids = false;
 
 private:
     Tile *tiles = nullptr;
@@ -843,6 +857,8 @@ void SetTileMapMargin(int layer, double margin);
 void SetTileMapSolid(int layer, int tile_id);
 void SetTileMapFree(int layer, int tile_id);
 void SetTileMapMode(int layer, int mode);
+void SetTileMapColor(int layer, Color tint);
+void SetTileMapDebug(int layer, bool grid,bool ids);
 void SetTileMapIsoCompression(int layer, double compression);
 void SetTileMapFromString(int layer, const std::string &data, int shift);
 

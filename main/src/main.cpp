@@ -269,6 +269,7 @@ void onCreate(Interpreter *vm,Process *proc)
 
 void onStart(Interpreter *vm,Process *proc)
 {
+ 
 
     double x = proc->privates[0].asNumber();
     double y = proc->privates[1].asNumber();
@@ -279,7 +280,29 @@ void onStart(Interpreter *vm,Process *proc)
     int flags = proc->privates[6].asInt();
     int id = proc->privates[7].asInt();
     int father = proc->privates[8].asInt();
-
+    double red = 1.0;
+    if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
+        red = proc->privates[9].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
+        red = proc->privates[9].asNumber();
+    
+    double green = 1.0;
+    if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
+        green = proc->privates[10].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
+        green = proc->privates[10].asNumber();
+    double blue = 1.0;
+    if (proc->privates[(int)PrivateIndex::iBLUE].isInt())
+        blue = proc->privates[11].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iBLUE].isNumber())
+        blue = proc->privates[11].asNumber();
+    double alpha = 1.0;
+    if (proc->privates[(int)PrivateIndex::iALPHA].isInt())
+        alpha = proc->privates[12].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
+        alpha = proc->privates[12].asNumber();
+    
+    
     //Info("Create process: ID:%d  Layer:%d  angle:%d  Size:%d   FLAGS: %d X:%f Y:%f  FATHER:%d  GRAPH:%d", id, z, angle, size,  flags, x, y, father, graph);
 
     Entity *entity = (Entity *)proc->userData;
@@ -299,6 +322,10 @@ void onStart(Interpreter *vm,Process *proc)
     entity->setPosition(x, y);
     entity->setAngle(angle);
     entity->setSize(size);
+    entity->color.r = (uint8)(red * 255.0);
+    entity->color.g = (uint8)(green * 255.0);
+    entity->color.b = (uint8)(blue * 255.0);
+    entity->color.a = (uint8)(alpha * 255.0);
     
     entity->ready= true;
     
@@ -325,6 +352,28 @@ void onUpdate(Interpreter *vm,Process *proc, float dt)
     int flags = proc->privates[6].asInt();
     int id = proc->privates[7].asInt();
     int father = proc->privates[8].asInt();
+    double red = 1.0;
+    if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
+        red = proc->privates[9].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
+        red = proc->privates[9].asNumber();
+    
+    double green = 1.0;
+    if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
+        green = proc->privates[10].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
+        green = proc->privates[10].asNumber();
+    double blue = 1.0;
+    if (proc->privates[(int)PrivateIndex::iBLUE].isInt())
+        blue = proc->privates[11].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iBLUE].isNumber())
+        blue = proc->privates[11].asNumber();
+    double alpha = 1.0;
+    if (proc->privates[(int)PrivateIndex::iALPHA].isInt())
+        alpha = proc->privates[12].asInt() / 255.0;
+    else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
+        alpha = proc->privates[12].asNumber();
+    
     if(entity->layer != z)
     {
         entity->layer = z;
@@ -334,7 +383,10 @@ void onUpdate(Interpreter *vm,Process *proc, float dt)
     entity->setPosition(x, y);
     entity->setAngle(angle);
     entity->setSize(size);
-    
+    entity->color.r = (uint8)(red * 255.0);
+    entity->color.g = (uint8)(green * 255.0);
+    entity->color.b = (uint8)(blue * 255.0);
+    entity->color.a = (uint8)(alpha * 255.0);
 
     
 
@@ -467,17 +519,16 @@ int main(int argc, char *argv[])
     SetTargetFPS(60);
     InitScene();
 
-
-
+ 
 
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime();
-        gParticleSystem.update(dt);
+        BindingsDraw::resetDrawCommands();
 
         UpdateFade(dt); 
         
-        gScene.updateCollision();  // Atualizar colisão ANTES de rodar scripts
+        gScene.updateCollision();  
         
         BeginDrawing();
         
@@ -487,6 +538,7 @@ int main(int argc, char *argv[])
         BeginMode2D(camera);
         
         RenderScene();
+        gParticleSystem.update(dt);
         vm.render();        
         vm.update(dt);
         
@@ -494,8 +546,14 @@ int main(int argc, char *argv[])
         
         EndMode2D();
         
+        BindingsDraw::RenderScreenCommands();
+        
         EndDrawing();
+
  
+
+
+        
     }
     gParticleSystem.clear();
     DestroySound();

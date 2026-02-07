@@ -922,6 +922,14 @@ void Interpreter::setPrivateTable()
   privateIndexMap.set("flags", 6);
   privateIndexMap.set("id", 7);
   privateIndexMap.set("father", 8);
+  privateIndexMap.set("red", 9);
+  privateIndexMap.set("green", 10);
+  privateIndexMap.set("blue", 11);
+  privateIndexMap.set("alpha", 12);
+  privateIndexMap.set("tag", 13);
+  privateIndexMap.set("state", 14);
+  privateIndexMap.set("speed", 15);
+  privateIndexMap.set("group", 16);
 }
 
 StructDef *Interpreter::addStruct(String *name, int *id)

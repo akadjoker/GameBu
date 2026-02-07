@@ -67,13 +67,7 @@ void Process::reset()
 
 int Interpreter::getProcessPrivateIndex(const char *name)
 {
-    // int idx;
-    // if (privateIndexMap.get(name, &idx))
-    // {
-    //     return idx;
-    // }
-    // return -1;
-
+    
     switch (name[0])
     {
     case 'x':
@@ -83,20 +77,33 @@ int Interpreter::getProcessPrivateIndex(const char *name)
     case 'z':
         return (name[1] == '\0') ? 2 : -1;
     case 'g':
-        return (strcmp(name, "graph") == 0) ? 3 : -1;
+        if (strcmp(name, "graph") == 0) return 3;
+        if (strcmp(name, "green") == 0) return 10;
+        if (strcmp(name, "group") == 0) return 16;
+        return -1;
     case 'a':
-        return (strcmp(name, "angle") == 0) ? 4 : -1;
+        if (strcmp(name, "angle") == 0) return 4;
+        if (strcmp(name, "alpha") == 0) return 12;
+        return -1;
     case 's':
-        return (strcmp(name, "size") == 0) ? 5 : -1;
+        if (strcmp(name, "size") == 0) return 5;
+        if (strcmp(name, "state") == 0) return 14;
+        if (strcmp(name, "speed") == 0) return 15;
+        return -1;
     case 'f':
-        if (strcmp(name, "flags") == 0)
-            return 6;
-        if (strcmp(name, "father") == 0)
-            return 8;
+        if (strcmp(name, "flags") == 0) return 6;
+        if (strcmp(name, "father") == 0) return 8;
         return -1;
     case 'i':
         return (strcmp(name, "id") == 0) ? 7 : -1;
+    case 'r':
+        return (strcmp(name, "red") == 0) ? 9 : -1;
+    case 'b':
+        return (strcmp(name, "blue") == 0) ? 11 : -1;
+    case 't':
+        return (strcmp(name, "tag") == 0) ? 13 : -1;
     }
+    // 'g' handles both "graph" and "green" and "group"
     return -1;
 }
 
@@ -130,6 +137,14 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
     proc->privates[6] = makeInt(68);    // flags
     proc->privates[7] = makeInt(-1);   // id
     proc->privates[8] = makeInt(-1);   // father
+    proc->privates[9] = makeInt(255);  // red
+    proc->privates[10] = makeInt(255); // green
+    proc->privates[11] = makeInt(255); // blue
+    proc->privates[12] = makeInt(255); // alpha
+    proc->privates[13] = makeInt(0);   // tag
+    proc->privates[14] = makeInt(0);   // state
+    proc->privates[15] = makeDouble(0); // speed
+    proc->privates[16] = makeInt(0);   // group
     proc->totalFibers = totalFibers;
 
     proc->fibers = (Fiber *)calloc(proc->totalFibers, sizeof(Fiber));
@@ -430,7 +445,8 @@ void Interpreter::run_process_step(Process *proc)
     if (result.reason == FiberResult::PROCESS_FRAME)
     {
         proc->state = FiberState::SUSPENDED;
-        proc->resumeTime = currentTime + (lastFrameTime * result.framePercent / 100.0f);
+        //proc->resumeTime = currentTime;
+        proc->resumeTime = currentTime + (lastFrameTime * (result.framePercent - 100) / 100.0f);
 
         // proc->frameCounter = result.framePercent / 100;
         if (!proc->initialized)

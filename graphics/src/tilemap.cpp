@@ -325,7 +325,7 @@ void Tilemap::render()
                 (float)tilewidth, (float)tileheight,
                 clip,
                 false, false,
-                WHITE,
+                tint,
                 0
             );
             //DrawTextureRec(atlas, clip, {screen_x, screen_y}, WHITE);
@@ -333,7 +333,8 @@ void Tilemap::render()
            
         }
     }
-  //  debug();
+    if (show_grids)        renderGrid();
+    if (show_ids)       debug();
 }
 
 void Tilemap::debug()
@@ -355,8 +356,8 @@ void Tilemap::debug()
             if (!t || t->id == 0) continue;
 
             Vector2 world = gridToWorld(gx, gy);
-            float screen_x = world.x - scroll_x;
-            float screen_y = world.y - scroll_y;
+            float screen_x = (world.x - scroll_x) + offset_x;
+            float screen_y = (world.y - scroll_y) + offset_y;
 
             DrawRectangleLines((int)screen_x, (int)screen_y,
                                tilewidth, tileheight, GRAY);
@@ -372,10 +373,10 @@ void Tilemap::renderGrid()
     int screen_h = gScene.height;
 
     for (int x = 0; x < screen_w; x += tilewidth)
-        DrawLine(x, 0, x, screen_h, {50, 50, 50, 200});
+        DrawLine(x + offset_x, 0 + offset_y, x + offset_x, screen_h + offset_y, {50, 50, 50, 200});
 
     for (int y = 0; y < screen_h; y += tileheight)
-        DrawLine(0, y, screen_w, y, {50, 50, 50, 200});
+        DrawLine(0 + offset_x, y + offset_y, screen_w + offset_x, y + offset_y, {50, 50, 50, 200});
 }
 
 bool Tilemap::save(const char* filename)
@@ -509,6 +510,23 @@ void SetTileMapMode(int layer, int mode)
     if (layer < 0 || layer >= MAX_LAYERS) return;
     if (!gScene.layers[layer].tilemap) return;
     gScene.layers[layer].tilemap->grid_type = (Tilemap::GridType)mode;
+}
+
+void SetTileMapColor(int layer, Color tint)
+{
+    if (layer < 0 || layer >= MAX_LAYERS) return;
+    if (!gScene.layers[layer].tilemap) return;
+    gScene.layers[layer].tilemap->tint = tint;
+}
+
+void SetTileMapDebug(int layer, bool grid, bool ids)
+{
+    if (layer < 0 || layer >= MAX_LAYERS) return;
+    if (!gScene.layers[layer].tilemap) return;
+    gScene.layers[layer].tilemap->show_grids = grid;
+    gScene.layers[layer].tilemap->show_ids = ids;
+  
+  
 }
 
 void SetTileMapIsoCompression(int layer, double compression)
