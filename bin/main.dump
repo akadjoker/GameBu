@@ -1,0 +1,960 @@
+========================================
+BULANG BYTECODE DUMP
+========================================
+
+========================================
+GLOBAL FUNCTIONS
+========================================
+
+
+>>> Function: player
+    Arity: 0
+    Has return: yes
+    Index: 3
+
+  Constants (66):
+    [0] = 3
+    [1] = 240
+    [2] = 200
+    [3] = "state"
+    [4] = "idle"
+    [5] = "image"
+    [6] = 0
+    [7] = "frames_idle"
+    [8] = 1
+    [9] = 2
+    [10] = 4
+    [11] = "frames_walk"
+    [12] = 6
+    [13] = 7
+    [14] = 8
+    [15] = 9
+    [16] = 10
+    [17] = "frames_jump"
+    [18] = 11
+    [19] = 12
+    [20] = 13
+    [21] = "current_frames"
+    [22] = "anim_timer"
+    [23] = "anim_speed"
+    [24] = 0.20
+    [25] = "camera_x"
+    [26] = "camera_y"
+    [27] = "level_width"
+    [28] = 24
+    [29] = 32
+    [30] = "level_height"
+    [31] = 124
+    [32] = 20
+    [33] = "velocity_y"
+    [34] = "gravity"
+    [35] = 800
+    [36] = "jump_force"
+    [37] = 650
+    [38] = "is_grounded"
+    [39] = "move_speed"
+    [40] = 150
+    [41] = "is_flipped"
+    [42] = "jump_count"
+    [43] = "delta_frame"
+    [44] = "move_x"
+    [45] = "new_y"
+    [46] = "step"
+    [47] = <module_reference 0 0 2>
+    [48] = "hit"
+    [49] = "b"
+    [50] = "x"
+    [51] = "jump"
+    [52] = 0.10
+    [53] = "walk"
+    [54] = 0.15
+    [55] = "lerp_speed"
+    [56] = 8.00
+    [57] = <module_reference 0 0 16>
+    [58] = 490
+    [59] = <module_reference 0 0 15>
+    [60] = 595
+    [61] = <module_reference 0 0 16>
+    [62] = 275
+    [63] = <module_reference 0 0 15>
+    [64] = 290
+    [65] = 100
+
+  Bytecode:
+    0000  110 OP_CONSTANT             0 '3'
+    0003    | OP_SET_PRIVATE          3
+    0005    | OP_POP              
+    0006  111 OP_CONSTANT             1 '240'
+    0009    | OP_SET_PRIVATE          0
+    0011    | OP_POP              
+    0012  112 OP_CONSTANT             2 '200'
+    0015    | OP_SET_PRIVATE          1
+    0017    | OP_POP              
+    0018  114 OP_CONSTANT             4 'idle'
+    0021  115 OP_CONSTANT             6 '0'
+    0024  116 OP_CONSTANT             8 '1'
+    0027    | OP_CONSTANT             9 '2'
+    0030    | OP_CONSTANT             0 '3'
+    0033    | OP_CONSTANT            10 '4'
+    0036    | OP_DEFINE_ARRAY         4
+    0039  117 OP_CONSTANT            12 '6'
+    0042    | OP_CONSTANT            13 '7'
+    0045    | OP_CONSTANT            14 '8'
+    0048    | OP_CONSTANT            15 '9'
+    0051    | OP_CONSTANT            16 '10'
+    0054    | OP_DEFINE_ARRAY         5
+    0057  118 OP_CONSTANT            18 '11'
+    0060    | OP_CONSTANT            19 '12'
+    0063    | OP_CONSTANT            20 '13'
+    0066    | OP_DEFINE_ARRAY         3
+    0069  119 OP_GET_LOCAL            2
+    0071  120 OP_CONSTANT             6 '0'
+    0074  121 OP_CONSTANT            24 '0.2000'
+    0077  123 OP_CONSTANT             6 '0'
+    0080  124 OP_CONSTANT             6 '0'
+    0083  125 OP_CONSTANT            28 '24'
+    0086    | OP_CONSTANT            29 '32'
+    0089    | OP_MULTIPLY         
+    0090  126 OP_CONSTANT            31 '124'
+    0093    | OP_CONSTANT            32 '20'
+    0096    | OP_MULTIPLY         
+    0097  129 OP_CONSTANT             6 '0'
+    0100  130 OP_CONSTANT            35 '800'
+    0103  131 OP_CONSTANT            37 '650'
+    0106    | OP_NEGATE           
+    0107  132 OP_FALSE            
+    0108  133 OP_CONSTANT            40 '150'
+    0111  134 OP_FALSE            
+    0112  135 OP_CONSTANT             6 '0'
+    0115  136 OP_GET_GLOBAL          67
+    0118    | OP_CONSTANT             6 '0'
+    0121    | OP_CONSTANT             6 '0'
+    0124    | OP_CONSTANT            32 '20'
+    0127    | OP_CONSTANT            29 '32'
+    0130    | OP_CALL                 4
+    0132    | OP_POP              
+    0133  140 OP_GET_GLOBAL          40
+    0136    | OP_CALL                 0
+    0138  143 OP_GET_LOCAL           12
+    0140    | OP_GET_LOCAL           13
+    0142    | OP_GET_LOCAL           19
+    0144    | OP_MULTIPLY         
+    0145    | OP_ADD              
+    0146    | OP_SET_LOCAL           12
+    0148    | OP_POP              
+    0149  146 OP_CONSTANT             6 '0'
+    0152  147 OP_GET_GLOBAL          46
+    0155    | OP_GET_GLOBAL         125
+    0158    | OP_CALL                 1
+    0160    | OP_JUMP_IF_FALSE      160 -> 187
+    0163    | OP_POP              
+    0164  149 OP_GET_LOCAL           16
+    0166    | OP_NEGATE           
+    0167    | OP_GET_LOCAL           19
+    0169    | OP_MULTIPLY         
+    0170    | OP_SET_LOCAL           20
+    0172    | OP_POP              
+    0173  150 OP_GET_GLOBAL          85
+    0176    | OP_TRUE             
+    0177    | OP_CALL                 1
+    0179    | OP_POP              
+    0180  151 OP_TRUE             
+    0181    | OP_SET_LOCAL           17
+    0183    | OP_POP              
+    0184  152 OP_JUMP               184 -> 223
+    0187    | OP_POP              
+    0188    | OP_GET_GLOBAL          46
+    0191    | OP_GET_GLOBAL         124
+    0194    | OP_CALL                 1
+    0196    | OP_JUMP_IF_FALSE      196 -> 222
+    0199    | OP_POP              
+    0200  154 OP_GET_LOCAL           16
+    0202    | OP_GET_LOCAL           19
+    0204    | OP_MULTIPLY         
+    0205    | OP_SET_LOCAL           20
+    0207    | OP_POP              
+    0208  155 OP_GET_GLOBAL          85
+    0211    | OP_FALSE            
+    0212    | OP_CALL                 1
+    0214    | OP_POP              
+    0215  156 OP_FALSE            
+    0216    | OP_SET_LOCAL           17
+    0218    | OP_POP              
+    0219  157 OP_JUMP               219 -> 223
+    0222    | OP_POP              
+    0223  160 OP_GET_LOCAL           20
+    0225    | OP_CONSTANT             6 '0'
+    0228    | OP_EQUAL            
+    0229    | OP_NOT              
+    0230    | OP_JUMP_IF_FALSE      230 -> 265
+    0233    | OP_POP              
+    0234  162 OP_GET_GLOBAL          78
+    0237    | OP_GET_PRIVATE          0
+    0239    | OP_GET_LOCAL           20
+    0241    | OP_ADD              
+    0242    | OP_GET_PRIVATE          1
+    0244    | OP_CALL                 2
+    0246    | OP_JUMP_IF_FALSE      246 -> 261
+    0249    | OP_POP              
+    0250  164 OP_GET_PRIVATE          0
+    0252    | OP_GET_LOCAL           20
+    0254    | OP_ADD              
+    0255    | OP_SET_PRIVATE          0
+    0257    | OP_POP              
+    0258  165 OP_JUMP               258 -> 262
+    0261    | OP_POP              
+    0262  166 OP_JUMP               262 -> 266
+    0265    | OP_POP              
+    0266  168 OP_GET_GLOBAL          78
+    0269    | OP_GET_PRIVATE          0
+    0271    | OP_GET_PRIVATE          1
+    0273    | OP_CONSTANT             8 '1'
+    0276    | OP_ADD              
+    0277    | OP_CALL                 2
+    0279    | OP_NOT              
+    0280    | OP_SET_LOCAL           15
+    0282    | OP_POP              
+    0283  170 OP_GET_LOCAL           15
+    0285    | OP_NOT              
+    0286    | OP_JUMP_IF_FALSE      286 -> 304
+    0289    | OP_POP              
+    0290  173 OP_GET_LOCAL           12
+    0292    | OP_GET_LOCAL           13
+    0294    | OP_GET_LOCAL           19
+    0296    | OP_MULTIPLY         
+    0297    | OP_ADD              
+    0298    | OP_SET_LOCAL           12
+    0300    | OP_POP              
+    0301  174 OP_JUMP               301 -> 317
+    0304    | OP_POP              
+    0305  177 OP_CONSTANT             6 '0'
+    0308    | OP_SET_LOCAL           12
+    0310    | OP_POP              
+    0311  178 OP_CONSTANT             6 '0'
+    0314    | OP_SET_LOCAL           18
+    0316    | OP_POP              
+    0317  181 OP_GET_GLOBAL          47
+    0320    | OP_GET_GLOBAL         128
+    0323    | OP_CALL                 1
+    0325    | OP_JUMP_IF_FALSE      325 -> 385
+    0328    | OP_POP              
+    0329  183 OP_GET_LOCAL           17
+    0331    | OP_JUMP_IF_FALSE      331 -> 360
+    0334    | OP_POP              
+    0335  185 OP_GET_GLOBAL         138
+    0338    | OP_GET_PRIVATE          0
+    0340    | OP_CONSTANT            32 '20'
+    0343    | OP_SUBTRACT         
+    0344    | OP_GET_PRIVATE          1
+    0346    | OP_CONSTANT             8 '1'
+    0349    | OP_SUBTRACT         
+    0350    | OP_CONSTANT            14 '8'
+    0353    | OP_NEGATE           
+    0354    | OP_CALL                 3
+    0356    | OP_POP              
+    0357  186 OP_JUMP               357 -> 382
+    0360    | OP_POP              
+    0361  188 OP_GET_GLOBAL         138
+    0364    | OP_GET_PRIVATE          0
+    0366    | OP_CONSTANT            32 '20'
+    0369    | OP_ADD              
+    0370    | OP_GET_PRIVATE          1
+    0372    | OP_CONSTANT             8 '1'
+    0375    | OP_SUBTRACT         
+    0376    | OP_CONSTANT            14 '8'
+    0379    | OP_CALL                 3
+    0381    | OP_POP              
+    0382  190 OP_JUMP               382 -> 386
+    0385    | OP_POP              
+    0386  193 OP_GET_GLOBAL          47
+    0389    | OP_GET_GLOBAL         127
+    0392    | OP_CALL                 1
+    0394    | OP_JUMP_IF_FALSE      394 -> 413
+    0397    | OP_POP              
+    0398    | OP_GET_LOCAL           15
+    0400    | OP_JUMP_IF_FALSE      400 -> 406
+    0403    | OP_JUMP               403 -> 413
+    0406    | OP_POP              
+    0407    | OP_GET_LOCAL           18
+    0409    | OP_CONSTANT             9 '2'
+    0412    | OP_LESS             
+    0413    | OP_JUMP_IF_FALSE      413 -> 434
+    0416    | OP_POP              
+    0417  195 OP_GET_LOCAL           14
+    0419    | OP_SET_LOCAL           12
+    0421    | OP_POP              
+    0422  196 OP_GET_LOCAL           18
+    0424    | OP_CONSTANT             8 '1'
+    0427    | OP_ADD              
+    0428    | OP_SET_LOCAL           18
+    0430    | OP_POP              
+    0431  197 OP_JUMP               431 -> 435
+    0434    | OP_POP              
+    0435  200 OP_GET_PRIVATE          1
+    0437    | OP_GET_LOCAL           12
+    0439    | OP_GET_LOCAL           19
+    0441    | OP_MULTIPLY         
+    0442    | OP_ADD              
+    0443  202 OP_GET_LOCAL           12
+    0445    | OP_CONSTANT             6 '0'
+    0448    | OP_EQUAL            
+    0449    | OP_NOT              
+    0450    | OP_JUMP_IF_FALSE      450 -> 533
+    0453    | OP_POP              
+    0454  204 OP_GET_PRIVATE          1
+    0456    | OP_GET_LOCAL           12
+    0458    | OP_GET_LOCAL           19
+    0460    | OP_MULTIPLY         
+    0461    | OP_ADD              
+    0462  206 OP_GET_GLOBAL          78
+    0465    | OP_GET_PRIVATE          0
+    0467    | OP_GET_LOCAL           22
+    0469    | OP_CALL                 2
+    0471    | OP_JUMP_IF_FALSE      471 -> 483
+    0474    | OP_POP              
+    0475  208 OP_GET_LOCAL           22
+    0477    | OP_SET_PRIVATE          1
+    0479    | OP_POP              
+    0480  209 OP_JUMP               480 -> 529
+    0483    | OP_POP              
+    0484  211 OP_CONSTANT            47 '<module_reference 0 0 2>'
+    0487    | OP_GET_LOCAL           12
+    0489    | OP_CALL                 1
+    0491  213 OP_GET_GLOBAL          78
+    0494    | OP_GET_PRIVATE          0
+    0496    | OP_GET_PRIVATE          1
+    0498    | OP_CONSTANT             8 '1'
+    0501    | OP_ADD              
+    0502    | OP_CALL                 2
+    0504    | OP_NOT              
+    0505    | OP_JUMP_IF_FALSE      505 -> 521
+    0508    | OP_POP              
+    0509  215 OP_GET_PRIVATE          1
+    0511    | OP_CONSTANT             8 '1'
+    0514    | OP_SUBTRACT         
+    0515    | OP_SET_PRIVATE          1
+    0517    | OP_POP              
+    0518  216 OP_LOOP               518 -> 491
+    0521    | OP_POP              
+    0522  217 OP_CONSTANT             6 '0'
+    0525    | OP_SET_LOCAL           12
+    0527    | OP_POP              
+    0528  218 OP_POP              
+    0529  219 OP_POP              
+    0530    | OP_JUMP               530 -> 534
+    0533    | OP_POP              
+    0534  222 OP_GET_LOCAL           15
+    0536    | OP_JUMP_IF_FALSE      536 -> 594
+    0539    | OP_POP              
+    0540  224 OP_GET_GLOBAL          79
+    0543    | OP_GET_PRIVATE          0
+    0545    | OP_GET_LOCAL           20
+    0547    | OP_ADD              
+    0548    | OP_GET_PRIVATE          1
+    0550    | OP_CALL                 2
+    0552  225 OP_GET_LOCAL           22
+    0554    | OP_CONSTANT             8 '1'
+    0557    | OP_NEGATE           
+    0558    | OP_EQUAL            
+    0559    | OP_NOT              
+    0560    | OP_JUMP_IF_FALSE      560 -> 589
+    0563    | OP_POP              
+    0564  230 OP_GET_GLOBAL          17
+    0567    | OP_GET_LOCAL           22
+    0569    | OP_CALL                 1
+    0571  232 OP_GET_LOCAL           23
+    0573    | OP_GET_LOCAL           23
+    0575    | OP_GET_PROPERTY        50 'x'
+    0578    | OP_GET_LOCAL           20
+    0580    | OP_ADD              
+    0581    | OP_SET_PROPERTY        50 'x'
+    0584    | OP_POP              
+    0585  233 OP_POP              
+    0586    | OP_JUMP               586 -> 590
+    0589    | OP_POP              
+    0590  235 OP_POP              
+    0591    | OP_JUMP               591 -> 595
+    0594    | OP_POP              
+    0595  239 OP_GET_LOCAL           15
+    0597    | OP_NOT              
+    0598    | OP_JUMP_IF_FALSE      598 -> 622
+    0601    | OP_POP              
+    0602  241 OP_CONSTANT            51 'jump'
+    0605    | OP_SET_LOCAL            0
+    0607    | OP_POP              
+    0608  242 OP_GET_LOCAL            4
+    0610    | OP_SET_LOCAL            5
+    0612    | OP_POP              
+    0613  243 OP_CONSTANT            52 '0.1000'
+    0616    | OP_SET_LOCAL            7
+    0618    | OP_POP              
+    0619  244 OP_JUMP               619 -> 672
+    0622    | OP_POP              
+    0623    | OP_GET_LOCAL           20
+    0625    | OP_CONSTANT             6 '0'
+    0628    | OP_EQUAL            
+    0629    | OP_NOT              
+    0630    | OP_JUMP_IF_FALSE      630 -> 654
+    0633    | OP_POP              
+    0634  246 OP_CONSTANT            53 'walk'
+    0637    | OP_SET_LOCAL            0
+    0639    | OP_POP              
+    0640  247 OP_GET_LOCAL            3
+    0642    | OP_SET_LOCAL            5
+    0644    | OP_POP              
+    0645  248 OP_CONSTANT            54 '0.1500'
+    0648    | OP_SET_LOCAL            7
+    0650    | OP_POP              
+    0651  249 OP_JUMP               651 -> 672
+    0654    | OP_POP              
+    0655  251 OP_CONSTANT             4 'idle'
+    0658    | OP_SET_LOCAL            0
+    0660    | OP_POP              
+    0661  252 OP_GET_LOCAL            2
+    0663    | OP_SET_LOCAL            5
+    0665    | OP_POP              
+    0666  253 OP_CONSTANT            24 '0.2000'
+    0669    | OP_SET_LOCAL            7
+    0671    | OP_POP              
+    0672  257 OP_GET_LOCAL            6
+    0674    | OP_GET_LOCAL           19
+    0676    | OP_ADD              
+    0677    | OP_SET_LOCAL            6
+    0679    | OP_POP              
+    0680  258 OP_GET_LOCAL            6
+    0682    | OP_GET_LOCAL            7
+    0684    | OP_LESS             
+    0685    | OP_NOT              
+    0686    | OP_JUMP_IF_FALSE      686 -> 722
+    0689    | OP_POP              
+    0690  260 OP_GET_LOCAL            6
+    0692    | OP_GET_LOCAL            7
+    0694    | OP_SUBTRACT         
+    0695    | OP_SET_LOCAL            6
+    0697    | OP_POP              
+    0698  261 OP_GET_LOCAL            1
+    0700    | OP_CONSTANT             8 '1'
+    0703    | OP_ADD              
+    0704    | OP_GET_LOCAL            5
+    0706    | OP_FUNC_LEN         
+    0707    | OP_MODULO           
+    0708    | OP_SET_LOCAL            1
+    0710    | OP_POP              
+    0711  262 OP_GET_LOCAL            5
+    0713    | OP_GET_LOCAL            1
+    0715    | OP_GET_INDEX        
+    0716    | OP_SET_PRIVATE          3
+    0718    | OP_POP              
+    0719  263 OP_JUMP               719 -> 723
+    0722    | OP_POP              
+    0723  266 OP_CONSTANT            56 '8.0000'
+    0726  267 OP_GET_LOCAL            8
+    0728    | OP_GET_PRIVATE          0
+    0730    | OP_GET_LOCAL            8
+    0732    | OP_SUBTRACT         
+    0733    | OP_GET_LOCAL           22
+    0735    | OP_MULTIPLY         
+    0736    | OP_GET_LOCAL           19
+    0738    | OP_MULTIPLY         
+    0739    | OP_ADD              
+    0740    | OP_SET_LOCAL            8
+    0742    | OP_POP              
+    0743  268 OP_GET_LOCAL            9
+    0745    | OP_GET_PRIVATE          1
+    0747    | OP_GET_LOCAL            9
+    0749    | OP_SUBTRACT         
+    0750    | OP_GET_LOCAL           22
+    0752    | OP_MULTIPLY         
+    0753    | OP_GET_LOCAL           19
+    0755    | OP_MULTIPLY         
+    0756    | OP_ADD              
+    0757    | OP_SET_LOCAL            9
+    0759    | OP_POP              
+    0760  270 OP_CONSTANT            57 '<module_reference 0 0 16>'
+    0763    | OP_CONSTANT            58 '490'
+    0766    | OP_CONSTANT            59 '<module_reference 0 0 15>'
+    0769    | OP_CONSTANT            60 '595'
+    0772    | OP_GET_LOCAL            8
+    0774    | OP_CALL                 2
+    0776    | OP_CALL                 2
+    0778    | OP_SET_LOCAL            8
+    0780    | OP_POP              
+    0781  271 OP_CONSTANT            61 '<module_reference 0 0 16>'
+    0784    | OP_CONSTANT            62 '275'
+    0787    | OP_CONSTANT            63 '<module_reference 0 0 15>'
+    0790    | OP_CONSTANT            64 '290'
+    0793    | OP_GET_LOCAL            9
+    0795    | OP_CALL                 2
+    0797    | OP_CALL                 2
+    0799    | OP_SET_LOCAL            9
+    0801    | OP_POP              
+    0802  273 OP_GET_GLOBAL         121
+    0805    | OP_GET_LOCAL            8
+    0807    | OP_GET_LOCAL            9
+    0809    | OP_CALL                 2
+    0811    | OP_POP              
+    0812  275 OP_CONSTANT            65 '100'
+    0815    | OP_FRAME            
+    0816  276 OP_POP              
+    0817    | OP_POP              
+    0818    | OP_POP              
+    0819    | OP_POP              
+    0820    | OP_LOOP               820 -> 133
+    0823  277 OP_POP              
+    0824    | OP_POP              
+    0825    | OP_POP              
+    0826    | OP_POP              
+    0827    | OP_POP              
+    0828    | OP_POP              
+    0829    | OP_POP              
+    0830    | OP_POP              
+    0831    | OP_POP              
+    0832    | OP_POP              
+    0833    | OP_POP              
+    0834    | OP_POP              
+    0835    | OP_POP              
+    0836    | OP_POP              
+    0837    | OP_POP              
+    0838    | OP_POP              
+    0839    | OP_POP              
+    0840    | OP_POP              
+    0841    | OP_POP              
+    0842    | OP_NIL              
+    0843    | OP_RETURN           
+
+
+>>> Function: box
+    Arity: 2
+    Has return: yes
+    Index: 1
+
+  Constants (15):
+    [0] = 19
+    [1] = 0
+    [2] = 16
+    [3] = 200
+    [4] = "pushable"
+    [5] = "velocity_y"
+    [6] = "gravity"
+    [7] = 800
+    [8] = "delta_frame"
+    [9] = "is_grounded"
+    [10] = 1
+    [11] = "new_y"
+    [12] = "step"
+    [13] = <module_reference 0 0 2>
+    [14] = 100
+
+  Bytecode:
+    0000   23 OP_CONSTANT             0 '19'
+    0003    | OP_SET_PRIVATE          3
+    0005    | OP_POP              
+    0006   24 OP_GET_LOCAL            0
+    0008    | OP_SET_PRIVATE          0
+    0010    | OP_POP              
+    0011   25 OP_GET_LOCAL            1
+    0013    | OP_SET_PRIVATE          1
+    0015    | OP_POP              
+    0016   26 OP_GET_GLOBAL          67
+    0019    | OP_CONSTANT             1 '0'
+    0022    | OP_CONSTANT             1 '0'
+    0025    | OP_CONSTANT             2 '16'
+    0028    | OP_CONSTANT             2 '16'
+    0031    | OP_CALL                 4
+    0033    | OP_POP              
+    0034   27 OP_CONSTANT             3 '200'
+    0037    | OP_SET_PRIVATE          5
+    0039    | OP_POP              
+    0040   29 OP_TRUE             
+    0041   30 OP_CONSTANT             1 '0'
+    0044   31 OP_CONSTANT             7 '800'
+    0047   35 OP_GET_GLOBAL          40
+    0050    | OP_CALL                 0
+    0052   38 OP_GET_GLOBAL          78
+    0055    | OP_GET_PRIVATE          0
+    0057    | OP_GET_PRIVATE          1
+    0059    | OP_CONSTANT            10 '1'
+    0062    | OP_ADD              
+    0063    | OP_CALL                 2
+    0065    | OP_NOT              
+    0066   40 OP_GET_LOCAL            6
+    0068    | OP_NOT              
+    0069    | OP_JUMP_IF_FALSE       69 -> 87
+    0072    | OP_POP              
+    0073   42 OP_GET_LOCAL            3
+    0075    | OP_GET_LOCAL            4
+    0077    | OP_GET_LOCAL            5
+    0079    | OP_MULTIPLY         
+    0080    | OP_ADD              
+    0081    | OP_SET_LOCAL            3
+    0083    | OP_POP              
+    0084   43 OP_JUMP                84 -> 94
+    0087    | OP_POP              
+    0088   46 OP_CONSTANT             1 '0'
+    0091    | OP_SET_LOCAL            3
+    0093    | OP_POP              
+    0094   50 OP_GET_LOCAL            3
+    0096    | OP_CONSTANT             1 '0'
+    0099    | OP_EQUAL            
+    0100    | OP_NOT              
+    0101    | OP_JUMP_IF_FALSE      101 -> 179
+    0104    | OP_POP              
+    0105   52 OP_GET_PRIVATE          1
+    0107    | OP_GET_LOCAL            3
+    0109    | OP_GET_LOCAL            5
+    0111    | OP_MULTIPLY         
+    0112    | OP_ADD              
+    0113   54 OP_GET_GLOBAL          78
+    0116    | OP_GET_PRIVATE          0
+    0118    | OP_GET_LOCAL            7
+    0120    | OP_CALL                 2
+    0122    | OP_JUMP_IF_FALSE      122 -> 134
+    0125    | OP_POP              
+    0126   56 OP_GET_LOCAL            7
+    0128    | OP_SET_PRIVATE          1
+    0130    | OP_POP              
+    0131   57 OP_JUMP               131 -> 175
+    0134    | OP_POP              
+    0135   61 OP_CONSTANT            13 '<module_reference 0 0 2>'
+    0138    | OP_GET_LOCAL            3
+    0140    | OP_CALL                 1
+    0142   62 OP_GET_GLOBAL          78
+    0145    | OP_GET_PRIVATE          0
+    0147    | OP_GET_PRIVATE          1
+    0149    | OP_CALL                 2
+    0151    | OP_NOT              
+    0152    | OP_JUMP_IF_FALSE      152 -> 167
+    0155    | OP_POP              
+    0156   64 OP_GET_PRIVATE          1
+    0158    | OP_GET_LOCAL            8
+    0160    | OP_SUBTRACT         
+    0161    | OP_SET_PRIVATE          1
+    0163    | OP_POP              
+    0164   65 OP_LOOP               164 -> 142
+    0167    | OP_POP              
+    0168   66 OP_CONSTANT             1 '0'
+    0171    | OP_SET_LOCAL            3
+    0173    | OP_POP              
+    0174   67 OP_POP              
+    0175   68 OP_POP              
+    0176    | OP_JUMP               176 -> 180
+    0179    | OP_POP              
+    0180   70 OP_CONSTANT            14 '100'
+    0183    | OP_FRAME            
+    0184   71 OP_POP              
+    0185    | OP_POP              
+    0186    | OP_LOOP               186 -> 47
+    0189   72 OP_POP              
+    0190    | OP_POP              
+    0191    | OP_POP              
+    0192    | OP_POP              
+    0193    | OP_POP              
+    0194    | OP_NIL              
+    0195    | OP_RETURN           
+
+
+>>> Function: __main__
+    Arity: 0
+    Has return: no
+    Index: 0
+
+  Constants (31):
+    [0] = "Load Main"
+    [1] = 262
+    [2] = 263
+    [3] = 264
+    [4] = 265
+    [5] = 32
+    [6] = 256
+    [7] = 800
+    [8] = 600
+    [9] = 255
+    [10] = 0
+    [11] = <value type 25>
+    [12] = <value type 25>
+    [13] = <value type 25>
+    [14] = "Bu Game - Ship Example"
+    [15] = "assets/Gunner_Red_Idle.png"
+    [16] = 5
+    [17] = 1
+    [18] = "assets/Gunner_Red_Run.png"
+    [19] = 6
+    [20] = "assets/Gunner_Red_Jump.png"
+    [21] = 2
+    [22] = "assets/Gunner_Red_Crouch.png"
+    [23] = 3
+    [24] = "assets/props_16x16.png"
+    [25] = 4
+    [26] = "assets/texture.png"
+    [27] = "Atlas index: "
+    [28] = 1.30
+    [29] = "assets/shooter.tmx"
+    [30] = 240
+
+  Bytecode:
+    0000    1 OP_CONSTANT             0 'Load Main'
+    0003    | OP_PRINT                1
+    0005    4 OP_CONSTANT             1 '262'
+    0008    | OP_DEFINE_GLOBAL      124
+    0011    5 OP_CONSTANT             2 '263'
+    0014    | OP_DEFINE_GLOBAL      125
+    0017    6 OP_CONSTANT             3 '264'
+    0020    | OP_DEFINE_GLOBAL      126
+    0023    7 OP_CONSTANT             4 '265'
+    0026    | OP_DEFINE_GLOBAL      127
+    0029    8 OP_CONSTANT             5 '32'
+    0032    | OP_DEFINE_GLOBAL      128
+    0035    9 OP_CONSTANT             6 '256'
+    0038    | OP_DEFINE_GLOBAL      129
+    0041   11 OP_CONSTANT             7 '800'
+    0044    | OP_DEFINE_GLOBAL      130
+    0047   12 OP_CONSTANT             8 '600'
+    0050    | OP_DEFINE_GLOBAL      131
+    0053   14 OP_GET_GLOBAL          98
+    0056    | OP_CONSTANT             9 '255'
+    0059    | OP_CONSTANT             9 '255'
+    0062    | OP_CONSTANT             9 '255'
+    0065    | OP_CONSTANT             9 '255'
+    0068    | OP_CALL                 4
+    0070    | OP_DEFINE_GLOBAL      132
+    0073   15 OP_GET_GLOBAL          98
+    0076    | OP_CONSTANT             9 '255'
+    0079    | OP_CONSTANT            10 '0'
+    0082    | OP_CONSTANT            10 '0'
+    0085    | OP_CONSTANT             9 '255'
+    0088    | OP_CALL                 4
+    0090    | OP_DEFINE_GLOBAL      133
+    0093   16 OP_GET_GLOBAL          98
+    0096    | OP_CONSTANT            10 '0'
+    0099    | OP_CONSTANT             9 '255'
+    0102    | OP_CONSTANT            10 '0'
+    0105    | OP_CONSTANT             9 '255'
+    0108    | OP_CALL                 4
+    0110    | OP_DEFINE_GLOBAL      134
+    0113   17 OP_GET_GLOBAL          98
+    0116    | OP_CONSTANT            10 '0'
+    0119    | OP_CONSTANT            10 '0'
+    0122    | OP_CONSTANT             9 '255'
+    0125    | OP_CONSTANT             9 '255'
+    0128    | OP_CALL                 4
+    0130    | OP_DEFINE_GLOBAL      135
+    0133   18 OP_GET_GLOBAL          98
+    0136    | OP_CONSTANT            10 '0'
+    0139    | OP_CONSTANT            10 '0'
+    0142    | OP_CONSTANT            10 '0'
+    0145    | OP_CONSTANT             9 '255'
+    0148    | OP_CALL                 4
+    0150    | OP_DEFINE_GLOBAL      136
+    0153   72 OP_CONSTANT            11 '<process>'
+    0156    | OP_DEFINE_GLOBAL      137
+    0159  106 OP_CONSTANT            12 '<process>'
+    0162    | OP_DEFINE_GLOBAL      138
+    0165  277 OP_CONSTANT            13 '<process>'
+    0168    | OP_DEFINE_GLOBAL      139
+    0171  281 OP_GET_GLOBAL         115
+    0174    | OP_GET_GLOBAL         130
+    0177    | OP_GET_GLOBAL         131
+    0180    | OP_CALL                 2
+    0182    | OP_POP              
+    0183  282 OP_GET_GLOBAL         116
+    0186    | OP_CONSTANT            14 'Bu Game - Ship Example'
+    0189    | OP_CALL                 1
+    0191    | OP_POP              
+    0192  283 OP_GET_GLOBAL          15
+    0195    | OP_CONSTANT            10 '0'
+    0198    | OP_CONSTANT            10 '0'
+    0201    | OP_GET_GLOBAL         130
+    0204    | OP_GET_GLOBAL         131
+    0207    | OP_CALL                 4
+    0209    | OP_POP              
+    0210  285 OP_GET_GLOBAL          91
+    0213    | OP_CONSTANT            10 '0'
+    0216    | OP_CONSTANT            10 '0'
+    0219    | OP_CONSTANT            10 '0'
+    0222    | OP_CALL                 3
+    0224    | OP_POP              
+    0225  287 OP_GET_GLOBAL          10
+    0228    | OP_CONSTANT            15 'assets/Gunner_Red_Idle.png'
+    0231    | OP_CONSTANT            16 '5'
+    0234    | OP_CONSTANT            17 '1'
+    0237    | OP_CALL                 3
+    0239    | OP_POP              
+    0240  288 OP_GET_GLOBAL          10
+    0243    | OP_CONSTANT            18 'assets/Gunner_Red_Run.png'
+    0246    | OP_CONSTANT            19 '6'
+    0249    | OP_CONSTANT            17 '1'
+    0252    | OP_CALL                 3
+    0254    | OP_POP              
+    0255  289 OP_GET_GLOBAL          10
+    0258    | OP_CONSTANT            20 'assets/Gunner_Red_Jump.png'
+    0261    | OP_CONSTANT            21 '2'
+    0264    | OP_CONSTANT            17 '1'
+    0267    | OP_CALL                 3
+    0269    | OP_POP              
+    0270  290 OP_GET_GLOBAL          10
+    0273    | OP_CONSTANT            22 'assets/Gunner_Red_Crouch.png'
+    0276    | OP_CONSTANT            23 '3'
+    0279    | OP_CONSTANT            17 '1'
+    0282    | OP_CALL                 3
+    0284    | OP_POP              
+    0285  291 OP_GET_GLOBAL          10
+    0288    | OP_CONSTANT            24 'assets/props_16x16.png'
+    0291    | OP_CONSTANT            25 '4'
+    0294    | OP_CONSTANT            17 '1'
+    0297    | OP_CALL                 3
+    0299    | OP_DEFINE_GLOBAL      140
+    0302  292 OP_GET_GLOBAL           9
+    0305    | OP_CONSTANT            26 'assets/texture.png'
+    0308    | OP_CALL                 1
+    0310    | OP_POP              
+    0311  294 OP_CONSTANT            27 'Atlas index: '
+    0314    | OP_GET_GLOBAL         140
+    0317    | OP_ADD              
+    0318    | OP_PRINT                1
+    0320  296 OP_GET_GLOBAL         119
+    0323    | OP_CONSTANT            28 '1.3000'
+    0326    | OP_CALL                 1
+    0328    | OP_POP              
+    0329  301 OP_GET_GLOBAL          39
+    0332    | OP_CONSTANT            29 'assets/shooter.tmx'
+    0335    | OP_CALL                 1
+    0337    | OP_POP              
+    0338  302 OP_GET_GLOBAL          32
+    0341    | OP_CONSTANT            10 '0'
+    0344    | OP_CONSTANT            19 '6'
+    0347    | OP_CALL                 2
+    0349    | OP_POP              
+    0350  303 OP_GET_GLOBAL          32
+    0353    | OP_CONSTANT            10 '0'
+    0356    | OP_CONSTANT            10 '0'
+    0359    | OP_CALL                 2
+    0361    | OP_POP              
+    0362  306 OP_GET_GLOBAL         137
+    0365    | OP_CONSTANT            30 '240'
+    0368    | OP_CONSTANT            30 '240'
+    0371    | OP_CALL                 2
+    0373    | OP_POP              
+    0374  307 OP_GET_GLOBAL         139
+    0377    | OP_CALL                 0
+    0379    | OP_POP              
+    0380  308 OP_NIL              
+    0381    | OP_RETURN           
+
+
+>>> Function: bullet
+    Arity: 3
+    Has return: yes
+    Index: 2
+
+  Constants (11):
+    [0] = 18
+    [1] = 4
+    [2] = 2
+    [3] = 6
+    [4] = 0
+    [5] = "speed"
+    [6] = 10
+    [7] = 20
+    [8] = 20.00
+    [9] = 0.50
+    [10] = 100
+
+  Bytecode:
+    0000   76 OP_CONSTANT             0 '18'
+    0003    | OP_SET_PRIVATE          3
+    0005    | OP_POP              
+    0006   77 OP_GET_LOCAL            0
+    0008    | OP_SET_PRIVATE          0
+    0010    | OP_POP              
+    0011   78 OP_GET_LOCAL            1
+    0013    | OP_SET_PRIVATE          1
+    0015    | OP_POP              
+    0016   79 OP_GET_GLOBAL          67
+    0019    | OP_CONSTANT             1 '4'
+    0022    | OP_NEGATE           
+    0023    | OP_CONSTANT             2 '2'
+    0026    | OP_NEGATE           
+    0027    | OP_CONSTANT             3 '6'
+    0030    | OP_CONSTANT             1 '4'
+    0033    | OP_CALL                 4
+    0035    | OP_POP              
+    0036   81 OP_GET_LOCAL            2
+    0038    | OP_CONSTANT             4 '0'
+    0041    | OP_GREATER          
+    0042    | OP_JUMP_IF_FALSE       42 -> 56
+    0045    | OP_POP              
+    0046   83 OP_GET_GLOBAL          85
+    0049    | OP_FALSE            
+    0050    | OP_CALL                 1
+    0052    | OP_POP              
+    0053   84 OP_JUMP                53 -> 64
+    0056    | OP_POP              
+    0057   86 OP_GET_GLOBAL          85
+    0060    | OP_TRUE             
+    0061    | OP_CALL                 1
+    0063    | OP_POP              
+    0064   88 OP_GET_LOCAL            2
+    0066   91 OP_GET_GLOBAL          63
+    0069    | OP_GET_LOCAL            3
+    0071    | OP_CALL                 1
+    0073    | OP_POP              
+    0074   93 OP_GET_GLOBAL          78
+    0077    | OP_GET_PRIVATE          0
+    0079    | OP_GET_LOCAL            2
+    0081    | OP_ADD              
+    0082    | OP_GET_PRIVATE          1
+    0084    | OP_CALL                 2
+    0086    | OP_NOT              
+    0087    | OP_JUMP_IF_FALSE       87 -> 159
+    0090    | OP_POP              
+    0091   95 OP_GET_LOCAL            2
+    0093    | OP_CONSTANT             4 '0'
+    0096    | OP_GREATER          
+    0097    | OP_JUMP_IF_FALSE       97 -> 128
+    0100    | OP_POP              
+    0101   97 OP_GET_GLOBAL         106
+    0104    | OP_GET_PRIVATE          0
+    0106    | OP_CONSTANT             6 '10'
+    0109    | OP_ADD              
+    0110    | OP_GET_PRIVATE          1
+    0112    | OP_CONSTANT             7 '20'
+    0115    | OP_TRUE             
+    0116    | OP_CONSTANT             8 '20.0000'
+    0119    | OP_CONSTANT             9 '0.5000'
+    0122    | OP_CALL                 6
+    0124    | OP_POP              
+    0125   98 OP_JUMP               125 -> 153
+    0128    | OP_POP              
+    0129  100 OP_GET_GLOBAL         106
+    0132    | OP_GET_PRIVATE          0
+    0134    | OP_CONSTANT             6 '10'
+    0137    | OP_SUBTRACT         
+    0138    | OP_GET_PRIVATE          1
+    0140    | OP_CONSTANT             7 '20'
+    0143    | OP_FALSE            
+    0144    | OP_CONSTANT             8 '20.0000'
+    0147    | OP_CONSTANT             9 '0.5000'
+    0150    | OP_CALL                 6
+    0152    | OP_POP              
+    0153  102 OP_JUMP               153 -> 167
+    0156  103 OP_JUMP               156 -> 160
+    0159    | OP_POP              
+    0160  104 OP_CONSTANT            10 '100'
+    0163    | OP_FRAME            
+    0164  105 OP_LOOP               164 -> 66
+    0167  106 OP_POP              
+    0168    | OP_POP              
+    0169    | OP_POP              
+    0170    | OP_POP              
+    0171    | OP_NIL              
+    0172    | OP_RETURN           
+
+
+========================================
+CLASSES
+========================================
+
+
+========================================
+END OF DUMP
+========================================
