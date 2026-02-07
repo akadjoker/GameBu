@@ -9,12 +9,27 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstring>
+#include <cmath>
 #include <raylib.h>
 
 extern Scene gScene;
 extern ParticleSystem gParticleSystem;
 
 Camera2D camera = {0};
+
+struct CameraShakeState
+{
+    bool active = false;
+    float amplitudeX = 0.0f;
+    float amplitudeY = 0.0f;
+    float cycles = 0.0f;
+    float omega = 0.0f;
+    float cyclesLeft = 0.0f;
+};
+
+static CameraShakeState gCameraShake;
+static Vector2 gCameraBaseOffset = {0.0f, 0.0f};
+static Vector2 gCameraShakeOffset = {0.0f, 0.0f};
 
 struct FileLoaderContext
 {
@@ -92,6 +107,7 @@ std::string WINDOW_TITLE = "BuGameEngine";
 
 bool FULLSCREEN = false;
 bool CAN_RESIZE = true;
+bool CAN_CLOSE = false;
 Color BACKGROUND_COLOR = BLACK;
 
 // ============================================================
@@ -145,6 +161,15 @@ int native_set_fullscreen(Interpreter *vm, int argCount, Value *args)
 
     FULLSCREEN = args[0].asBool();
 
+    return 0;
+}
+
+int native_close_window(Interpreter *vm, int argCount, Value *args)
+{
+    (void)vm;
+    (void)argCount;
+    (void)args;
+    CAN_CLOSE = true;
     return 0;
 }
 
@@ -245,9 +270,107 @@ int native_set_camera_offset(Interpreter *vm, int argCount, Value *args)
         return 0;
     }
 
-    camera.offset.x = (float)args[0].asNumber();
-    camera.offset.y = (float)args[1].asNumber();
+    gCameraBaseOffset.x = (float)args[0].asNumber();
+    gCameraBaseOffset.y = (float)args[1].asNumber();
+    camera.offset.x = gCameraBaseOffset.x + gCameraShakeOffset.x;
+    camera.offset.y = gCameraBaseOffset.y + gCameraShakeOffset.y;
     return 0;
+}
+
+int native_start_camera_shake(Interpreter *vm, int argCount, Value *args)
+{
+    if (argCount != 4)
+    {
+        Error("start_camera_shake expects 4 number arguments (xDelta, yDelta, frequency, duration)");
+        return 0;
+    }
+    if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
+    {
+        Error("start_camera_shake expects 4 number arguments (xDelta, yDelta, frequency, duration)");
+        return 0;
+    }
+
+    float xDelta = (float)args[0].asNumber();
+    float yDelta = (float)args[1].asNumber();
+    float frequency = (float)args[2].asNumber();
+    float durationCycles = (float)args[3].asNumber();
+
+    if (frequency <= 0.0f || durationCycles <= 0.0f)
+    {
+        gCameraShake.active = false;
+        gCameraShakeOffset = {0.0f, 0.0f};
+        camera.offset.x = gCameraBaseOffset.x;
+        camera.offset.y = gCameraBaseOffset.y;
+        return 0;
+    }
+
+    gCameraShake.active = true;
+    gCameraShake.amplitudeX = xDelta;
+    gCameraShake.amplitudeY = yDelta;
+    gCameraShake.cycles = durationCycles;
+    gCameraShake.omega = frequency * 2.0f * PI;
+    gCameraShake.cyclesLeft = durationCycles;
+
+    return 0;
+}
+
+int native_stop_camera_shake(Interpreter *vm, int argCount, Value *args)
+{
+    (void)vm;
+    (void)args;
+    if (argCount != 0)
+    {
+        Error("stop_camera_shake expects no arguments");
+        return 0;
+    }
+
+    gCameraShake.active = false;
+    gCameraShake.cyclesLeft = 0.0f;
+    gCameraShakeOffset = {0.0f, 0.0f};
+    camera.offset.x = gCameraBaseOffset.x;
+    camera.offset.y = gCameraBaseOffset.y;
+    return 0;
+}
+
+
+static void updateCameraShake(float dt)
+{
+    (void)dt;
+    if (!gCameraShake.active)
+    {
+        gCameraShakeOffset = {0.0f, 0.0f};
+        camera.offset.x = gCameraBaseOffset.x;
+        camera.offset.y = gCameraBaseOffset.y;
+        return;
+    }
+
+    // Damped simple harmonic shake motion:
+    // v = (frac^2) * cos((1-frac) * omega), com sinal aleatorio por eixo.
+    gCameraShake.cyclesLeft -= 1.0f;
+
+    float shakeX = 0.0f;
+    float shakeY = 0.0f;
+
+    if (gCameraShake.cyclesLeft > 0.0f && gCameraShake.cycles > 0.0f)
+    {
+        float frac = gCameraShake.cyclesLeft / gCameraShake.cycles;
+        float v = frac * frac * cosf((1.0f - frac) * gCameraShake.omega);
+
+        float signX = (GetRandomValue(0, 1) == 0) ? -1.0f : 1.0f;
+        float signY = (GetRandomValue(0, 1) == 0) ? -1.0f : 1.0f;
+
+        shakeX = gCameraShake.amplitudeX * signX * v;
+        shakeY = gCameraShake.amplitudeY * signY * v;
+    }
+    else
+    {
+        gCameraShake.active = false;
+    }
+
+    gCameraShakeOffset.x = shakeX;
+    gCameraShakeOffset.y = shakeY;
+    camera.offset.x = gCameraBaseOffset.x + gCameraShakeOffset.x;
+    camera.offset.y = gCameraBaseOffset.y + gCameraShakeOffset.y;
 }
 
 void FreeResources()
@@ -326,6 +449,7 @@ void onStart(Interpreter *vm,Process *proc)
     entity->color.g = (uint8)(green * 255.0);
     entity->color.b = (uint8)(blue * 255.0);
     entity->color.a = (uint8)(alpha * 255.0);
+    entity->flags = B_VISIBLE | B_COLLISION;
     
     entity->ready= true;
     
@@ -430,16 +554,20 @@ int main(int argc, char *argv[])
     vm.setHooks(hooks);
 
     Bindings::registerAll(vm);
+    BindingsEase::registerAll(vm);
 
     vm.registerNative("set_window_size", native_set_window_size, 2);
     vm.registerNative("set_window_title", native_set_window_title, 1);
     vm.registerNative("set_fullscreen", native_set_fullscreen, 1);
     vm.registerNative("set_window_resizable", native_set_window_resizable, 1);
+    vm.registerNative("close_window", native_close_window, 0);
 
     vm.registerNative("set_camera_zoom", native_set_camera_zoom, 1);
     vm.registerNative("set_camera_rotation", native_set_camera_rotation, 1);
     vm.registerNative("set_camera_target", native_set_camera_target, 2);
     vm.registerNative("set_camera_offset", native_set_camera_offset, 2);
+    vm.registerNative("start_camera_shake", native_start_camera_shake, 4);
+    vm.registerNative("stop_camera_shake", native_stop_camera_shake, 0);
 
     vm.registerNative("set_log_level", native_set_log_level, 1);
 
@@ -494,11 +622,13 @@ int main(int argc, char *argv[])
                      std::istreambuf_iterator<char>());
     SetTraceLogLevel(LOG_NONE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE.c_str());
+    SetExitKey(KEY_NULL); // Disable default ESC exit from Raylib.
     InitSound();
     InitScene();
 
     camera.target = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
     camera.offset = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
+    gCameraBaseOffset = camera.offset;
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
@@ -522,8 +652,20 @@ int main(int argc, char *argv[])
 
  
 
-    while (!WindowShouldClose())
+    while (!CAN_CLOSE)
     {
+        if (WindowShouldClose())
+        {
+            CAN_CLOSE = true;
+        }
+
+        if ((IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT)) && IsKeyPressed(KEY_X))
+        {
+            CAN_CLOSE = true;
+        }
+
+        
+
         float dt = GetFrameTime();
         BindingsDraw::resetDrawCommands();
 
@@ -536,12 +678,13 @@ int main(int argc, char *argv[])
         ClearBackground(BACKGROUND_COLOR);
         
         
-        vm.update(dt);
-
+        updateCameraShake(dt);
+        
         BeginMode2D(camera);
-
+        
         RenderScene();
         gParticleSystem.update(dt);
+        vm.update(dt);
         vm.render();
 
         gParticleSystem.draw();
@@ -549,6 +692,8 @@ int main(int argc, char *argv[])
         EndMode2D();
         
         BindingsDraw::RenderScreenCommands();
+
+        DrawFade();
         
         EndDrawing();
 
@@ -558,6 +703,7 @@ int main(int argc, char *argv[])
         
     }
     gParticleSystem.clear();
+    BindingsDraw::unloadFonts();
     DestroySound();
     DestroyScene();
 

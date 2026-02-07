@@ -205,6 +205,9 @@ All return an `Emitter`.
 - `draw_point(x, y)`
 - `draw_text(text, x, y, size)`
 - `draw_rectangle(x, y, width, height, fill)`
+- `load_font(path) -> fontId`
+- `set_font(fontId)` (`-1` volta para a fonte default)
+- `reset_font()`
 - `set_color(red, green, blue)`
 - `set_alpha(alpha)`
 - `set_screen_space(enabled)`
@@ -263,4 +266,54 @@ All return an `Emitter`.
 - `set_camera_rotation(rotation)`
 - `set_camera_target(x, y)`
 - `set_camera_offset(x, y)`
+- `start_camera_shake(xDelta, yDelta, frequency, durationCycles)`
+- `stop_camera_shake()`
 - `set_log_level(level)`
+
+## Tween / Easing
+
+All easing functions below take one argument:
+- `t` in range `[0..1]`
+- return value is eased progress in `[0..1]` (some like `back`/`elastic` may overshoot)
+
+- `ease_linear(t)`
+
+- `ease_sine_in(t)`
+- `ease_sine_out(t)`
+- `ease_sine_in_out(t)`
+
+- `ease_quad_in(t)`
+- `ease_quad_out(t)`
+- `ease_quad_in_out(t)`
+
+- `ease_cubic_in(t)`
+- `ease_cubic_out(t)`
+- `ease_cubic_in_out(t)`
+
+- `ease_quart_in(t)`
+- `ease_quart_out(t)`
+- `ease_quart_in_out(t)`
+
+- `ease_quint_in(t)`
+- `ease_quint_out(t)`
+- `ease_quint_in_out(t)`
+
+- `ease_expo_in(t)`
+- `ease_expo_out(t)`
+- `ease_expo_in_out(t)`
+
+- `ease_circ_in(t)`
+- `ease_circ_out(t)`
+- `ease_circ_in_out(t)`
+
+- `ease_back_in(t)`
+- `ease_back_out(t)`
+- `ease_back_in_out(t)`
+
+- `ease_elastic_in(t)`
+- `ease_elastic_out(t)`
+- `ease_elastic_in_out(t)`
+
+- `ease_bounce_in(t)`
+- `ease_bounce_out(t)`
+- `ease_bounce_in_out(t)`

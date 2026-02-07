@@ -1688,7 +1688,7 @@ op_get_property:
 
             int processId = object.asProcessId();
 
-            Process *proc = aliveProcesses[processId];
+            Process *proc = findProcessById((uint32)processId);
             if (!proc)
             {
                 runtimeError("Process '%i' is dead or invalid", processId);
@@ -1919,7 +1919,7 @@ op_set_property:
     if (object.isProcess())
     {
         int processId = object.asProcessId();
-        Process *proc = aliveProcesses[processId];
+        Process *proc = findProcessById((uint32)processId);
 
         if (!proc) // || proc->state == FiberState::DEAD)
         {

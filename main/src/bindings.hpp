@@ -22,6 +22,7 @@ namespace BindingsDraw
     void RenderWorldCommands();
     void RenderScreenCommands();
     void resetDrawCommands();
+    void unloadFonts();
    
     void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace);
     void addTextCommand(String *text, int x, int y, int size, bool screenSpace);
@@ -30,6 +31,16 @@ namespace BindingsDraw
 }
 
 namespace BindingsParticles
+{
+    void registerAll(Interpreter &vm);
+}
+
+namespace BindingsFont
+{
+    void registerAll(Interpreter &vm);
+}
+
+namespace BindingsEase
 {
     void registerAll(Interpreter &vm);
 }

@@ -265,6 +265,7 @@ void Tilemap::fill(int gx, int gy, uint16 id)
 
 void Tilemap::render()
 {
+    if(!visible) return;
     if (graph == -1)
     {
         debug();
@@ -503,6 +504,13 @@ void SetTileMapFree(int layer, int tile_id)
     if (layer < 0 || layer >= MAX_LAYERS) return;
     if (!gScene.layers[layer].tilemap) return;
     gScene.layers[layer].tilemap->set_tile_nonsolid(tile_id);
+}
+
+void SetTileMapVisible(int layer, bool visible)
+{
+    if (layer < 0 || layer >= MAX_LAYERS) return;
+    if (!gScene.layers[layer].tilemap) return;
+    gScene.layers[layer].tilemap->visible = visible;
 }
 
 void SetTileMapMode(int layer, int mode)

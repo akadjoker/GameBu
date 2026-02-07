@@ -819,7 +819,7 @@ namespace Bindings
     {
         if (argCount != 2)
         {
-            Error("signal expects 2 arguments (process id, signal name)");
+            Error("signal expects 2 arguments (process id, type)");
             return 0;
         }
         if (!args[0].isNumber())
@@ -833,15 +833,22 @@ namespace Bindings
             return 0;
         }
 
-        uint32 id = (uint32)args[0].asNumber();
+        int id = (int)args[0].asNumber();
         int type = (int)args[1].asInt();
 
         if (type == 0) // KILL
         {
-            Process *proc = vm->findProcessById(id);
-            if (proc)
+            if(id==-1)
             {
-                proc->state = FiberState::DEAD;
+                vm->killAliveProcess();
+                return 0;
+            }else
+            {
+                Process *proc = vm->findProcessById(id);
+                if (proc)
+                {
+                    proc->state = FiberState::DEAD;
+                }
             }
         }
         else
@@ -1056,6 +1063,22 @@ namespace Bindings
         return 0;
     }
 
+    int native_set_layer_visible(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2)
+        {
+            Error("set_layer_visible expects 2 arguments (layer, visible)");
+            return 0;
+        }
+        
+
+        int layer = args[0].asInt();
+        bool visible = args[1].asBool();
+
+        SetLayerVisible(layer, visible);
+        return 0;
+    }
+
     int native_set_layer_size(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 5)
@@ -1202,6 +1225,22 @@ namespace Bindings
         return 0;
     }
 
+     int native_set_tile_map_visible(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2)
+        {
+            Error("set_tile_map_visible expects 2 arguments (layer, visible)");
+            return 0;
+        }
+         
+
+        int layer = (int)args[0].asInt();
+        bool visible = args[1].asBool();
+        SetTileMapVisible(layer, visible);
+        return 0;
+    }
+
+
     int native_set_tile_map_solid(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2)
@@ -1209,11 +1248,8 @@ namespace Bindings
             Error("set_tile_map_solid expects 2 arguments (layer, solid)");
             return 0;
         }
-        if (!args[0].isInt() || !args[1].isInt())
-        {
-            Error("set_tile_map_solid expects 2 int arguments (layer, solid)");
-            return 0;
-        }
+        
+        
 
         int layer = (int)args[0].asInt();
         int solid = (int)args[1].asInt();
@@ -1422,6 +1458,18 @@ namespace Bindings
         return 1;
     }
 
+    int native_get_fps(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_fps expects no arguments");
+            return 0;
+        }
+
+        vm->pushInt(GetFPS());
+        return 1;
+    }
+
     // ==========================================
     // Game Math Functions (DIV-style)
     // Convention: 0=right, 90=up, 180=left, 270=down
@@ -1595,11 +1643,13 @@ namespace Bindings
         vm.registerNative("set_layer_size", native_set_layer_size, 5);
         vm.registerNative("set_layer_back_graph", native_set_layer_back_graph, 2);
         vm.registerNative("set_layer_front_graph", native_set_layer_front_graph, 2);
+        vm.registerNative("set_layer_visible", native_set_layer_visible, 2);
         vm.registerNative("set_scroll", native_set_scroll, 2);
         vm.registerNative("set_tile_map", native_set_tile_map, 7);
         vm.registerNative("set_tile_map_spacing", native_set_tile_map_spacing, 2);
         vm.registerNative("set_tile_map_free", native_set_tile_map_free, 2);
         vm.registerNative("set_tile_map_solid", native_set_tile_map_solid, 2);
+        vm.registerNative("set_tile_map_visible", native_set_tile_map_visible, 2);
         vm.registerNative("set_tile_map_margin", native_set_tile_map_margin, 2);
         vm.registerNative("set_tile_map_mode", native_set_tile_map_mode, 2);
         vm.registerNative("set_tile_map_color", native_set_tile_map_color, 2);
@@ -1612,6 +1662,7 @@ namespace Bindings
 
         vm.registerNative("delta", native_delta_time, 0);
         vm.registerNative("time", native_time, 0);
+        vm.registerNative("get_fps", native_get_fps, 0);
 
         // Game math functions (DIV-style)
         vm.registerNative("get_distx", native_get_distx, 2);
@@ -1636,6 +1687,7 @@ namespace Bindings
         BindingsProcess::registerAll(vm);
         BindingsDraw::registerAll(vm);
         BindingsParticles::registerAll(vm);
+        BindingsEase::registerAll(vm);
     }
 
 } // namespace OgreBindings

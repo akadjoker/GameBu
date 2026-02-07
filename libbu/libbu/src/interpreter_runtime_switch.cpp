@@ -983,7 +983,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                  }
 
                 // Push ID do processo criado
-                PUSH(makeInt(instance->id));
+                PUSH(makeProcess(instance->id));
             }
             else if (callee.isStruct())
             {
@@ -1635,7 +1635,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 {
 
                     int processId = object.asProcessId();
-                    Process *proc = aliveProcesses[processId];
+                    Process *proc = findProcessById((uint32)processId);
                     if (!proc)
                     {
                         runtimeError("Process '%i' is dead or invalid", processId);
@@ -1863,7 +1863,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             if (object.isProcess())
             {
                 int processId = object.asProcessId();
-                Process *proc = aliveProcesses[processId];
+                Process *proc = findProcessById((uint32)processId);
 
                 if (!proc) // || proc->state == FiberState::DEAD)
                 {

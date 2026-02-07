@@ -10,6 +10,11 @@ var KEY_ESCAPE          = 256;
 
 var WINDOW_WIDTH = 800;
 var WINDOW_HEIGHT = 600;
+var ENEMY_SPAWN_LEFT_X = 56;
+var ENEMY_SPAWN_RIGHT_X = 720;
+var ENEMY_SPAWN_Y = 100;
+var ENEMY_FALL_KILL_Y = 740;
+var ENEMY_COUNT = 0;
 
 var WHITE = Color(255, 255, 255, 255);
 var RED = Color(255, 0, 0, 255);
@@ -24,22 +29,277 @@ var PARTICLE =20;
 
 process enemy(start_x, start_y, patrol_dist, dir)
 {
-    graph = 24;
+    graph = 25;
     x = start_x;
     y = start_y;
     
-    var health = 3;
     var velocity_y = 0;
     var gravity = 800;
-    var move_speed = 50;
+    var move_speed = math.irand(70, 120);
     var direction = dir;
-    var patrol_center = x;
     var is_grounded = false;
-    var has_landed = false;
+    var life_time = 0.0;
+
+    var frames_walk = [25,26,27,28,29,30,31,32];
+    var frames_hit = [33,34,35,36,37,38,39,40];
+    var current_frames = frames_walk;
+    var frame_idx = 0;
+    var anim_timer = 0.0;
+    var anim_speed = 0.11;
+    var hit_timer = 0.0;
+    var hit_duration = 0.16;
+    var max_hp = 3;
+    var hp = 3;
+    var is_dead = false;
+    var death_spin_speed = 0;
+    var death_x_speed = 0;
+    var death_scale_speed = -120;
+ 
     
-    set_rect_shape(0, 5, 40, 20); 
+    set_rect_shape(0, 5, 40, 20);
+  //  set_collision_layer(1);
+  //  set_collision_mask(1);
     loop
     {
+        var dt = delta();
+        life_time += dt;
+        if (hit_timer > 0)
+        {
+            hit_timer -= dt;
+        }
+
+        if (!is_dead && state > 0)
+        {
+            hp -= state;
+            state = 0;
+            hit_timer = hit_duration;
+            if (hp <= 0)
+            {
+                is_dead = true;
+                velocity_y = -330;
+                death_x_speed = direction * math.irand(90, 160);
+                death_spin_speed = direction * math.irand(450, 760);
+                death_scale_speed = -120;
+                disable_collision();
+            }
+        }
+
+        if (is_dead)
+        {
+            velocity_y += gravity * dt;
+            x = x + death_x_speed * dt;
+            y = y + velocity_y * dt;
+            angle = angle + death_spin_speed * dt;
+
+            if (size > 28)
+            {
+                size = size + death_scale_speed * dt;
+                if (size < 28)
+                {
+                    size = 28;
+                }
+            }
+
+            current_frames = frames_hit;
+            anim_speed = 0.06;
+            anim_timer += dt;
+            if (anim_timer >= anim_speed)
+            {
+                anim_timer -= anim_speed;
+                frame_idx = (frame_idx + 1) % len(current_frames);
+            }
+            graph = current_frames[frame_idx];
+
+            if (out_screen())
+            {
+                ENEMY_COUNT -= 1;
+                break;
+            }
+        }
+        else
+        {
+            // Gravidade / queda
+            is_grounded = !place_free(x, y + 1);
+            if (!is_grounded)
+            {
+                velocity_y += gravity * dt;
+            }
+            elif (velocity_y > 0)
+            {
+                velocity_y = 0;
+            }
+
+            // Movimento horizontal sem target:
+            // no chão tenta sempre encontrar uma borda para cair.
+            if (is_grounded)
+            {
+                var probe = 14;
+                var foot = 8;
+
+                var can_right = place_free(x + probe, y);
+                var can_left = place_free(x - probe, y);
+                var drop_right = place_free(x + probe, y + foot);
+                var drop_left = place_free(x - probe, y + foot);
+
+                if (drop_right && can_right)
+                {
+                    direction = 1;
+                }
+                elif (drop_left && can_left)
+                {
+                    direction = -1;
+                }
+                elif (direction > 0 && !can_right && can_left)
+                {
+                    direction = -1;
+                }
+                elif (direction < 0 && !can_left && can_right)
+                {
+                    direction = 1;
+                }
+            }
+
+            var move_x = direction * move_speed * dt;
+            if (!is_grounded)
+            {
+                // No ar mantém inércia menor para queda mais natural.
+                move_x = move_x * 0.25;
+            }
+
+            if (place_free(x + move_x, y))
+            {
+                x = x + move_x;
+            }
+            elif (is_grounded)
+            {
+                direction = -direction;
+            }
+            
+            if (direction < 0)
+            {
+                flip_horizontal(true);
+            }
+            else
+            {
+                flip_horizontal(false);
+            }
+
+            // Aplicar velocidade vertical
+            if (velocity_y != 0)
+            {
+                var new_y = y + velocity_y * dt;
+                if (place_free(x, new_y))
+                {
+                    y = new_y;
+                }
+                else
+                {
+                    var step = math.sign(velocity_y);
+                    while (!place_free(x, y))
+                    {
+                        y = y - step;
+                    }
+                    velocity_y = 0;
+                }
+            }
+
+            // Animação:
+            // vermelho só quando recebe hit.
+            if (hit_timer > 0)
+            {
+                current_frames = frames_hit;
+                anim_speed = 0.07;
+            }
+            else
+            {
+                current_frames = frames_walk;
+                if (is_grounded)
+                {
+                    anim_speed = 0.11;
+                }
+                else
+                {
+                    anim_speed = 0.09;
+                }
+            }
+
+            anim_timer += dt;
+            if (anim_timer >= anim_speed)
+            {
+                anim_timer -= anim_speed;
+                frame_idx = (frame_idx + 1) % len(current_frames);
+            }
+            graph = current_frames[frame_idx];
+
+            // Barra de energia do inimigo.
+            var bar_w = 24;
+            var bar_h = 4;
+            var bar_x = x - bar_w / 2;
+            var bar_y = y - 22;
+            var hp_ratio = hp / max_hp;
+
+            set_screen_space(false);
+            set_color(24, 24, 24);
+            draw_rectangle(bar_x, bar_y, bar_w, bar_h, true);
+            set_color(220, 60, 60);
+            draw_rectangle(bar_x, bar_y, bar_w, bar_h, false);
+            set_color(60, 220, 80);
+            draw_rectangle(bar_x, bar_y, bar_w * hp_ratio, bar_h, true);
+
+            // Limpeza para não acumular inimigos longe
+            if (y > ENEMY_FALL_KILL_Y || life_time > 24)
+            {
+                ENEMY_COUNT -= 1;
+                break;
+            }
+        }
+
+        frame;
+    }
+}
+
+process enemy_spawner()
+{
+    var spawn_timer = 0.0;
+    var spawn_interval = 1.7;
+
+    loop
+    {
+        var dt = delta();
+        spawn_timer += dt;
+
+        if (spawn_timer >= spawn_interval && ENEMY_COUNT < 1)
+        {
+            spawn_timer = 0;
+
+            // 0 = esquerda, 1 = direita
+            var side = math.irand(0, 1);
+            var spawn_x = ENEMY_SPAWN_LEFT_X;
+            var dir = 1;
+            ENEMY_COUNT += 1;
+
+            if (side == 0)
+            {
+                spawn_x = ENEMY_SPAWN_LEFT_X + math.irand(-8, 14);
+                dir = 1;
+            }
+            else
+            {
+                spawn_x = ENEMY_SPAWN_RIGHT_X + math.irand(-14, 8);
+                dir = -1;
+            }
+
+            // Nasce acima para "cair"
+            var spawn_y = ENEMY_SPAWN_Y;
+            enemy(spawn_x, spawn_y, 0, dir);
+
+            // Sobe dificuldade gradualmente
+            if (spawn_interval > 0.75)
+            {
+                spawn_interval -= 0.015;
+            }
+        }
+
         frame;
     }
 }
@@ -47,7 +307,7 @@ process enemy(start_x, start_y, patrol_dist, dir)
 
 process box (x, y)
 {
-    graph = 22;
+    graph = 23;
     set_rect_shape(0, 0, 16, 16); 
     size = 200;
     
@@ -114,6 +374,17 @@ process bullet (x,y, _face)
     {
         advance(speed);
 
+        var hit_enemy = collision("enemy", x, y);
+        if (hit_enemy == -1)
+        {
+            hit_enemy = collision("enemy", x + _face, y);
+        }
+        if (hit_enemy != -1)
+        {
+            var e = proc(hit_enemy);
+            e.state += 1;
+            break;
+        }
 
      
          if (!place_free(x+_face, y))
@@ -169,6 +440,11 @@ process player ()
     loop
     {
         var delta_frame = delta();
+        if(key_down(KEY_ESCAPE))
+        {
+           close_window();
+        }
+      
         
         // Aplicar gravidade
         velocity_y += gravity * delta_frame;
@@ -331,11 +607,24 @@ process player ()
         
         set_camera_target(camera_x, camera_y);
 
-        set_color(255,0,0);
-        set_screen_space(true);
-        draw_text("state: " + state, 20 ,20,12);
-        draw_circle(x,y, 2, true);
+  
         
+        var max_hp = 5;
+        var hp = 5;
+        var bar_w = 24;
+        var bar_h = 4;
+        var bar_x = x - bar_w / 2;
+        var bar_y = y - 22;
+        var hp_ratio = hp / max_hp;
+
+        set_screen_space(false);
+        set_color(24, 24, 24);
+        draw_rectangle(bar_x, bar_y, bar_w, bar_h, true);
+        set_color(220, 60, 60);
+        draw_rectangle(bar_x, bar_y, bar_w, bar_h, false);
+        set_color(60, 220, 80);
+        draw_rectangle(bar_x, bar_y, bar_w * hp_ratio, bar_h, true);
+
         frame;
 
     }
@@ -373,7 +662,6 @@ set_tile_map_free(0, 4);
 //set_tile_debug(0,false,true);
 set_tile_map_color(0,Color(200,200,200,255));
 
-enemy(300, 270, 100, 1);
-
 box(240, 240);
 player();
+enemy_spawner();

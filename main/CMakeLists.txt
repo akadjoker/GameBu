@@ -42,16 +42,10 @@ add_compile_options(
 
 )
 
- 
 
-file(GLOB SOURCES "src/*.cpp")
+file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(main   ${SOURCES})
-
-
-
 target_include_directories(main PUBLIC include src)
-
-
 if(CMAKE_BUILD_TYPE MATCHES Debug)
 
 if (UNIX)

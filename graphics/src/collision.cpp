@@ -956,16 +956,20 @@ Entity *Entity::place_meeting(double x, double y)
         Info("place_meeting: no shape or no quadtree");
         return nullptr;
     }
-    if (!(this->flags & B_COLLISION) || !ready)
+    if (!(this->flags & B_COLLISION))
     {
         Info("place_meeting: entity has no collision flag");
         return nullptr;
     }
-
+    if (!ready)
+    {
+      //  Info("place_free: entity not ready");
+        return nullptr;
+    }
     double old_x = this->x, old_y = this->y;
     this->x = x;
     this->y = y;
-     markTransformDirty();
+    markTransformDirty();
     this->updateBounds();
     Entity *hit = nullptr;
 

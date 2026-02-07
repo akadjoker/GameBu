@@ -1,6 +1,7 @@
 #include "bindings.hpp"
 #include "engine.hpp"
 #include <raylib.h>
+#include <vector>
 
 namespace BindingsDraw
 {
@@ -8,10 +9,32 @@ namespace BindingsDraw
     Color currentColor = WHITE;
     bool currentScreenSpace = true;
 
+    static std::vector<Font> loadedFonts;
+
     struct TextCommand
     {
         String *text;
         int x, y, size;
+        Color color;
+    };
+
+    struct FontCommand
+    {
+        String *text;
+        int x, y, size;
+        float spacing;
+        int fontId;
+        Color color;
+    };
+
+    struct FontCommandRotated
+    {
+        String *text;
+        int x, y, size;
+        Vector2 origin;
+        float rotation;
+        float spacing;
+        int fontId;
         Color color;
     };
 
@@ -43,6 +66,8 @@ namespace BindingsDraw
             LINE,
             POINT,
             TEXT,
+            FONT,
+            FONTROTATED,
             CIRCLE,
             RECTANGLE
         } type;
@@ -51,18 +76,44 @@ namespace BindingsDraw
         {
             LineCommand line;
             TextCommand text;
+            FontCommand font;
+            FontCommandRotated fontRotated;
             CircleCommand circle;
             RectangleCommand rectangle;
         };
     };
 
     static Vector<DrawCommand> screenCommands;
- 
 
+    static void draw_font(String *text, int x, int y, int size, float spacing, Color color, int fontId)
+    {
+
+        if (fontId < 0 || fontId >= loadedFonts.size())
+        {
+
+            DrawTextEx(GetFontDefault(), text->chars(), {(float)x, (float)y}, (float)size, spacing, color);
+            return;
+        }
+        Font &font = loadedFonts[fontId];
+        DrawTextEx(font, text->chars(), {(float)x, (float)y}, (float)size, spacing, color);
+    }
+
+    static void draw_font_rotate(String *text, int x, int y, int size, float rotation, float spacing, float pivot_x, float pivot_y, Color color, int fontId)
+    {
+
+        if (fontId < 0 || fontId >= loadedFonts.size())
+        {
+            Warning("draw_font_rotate: invalid fontId %d, using default font", fontId);
+            DrawTextPro(GetFontDefault(), text->chars(), {(float)x, (float)y}, {pivot_x, pivot_y}, rotation, (float)size, spacing, color);
+            return;
+        }
+        Font &font = loadedFonts[fontId];
+        DrawTextPro(font, text->chars(), {(float)x, (float)y}, {pivot_x, pivot_y}, rotation, (float)size, spacing, color);
+    }
 
     void RenderScreenCommands()
     {
-        
+
         for (size_t i = 0; i < screenCommands.size(); i++)
         {
             DrawCommand &cmd = screenCommands[i];
@@ -76,6 +127,12 @@ namespace BindingsDraw
                 break;
             case DrawCommand::TEXT:
                 DrawText(cmd.text.text->chars(), cmd.text.x, cmd.text.y, cmd.text.size, cmd.text.color);
+                break;
+            case DrawCommand::FONT:
+                draw_font(cmd.font.text, cmd.font.x, cmd.font.y, cmd.font.size, cmd.font.spacing, cmd.font.color, cmd.font.fontId);
+                break;
+            case DrawCommand::FONTROTATED:
+                draw_font_rotate(cmd.fontRotated.text, cmd.fontRotated.x, cmd.fontRotated.y, cmd.fontRotated.size, cmd.fontRotated.rotation, cmd.fontRotated.spacing, cmd.fontRotated.origin.x, cmd.fontRotated.origin.y, cmd.fontRotated.color, 0);
                 break;
             case DrawCommand::CIRCLE:
                 if (cmd.circle.fill)
@@ -91,19 +148,14 @@ namespace BindingsDraw
                 break;
             }
         }
-     
-    
     }
 
     void resetDrawCommands()
     {
         screenCommands.clear();
-         
     }
 
-   
-
-     void addPointCommand(int x, int y, bool screenSpace)
+    void addPointCommand(int x, int y, bool screenSpace)
     {
         if (screenSpace)
         {
@@ -118,7 +170,7 @@ namespace BindingsDraw
         }
     }
 
-     void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace)
+    void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace)
     {
         if (screenSpace)
         {
@@ -133,7 +185,7 @@ namespace BindingsDraw
         }
     }
 
-     void addTextCommand(String *text, int x, int y, int size, bool screenSpace)
+    void addTextCommand(String *text, int x, int y, int size, bool screenSpace)
     {
         if (screenSpace)
         {
@@ -145,6 +197,36 @@ namespace BindingsDraw
         else
         {
             DrawText(text->chars(), x, y, size, currentColor);
+        }
+    }
+
+    void addFontCommand(String *text, int x, int y, int size, float spacing, Color color, int fontId, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::FONT;
+            cmd.font = {text, x, y, size, spacing, fontId, color};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            draw_font(text, x, y, size, spacing, color, fontId);
+        }
+    }
+
+    void addFontRotateCommand(String *text, int x, int y, int size, float rotation, float spacing, float pivot_x, float pivot_y, Color color, int fontId, bool screenSpace)
+    {
+        if (screenSpace)
+        {
+            DrawCommand cmd;
+            cmd.type = DrawCommand::FONTROTATED;
+            cmd.fontRotated = {text, x, y, size, rotation, spacing, pivot_x, pivot_y, fontId, color};
+            screenCommands.push(cmd);
+        }
+        else
+        {
+            draw_font_rotate(text, x, y, size, rotation, spacing, pivot_x, pivot_y, color, fontId);
         }
     }
 
@@ -166,7 +248,7 @@ namespace BindingsDraw
         }
     }
 
-     void addRectangleCommand(int x, int y, int width, int height, bool fill, bool screenSpace)
+    void addRectangleCommand(int x, int y, int width, int height, bool fill, bool screenSpace)
     {
         if (screenSpace)
         {
@@ -249,6 +331,49 @@ namespace BindingsDraw
         return 0;
     }
 
+    static int native_draw_font(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 6)
+        {
+            Error("draw_font expects 6 arguments (text, x, y, size, spacing, fontId)");
+            return 0;
+        }
+
+        String *text = args[0].asString();
+        int x = (int)args[1].asNumber();
+        int y = (int)args[2].asNumber();
+        int size = (int)args[3].asNumber();
+        float spacing = (float)args[4].asNumber();
+        int fontId = args[5].asInt();
+
+        addFontCommand(text, x, y, size, spacing, currentColor, fontId, currentScreenSpace);
+
+        return 0;
+    }
+
+    static int native_draw_font_rotate(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 9)
+        {
+            Error("draw_font_rotate expects 9 arguments (text, x, y, size, rotation, spacing, pivot_x, pivot_y, fontId)");
+            return 0;
+        }
+
+        String *text = args[0].asString();
+        int x = (int)args[1].asNumber();
+        int y = (int)args[2].asNumber();
+        int size = (int)args[3].asNumber();
+        float rotation = (float)args[4].asNumber();
+        float spacing = (float)args[5].asNumber();
+        float pivot_x = (float)args[6].asNumber();
+        float pivot_y = (float)args[7].asNumber();
+        int fontId = args[8].asInt();
+
+        addFontRotateCommand(text, x, y, size, rotation, spacing, pivot_x, pivot_y, currentColor, fontId, currentScreenSpace);
+
+        return 0;
+    }
+
     static int native_circle(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 4)
@@ -264,8 +389,6 @@ namespace BindingsDraw
 
         addCircleCommand(centerX, centerY, radius, fill != 0, currentScreenSpace);
 
-        
-
         return 0;
     }
 
@@ -276,21 +399,15 @@ namespace BindingsDraw
             Error("rectangle expects 5 arguments (x, y, width, height, fill)");
             return 0;
         }
-        if (!args[0].isNumber() || !args[1].isNumber() ||
-            !args[2].isNumber() || !args[3].isNumber() ||
-            !args[4].isNumber())
-        {
-            Error("rectangle expects 5 number arguments (x, y, width, height, fill)");
-            return 0;
-        }
+         
 
         int x = (int)args[0].asNumber();
         int y = (int)args[1].asNumber();
         int width = (int)args[2].asNumber();
         int height = (int)args[3].asNumber();
-        int fill = (int)args[4].asNumber();
+        bool fill =  args[4].asBool();
 
-        addRectangleCommand(x, y, width, height, fill != 0, currentScreenSpace);
+        addRectangleCommand(x, y, width, height, fill , currentScreenSpace);
         return 0;
     }
 
@@ -347,6 +464,29 @@ namespace BindingsDraw
         }
         currentScreenSpace = args[0].asBool();
         return 0;
+    }
+
+    static int native_load_font(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isString())
+        {
+            Error("load_font expects 1 string argument (path)");
+            vm->pushInt(-1);
+            return 1;
+        }
+
+        const char *path = args[0].asStringChars();
+        Font font = LoadFont(path);
+        if (font.texture.id <= 0)
+        {
+            Error("Failed to load font from path: %s", path);
+            vm->pushInt(-1);
+            return 1;
+        }
+
+        loadedFonts.push_back(font);
+        vm->pushInt((int)loadedFonts.size() - 1);
+        return 1;
     }
 
     int native_start_fade(Interpreter *vm, int argCount, Value *args)
@@ -432,6 +572,20 @@ namespace BindingsDraw
         return 0;
     }
 
+    int native_draw_fps(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2)
+        {
+            Error("draw_fps expects 2 arguments (x, y)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        DrawFPS(x, y);
+        return 0;
+    }
+
     static void color_ctor(Interpreter *vm, void *buffer, int argc, Value *args)
     {
         Color *v = (Color *)buffer;
@@ -481,18 +635,36 @@ namespace BindingsDraw
         vm.registerNative("draw_circle", native_circle, 4);
         vm.registerNative("draw_point", native_point, 2);
         vm.registerNative("draw_text", native_text, 4);
+        vm.registerNative("draw_font", native_draw_font, 6);
+        vm.registerNative("draw_font_rotate", native_draw_font_rotate, 9);
+
         vm.registerNative("draw_rectangle", native_rectangle, 5);
+
         vm.registerNative("set_color", native_set_color, 3);
         vm.registerNative("set_alpha", native_set_alpha, 1);
         vm.registerNative("set_screen_space", native_set_screen_space, 1);
 
+        vm.registerNative("draw_fps", native_draw_fps, 2);
+
         vm.registerNative("start_fade", native_start_fade, 2);
         vm.registerNative("is_fade_complete", native_is_fade_complete, 0);
-        vm.registerNative("get_fade_progress", native_get_fade_progress, 0);
 
         vm.registerNative("fade_in", native_fade_in, 1);
         vm.registerNative("fade_out", native_fade_out, 1);
+        vm.registerNative("get_fade_progress", native_get_fade_progress, 0);
+
+        vm.registerNative("load_font", native_load_font, 1);
         registerColor(vm);
         registerVector2(vm);
     }
+
+    void unloadFonts()
+    {
+        for (size_t i = 0; i < loadedFonts.size(); i++)
+        {
+            UnloadFont(loadedFonts[i]);
+        }
+        loadedFonts.clear();
+    }
+
 }

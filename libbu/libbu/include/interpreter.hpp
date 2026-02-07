@@ -1126,6 +1126,8 @@ public:
   size_t getTotalNativeClasses() { return totalNativeClasses; }
   size_t getTotalNativeStructs() { return totalNativeStructs; }
 
+  void killAliveProcess();
+
   // Fiber/Process context (for callbacks from external libraries like GTK)
   Fiber* getCurrentFiber() { return currentFiber; }
   void setCurrentFiber(Fiber* fiber) { currentFiber = fiber; }

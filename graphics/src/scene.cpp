@@ -428,7 +428,8 @@ void Layer::render_parelax(Graph *g)
 
 void Layer::render()
 {
-
+    if (!visible)
+        return;
     if (back != -1)
     {
 

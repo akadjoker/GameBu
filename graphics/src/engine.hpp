@@ -588,6 +588,7 @@ public:
     GridType grid_type = ORTHO;
     bool show_grids = false;
     bool show_ids = false;
+    bool visible = true;
 
 private:
     Tile *tiles = nullptr;
@@ -602,6 +603,7 @@ struct Layer
     uint8 mode; // tilex, tiley, stretch x, stretch y
     Rectangle size;
     // Parallax/scroll
+    bool visible = true;
     double scroll_factor_x; // 0.5 = parallax, 1.0 = normal
     double scroll_factor_y;
     double scroll_x; // offset de scroll
@@ -863,12 +865,13 @@ void SetLayerScrollFactor(int layer, double x, double y);
 void SetLayerSize(int layer, int x, int y, int width, int height);
 void SetLayerBackGraph(int layer, int graph);
 void SetLayerFrontGraph(int layer, int graph);
-
+void SetLayerVisible(int layer, bool visible);
 void SetTileMap(int layer, int map_width, int map_height, int tile_width, int tile_height, int columns, int graph, float offset_x = 0, float offset_y = 0);
 void SetTileMapSpacing(int layer, double spacing);
 void SetTileMapMargin(int layer, double margin);
 void SetTileMapSolid(int layer, int tile_id);
 void SetTileMapFree(int layer, int tile_id);
+void SetTileMapVisible(int layer, bool visible);
 void SetTileMapMode(int layer, int mode);
 void SetTileMapColor(int layer, Color tint);
 void SetTileMapDebug(int layer, bool grid,bool ids);
@@ -884,3 +887,5 @@ void StartFade(float targetAlpha, float speed, Color color);
 void UpdateFade(float dt);
 bool IsFadeComplete();
 float GetFadeProgress();
+
+void DrawFade();

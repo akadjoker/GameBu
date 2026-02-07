@@ -308,6 +308,23 @@ uint32 Interpreter::getTotalAliveProcesses() const
     return uint32(aliveProcesses.size());
 }
 
+
+void Interpreter::killAliveProcess()
+{
+    if (aliveProcesses.size() == 1)
+        return;
+
+    for (size_t i = 1; i < aliveProcesses.size(); i++)
+    {
+        Process *proc = aliveProcesses[i];
+        if (proc)
+        {
+            proc->state = FiberState::DEAD;
+        }
+    }
+    return;
+}
+
 Process *Interpreter::findProcessById(uint32 id)
 {
     for (size_t i = 0; i < aliveProcesses.size(); i++)

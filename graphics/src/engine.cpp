@@ -64,7 +64,7 @@ void RenderScene()
 // //   //  rlEnableBackfaceCulling();
    //  DrawRectangle(10, 10, 300, 200, ColorAlpha(BLACK, 0.7f));
     // DrawText("F1: Toggle Quadtree | F2: Toggle Bounds", 10, 10, 16, WHITE);
-     DrawFPS(20, 20);
+   //  DrawFPS(20, 20);
     // DrawText(TextFormat("Collision Statics: %d Dynamic: %d", gScene.staticEntities.size(), gScene.dynamicEntities.size()), 20,40, 15, WHITE);
 
     // Debug: desenha quadtree (F1 para toggle)
@@ -127,14 +127,17 @@ void RenderScene()
             }
         }
     }
+ 
 
-    // NOVO: Desenhar overlay de fading se alfa > 0
+}
+
+void DrawFade()
+{
     if (gFadeAlpha > 0.0f)
     {
         DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), 
                       ColorAlpha(gFadeColor, gFadeAlpha));
     }
-
 }
 
  
@@ -268,7 +271,13 @@ void SetLayerFrontGraph(int layer, int graph)
     gScene.layers[layer].front = graph;
 }
 
+void SetLayerVisible(int layer, bool visible)
+{
+    if (layer < 0 || layer > MAX_LAYERS)
+        layer = 0;
 
+    gScene.layers[layer].visible = visible;
+}
 
 void SetScroll(double x, double y)
 {
