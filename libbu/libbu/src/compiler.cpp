@@ -151,6 +151,9 @@ void Compiler::initRules()
   rules[TOKEN_POW] = {&Compiler::mathBinary, nullptr, PREC_NONE};
 
   rules[TOKEN_CLOCK] = {&Compiler::expressionClock, nullptr, PREC_NONE};
+  rules[TOKEN_TYPE] = {&Compiler::typeExpression, nullptr, PREC_NONE};
+  rules[TOKEN_PROC] = {&Compiler::procExpression, nullptr, PREC_NONE};
+  rules[TOKEN_GET_ID] = {&Compiler::getIdExpression, nullptr, PREC_NONE};
 
   rules[TOKEN_FOREACH] = {nullptr, nullptr, PREC_NONE};
 
@@ -584,6 +587,9 @@ bool Compiler::isKeywordToken(TokenType type)
     // Built-ins
     case TOKEN_PRINT:
     case TOKEN_PROCESS:
+    case TOKEN_TYPE:
+    case TOKEN_PROC:
+    case TOKEN_GET_ID:
     case TOKEN_FRAME:
     case TOKEN_EXIT:
     case TOKEN_FIBER:

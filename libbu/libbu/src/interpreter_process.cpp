@@ -40,6 +40,7 @@ void ProcessDef::release()
 void Process::reset()
 {
     this->id = 0;
+    this->blueprint = -1;
     this->exitCode = 0;
     this->initialized = false;
 
@@ -84,11 +85,13 @@ int Interpreter::getProcessPrivateIndex(const char *name)
     case 'a':
         if (strcmp(name, "angle") == 0) return 4;
         if (strcmp(name, "alpha") == 0) return 12;
+        if (strcmp(name, "active") == 0) return 22;
         return -1;
     case 's':
         if (strcmp(name, "size") == 0) return 5;
         if (strcmp(name, "state") == 0) return 14;
         if (strcmp(name, "speed") == 0) return 15;
+        if (strcmp(name, "show") == 0) return 23;
         return -1;
     case 'f':
         if (strcmp(name, "flags") == 0) return 6;
@@ -102,8 +105,18 @@ int Interpreter::getProcessPrivateIndex(const char *name)
         return (strcmp(name, "blue") == 0) ? 11 : -1;
     case 't':
         return (strcmp(name, "tag") == 0) ? 13 : -1;
+    case 'v':
+        if (strcmp(name, "velx") == 0) return 17;
+        if (strcmp(name, "vely") == 0) return 18;
+        return -1;
+    case 'h':
+        return (strcmp(name, "hit") == 0) ? 19 : -1;
+    case 'p':
+        return (strcmp(name, "progress") == 0) ? 20 : -1;
+    case 'l':
+        return (strcmp(name, "life") == 0) ? 21 : -1;
     }
-    // 'g' handles both "graph" and "green" and "group"
+    // 'a' handles "angle", "alpha", "active"
     return -1;
 }
 
@@ -145,6 +158,13 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
     proc->privates[14] = makeInt(0);   // state
     proc->privates[15] = makeDouble(0); // speed
     proc->privates[16] = makeInt(0);   // group
+    proc->privates[17] = makeDouble(0); // velx
+    proc->privates[18] = makeDouble(0); // vely
+    proc->privates[19] = makeInt(0);    // hit
+    proc->privates[20] = makeDouble(0); // progress
+    proc->privates[21] = makeInt(100);  // life
+    proc->privates[22] = makeInt(1);    // active
+    proc->privates[23] = makeInt(1);    // show
     proc->totalFibers = totalFibers;
 
     proc->fibers = (Fiber *)calloc(proc->totalFibers, sizeof(Fiber));
@@ -183,6 +203,7 @@ Process *Interpreter::spawnProcess(ProcessDef *blueprint)
     }
 
     instance->name = blueprint->name;
+    instance->blueprint = blueprint->index;
     instance->id = PROCESS_IDS++;
     instance->state = FiberState::RUNNING;
     instance->resumeTime = 0;
@@ -311,10 +332,10 @@ uint32 Interpreter::getTotalAliveProcesses() const
 
 void Interpreter::killAliveProcess()
 {
-    if (aliveProcesses.size() == 1)
-        return;
+    // if (aliveProcesses.size() == 1)
+    //     return;
 
-    for (size_t i = 1; i < aliveProcesses.size(); i++)
+    for (size_t i = 0; i < aliveProcesses.size(); i++)
     {
         Process *proc = aliveProcesses[i];
         if (proc)
@@ -348,6 +369,13 @@ void Interpreter::update(float deltaTime)
     while (i < aliveProcesses.size())
     {
         Process *proc = aliveProcesses[i];
+
+        // Frozen? -> skip entirely
+        if (proc->state == FiberState::FROZEN)
+        {
+            i++;
+            continue;
+        }
 
         // Suspended?
         if (proc->state == FiberState::SUSPENDED)

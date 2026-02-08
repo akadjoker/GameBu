@@ -210,7 +210,7 @@ All return an `Emitter`.
 - `reset_font()`
 - `set_color(red, green, blue)`
 - `set_alpha(alpha)`
-- `set_screen_space(enabled)`
+ 
 
 - `start_fade(targetAlpha, speed)`
 - `is_fade_complete() -> bool`

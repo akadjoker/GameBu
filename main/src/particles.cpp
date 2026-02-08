@@ -407,7 +407,7 @@ namespace BindingsParticles
 
     int native_create_smoke(Interpreter *vm, int argCount, Value *args)
     {
-        // Implementação de exemplo para criar uma fumaça
+       
         if (argCount != 3)
         {
             Error("create_smoke expects 3 arguments (x, y, graph)");
@@ -1073,6 +1073,13 @@ namespace BindingsParticles
     }
     
 
+    int native_stop(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        Emitter *emitter = static_cast<Emitter *>(data);
+        emitter->stop();
+        return 0;
+    }
+
     void registerAll(Interpreter &vm)
     {
 
@@ -1103,6 +1110,7 @@ namespace BindingsParticles
         vm.addNativeMethod(emitter, "set_angular_vel_range", native_set_angular_vel_range);
         vm.addNativeMethod(emitter, "set_blend_mode", native_set_blend_mode);
         vm.addNativeMethod(emitter, "set_layer", native_set_layer);
+        vm.addNativeMethod(emitter, "stop", native_stop);
 
         vm.registerNative("create_emitter", native_create_emitter, 3);
         vm.registerNative("create_fire", native_create_fire, 3);

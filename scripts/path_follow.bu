@@ -114,7 +114,7 @@ process path_debug()
         
       
 
-        set_screen_space(true);
+  
         var mx = get_mouse_x();
         var my = get_mouse_y();
         

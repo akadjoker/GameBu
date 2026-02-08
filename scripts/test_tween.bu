@@ -37,7 +37,7 @@ var tw = Tween(x_start, x_end, duration, EASES[ease_index]);
 
 loop
 {
-    set_screen_space(true);
+   
     var dt = delta();
 
     if (key_pressed(KEY_LEFT))

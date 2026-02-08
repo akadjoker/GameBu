@@ -350,7 +350,7 @@ process player ()
         set_camera_target(camera_x, camera_y);
 
         set_color(255,0,0);
-        set_screen_space(true);
+   
         draw_text("state: " + state, 20 ,20,12);
         draw_circle(x,y, 2, true);
         
@@ -411,7 +411,7 @@ var credits_speed = 1.2;
 
     loop
     {
-        set_screen_space(true);
+        
         set_color(255, 255, 255);
         var py=WINDOW_HEIGHT/2-20;
 

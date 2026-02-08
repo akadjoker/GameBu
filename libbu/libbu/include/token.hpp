@@ -92,12 +92,15 @@ enum TokenType
  
 
     TOKEN_PROCESS,
+    TOKEN_TYPE,
     TOKEN_FRAME,
     TOKEN_EXIT,
     TOKEN_FIBER,
     TOKEN_YIELD,
     TOKEN_LEN,
     TOKEN_FREE,
+    TOKEN_PROC,
+    TOKEN_GET_ID,
 
     TOKEN_STRUCT,
     TOKEN_ENUM,

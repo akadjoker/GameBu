@@ -58,7 +58,7 @@ process dummy()
             game_state = GAME_EXIT;
         }
 
-        set_screen_space(true);
+    
         set_color(255, 255, 255);
       
 

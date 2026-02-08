@@ -569,6 +569,13 @@ enum class PrivateIndex : uint8
   STATE = 14,
   SPEED = 15,
   GROUP = 16,
+  VELX = 17,
+  VELY = 18,
+  HIT = 19,
+  PROGRESS = 20,
+  LIFE = 21,
+  ACTIVE = 22,
+  SHOW = 23,
 
 };
 
@@ -590,10 +597,9 @@ struct Process
 
   String *name{nullptr};
   uint32 id{0};
-
+  int blueprint{-1}; // Índice do ProcessDef que é a "blueprint" desse processo
   FiberState state;        //  Estado do PROCESSO (frame)
   float resumeTime = 0.0f; // Quando acorda (frame)
-  uint8    signal{0};       // Sinal enviado para o processo (usado para comunicação entre processos)
   Fiber *fibers{nullptr};
   int totalFibers{0};
   int nextFiberIndex{0};

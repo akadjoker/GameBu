@@ -128,6 +128,34 @@ void Compiler::expressionClock(bool canAssign)
     emitByte(OP_CLOCK);
 }
 
+void Compiler::typeExpression(bool canAssign)
+{
+    (void)canAssign;
+    consume(TOKEN_IDENTIFIER, "Expect process name after 'type'");
+    emitConstant(vm_->makeString(previous.lexeme.c_str()));
+    emitByte(OP_TYPE);
+}
+
+void Compiler::procExpression(bool canAssign)
+{
+    (void)canAssign;
+    consume(TOKEN_LPAREN, "Expect '(' after 'proc'");
+    expression();
+    if (hadError) return;
+    consume(TOKEN_RPAREN, "Expect ')' after expression");
+    emitByte(OP_PROC);
+}
+
+void Compiler::getIdExpression(bool canAssign)
+{
+    (void)canAssign;
+    consume(TOKEN_LPAREN, "Expect '(' after 'get_id'");
+    expression();
+    if (hadError) return;
+    consume(TOKEN_RPAREN, "Expect ')' after expression");
+    emitByte(OP_GET_ID);
+}
+
 void Compiler::number(bool canAssign)
 {
     (void)canAssign;

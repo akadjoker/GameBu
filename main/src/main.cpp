@@ -3,6 +3,7 @@
 #include "engine.hpp"
 #include "interpreter.hpp"
 #include "bindings.hpp"
+#include "camera.hpp"
 #include "platform.hpp"
 #include <iostream>
 #include <fstream>
@@ -10,26 +11,13 @@
 #include <cstring>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
 #include <raylib.h>
 
 extern Scene gScene;
 extern ParticleSystem gParticleSystem;
+extern CameraManager gCamera;
 
-Camera2D camera = {0};
-
-struct CameraShakeState
-{
-    bool active = false;
-    float amplitudeX = 0.0f;
-    float amplitudeY = 0.0f;
-    float cycles = 0.0f;
-    float omega = 0.0f;
-    float cyclesLeft = 0.0f;
-};
-
-static CameraShakeState gCameraShake;
-static Vector2 gCameraBaseOffset = {0.0f, 0.0f};
-static Vector2 gCameraShakeOffset = {0.0f, 0.0f};
 
 struct FileLoaderContext
 {
@@ -205,194 +193,25 @@ int native_set_log_level(Interpreter *vm, int argCount, Value *args)
     return 0;
 }
 
-int native_set_camera_zoom(Interpreter *vm, int argCount, Value *args)
-{
-    if (argCount != 1)
-    {
-        Error("set_camera_zoom expects 1 number argument (zoom)");
-        return 0;
-    }
-    if (!args[0].isNumber())
-    {
-        Error("set_camera_zoom expects a number argument (zoom)");
-        return 0;
-    }
-
-    camera.zoom = (float)args[0].asNumber();
-    return 0;
-}
-
-int native_set_camera_rotation(Interpreter *vm, int argCount, Value *args)
-{
-    if (argCount != 1)
-    {
-        Error("set_camera_rotation expects 1 number argument (rotation)");
-        return 0;
-    }
-    if (!args[0].isNumber())
-    {
-        Error("set_camera_rotation expects a number argument (rotation)");
-        return 0;
-    }
-
-    camera.rotation = (float)args[0].asNumber();
-    return 0;
-}
-
-int native_set_camera_target(Interpreter *vm, int argCount, Value *args)
-{
-    if (argCount != 2)
-    {
-        Error("set_camera_target expects 2 number arguments (x, y)");
-        return 0;
-    }
-    if (!args[0].isNumber() || !args[1].isNumber())
-    {
-        Error("set_camera_target expects number arguments (x, y)");
-        return 0;
-    }
-
-    camera.target.x = (float)args[0].asNumber();
-    camera.target.y = (float)args[1].asNumber();
-    return 0;
-}
-
-int native_set_camera_offset(Interpreter *vm, int argCount, Value *args)
-{
-    if (argCount != 2)
-    {
-        Error("set_camera_offset expects 2 number arguments (x, y)");
-        return 0;
-    }
-    if (!args[0].isNumber() || !args[1].isNumber())
-    {
-        Error("set_camera_offset expects number arguments (x, y)");
-        return 0;
-    }
-
-    gCameraBaseOffset.x = (float)args[0].asNumber();
-    gCameraBaseOffset.y = (float)args[1].asNumber();
-    camera.offset.x = gCameraBaseOffset.x + gCameraShakeOffset.x;
-    camera.offset.y = gCameraBaseOffset.y + gCameraShakeOffset.y;
-    return 0;
-}
-
-int native_start_camera_shake(Interpreter *vm, int argCount, Value *args)
-{
-    if (argCount != 4)
-    {
-        Error("start_camera_shake expects 4 number arguments (xDelta, yDelta, frequency, duration)");
-        return 0;
-    }
-    if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
-    {
-        Error("start_camera_shake expects 4 number arguments (xDelta, yDelta, frequency, duration)");
-        return 0;
-    }
-
-    float xDelta = (float)args[0].asNumber();
-    float yDelta = (float)args[1].asNumber();
-    float frequency = (float)args[2].asNumber();
-    float durationCycles = (float)args[3].asNumber();
-
-    if (frequency <= 0.0f || durationCycles <= 0.0f)
-    {
-        gCameraShake.active = false;
-        gCameraShakeOffset = {0.0f, 0.0f};
-        camera.offset.x = gCameraBaseOffset.x;
-        camera.offset.y = gCameraBaseOffset.y;
-        return 0;
-    }
-
-    gCameraShake.active = true;
-    gCameraShake.amplitudeX = xDelta;
-    gCameraShake.amplitudeY = yDelta;
-    gCameraShake.cycles = durationCycles;
-    gCameraShake.omega = frequency * 2.0f * PI;
-    gCameraShake.cyclesLeft = durationCycles;
-
-    return 0;
-}
-
-int native_stop_camera_shake(Interpreter *vm, int argCount, Value *args)
-{
-    (void)vm;
-    (void)args;
-    if (argCount != 0)
-    {
-        Error("stop_camera_shake expects no arguments");
-        return 0;
-    }
-
-    gCameraShake.active = false;
-    gCameraShake.cyclesLeft = 0.0f;
-    gCameraShakeOffset = {0.0f, 0.0f};
-    camera.offset.x = gCameraBaseOffset.x;
-    camera.offset.y = gCameraBaseOffset.y;
-    return 0;
-}
-
-
-static void updateCameraShake(float dt)
-{
-    (void)dt;
-    if (!gCameraShake.active)
-    {
-        gCameraShakeOffset = {0.0f, 0.0f};
-        camera.offset.x = gCameraBaseOffset.x;
-        camera.offset.y = gCameraBaseOffset.y;
-        return;
-    }
-
-    // Damped simple harmonic shake motion:
-    // v = (frac^2) * cos((1-frac) * omega), com sinal aleatorio por eixo.
-    gCameraShake.cyclesLeft -= 1.0f;
-
-    float shakeX = 0.0f;
-    float shakeY = 0.0f;
-
-    if (gCameraShake.cyclesLeft > 0.0f && gCameraShake.cycles > 0.0f)
-    {
-        float frac = gCameraShake.cyclesLeft / gCameraShake.cycles;
-        float v = frac * frac * cosf((1.0f - frac) * gCameraShake.omega);
-
-        float signX = (GetRandomValue(0, 1) == 0) ? -1.0f : 1.0f;
-        float signY = (GetRandomValue(0, 1) == 0) ? -1.0f : 1.0f;
-
-        shakeX = gCameraShake.amplitudeX * signX * v;
-        shakeY = gCameraShake.amplitudeY * signY * v;
-    }
-    else
-    {
-        gCameraShake.active = false;
-    }
-
-    gCameraShakeOffset.x = shakeX;
-    gCameraShakeOffset.y = shakeY;
-    camera.offset.x = gCameraBaseOffset.x + gCameraShakeOffset.x;
-    camera.offset.y = gCameraBaseOffset.y + gCameraShakeOffset.y;
-}
 
 void FreeResources()
 {
 }
 
-void onCreate(Interpreter *vm,Process *proc)
+void onCreate(Interpreter *vm, Process *proc)
 {
-    Entity *entity = gScene.addEntity(-1,0,0,0);
+    Entity *entity = gScene.addEntity(-1, 0, 0, 0);
     proc->userData = entity;
     entity->userData = proc;
     entity->procID = proc->id;
-    entity->ready= false;
-    entity->layer=0;
+    entity->blueprint = proc->blueprint;
+    entity->ready = false;
+    entity->layer = 0;
     entity->flags = B_VISIBLE | B_COLLISION;
-    
-    
 }
 
-void onStart(Interpreter *vm,Process *proc)
+void onStart(Interpreter *vm, Process *proc)
 {
- 
 
     double x = proc->privates[0].asNumber();
     double y = proc->privates[1].asNumber();
@@ -408,7 +227,7 @@ void onStart(Interpreter *vm,Process *proc)
         red = proc->privates[9].asInt() / 255.0;
     else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
         red = proc->privates[9].asNumber();
-    
+
     double green = 1.0;
     if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
         green = proc->privates[10].asInt() / 255.0;
@@ -424,19 +243,18 @@ void onStart(Interpreter *vm,Process *proc)
         alpha = proc->privates[12].asInt() / 255.0;
     else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
         alpha = proc->privates[12].asNumber();
-    
-    
-    //Info("Create process: ID:%d  Layer:%d  angle:%d  Size:%d   FLAGS: %d X:%f Y:%f  FATHER:%d  GRAPH:%d", id, z, angle, size,  flags, x, y, father, graph);
+
+    // Info("Create process: ID:%d  Layer:%d  angle:%d  Size:%d   FLAGS: %d X:%f Y:%f  FATHER:%d  GRAPH:%d", id, z, angle, size,  flags, x, y, father, graph);
 
     Entity *entity = (Entity *)proc->userData;
     if (!entity)
     {
-       // Warning("Process %d has no associated entity!", proc->id);
+        // Warning("Process %d has no associated entity!", proc->id);
         return;
     }
-    if(entity->layer != z)
+    if (entity->layer != z)
     {
-        
+
         gScene.moveEntityToLayer(entity, z);
     }
 
@@ -450,18 +268,16 @@ void onStart(Interpreter *vm,Process *proc)
     entity->color.b = (uint8)(blue * 255.0);
     entity->color.a = (uint8)(alpha * 255.0);
     entity->flags = B_VISIBLE | B_COLLISION;
-    
-    entity->ready= true;
-    
+
+    entity->ready = true;
 }
-void onUpdate(Interpreter *vm,Process *proc, float dt)
+void onUpdate(Interpreter *vm, Process *proc, float dt)
 {
- 
 
     Entity *entity = (Entity *)proc->userData;
     if (!entity)
     {
-       // Warning("Process %d has no associated entity!", proc->id);
+        // Warning("Process %d has no associated entity!", proc->id);
         return;
     }
     if (!entity->ready)
@@ -481,7 +297,7 @@ void onUpdate(Interpreter *vm,Process *proc, float dt)
         red = proc->privates[9].asInt() / 255.0;
     else if (proc->privates[(int)PrivateIndex::iGREEN].isNumber())
         red = proc->privates[9].asNumber();
-    
+
     double green = 1.0;
     if (proc->privates[(int)PrivateIndex::iGREEN].isInt())
         green = proc->privates[10].asInt() / 255.0;
@@ -497,8 +313,8 @@ void onUpdate(Interpreter *vm,Process *proc, float dt)
         alpha = proc->privates[12].asInt() / 255.0;
     else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
         alpha = proc->privates[12].asNumber();
-    
-    if(entity->layer != z)
+
+    if (entity->layer != z)
     {
         entity->layer = z;
         gScene.moveEntityToLayer(entity, z);
@@ -512,22 +328,15 @@ void onUpdate(Interpreter *vm,Process *proc, float dt)
     entity->color.b = (uint8)(blue * 255.0);
     entity->color.a = (uint8)(alpha * 255.0);
 
-    
-
-
     // proc->privates[0] = vm->makeDouble(entity->x);
     // proc->privates[1] = vm->makeDouble(entity->y);
     // proc->privates[4] = vm->makeInt(entity->angle);
     // proc->privates[5] = vm->makeInt(entity->size);
     // proc->privates[6] = vm->makeInt(flags);
-    
-
-
-    
 }
-void onDestroy(Interpreter *vm,Process *proc, int exitCode)
+void onDestroy(Interpreter *vm, Process *proc, int exitCode)
 {
-//   Info("Destroy process: %d with exit code %d", proc->id, exitCode);
+    //   Info("Destroy process: %d with exit code %d", proc->id, exitCode);
     Entity *entity = (Entity *)proc->userData;
     if (entity && proc->userData)
     {
@@ -535,7 +344,7 @@ void onDestroy(Interpreter *vm,Process *proc, int exitCode)
         proc->userData = nullptr;
     }
 }
-void onRender(Interpreter *vm,Process *proc)
+void onRender(Interpreter *vm, Process *proc)
 {
 }
 
@@ -555,20 +364,12 @@ int main(int argc, char *argv[])
 
     Bindings::registerAll(vm);
     BindingsEase::registerAll(vm);
-
+    registerCameraNatives(vm);
     vm.registerNative("set_window_size", native_set_window_size, 2);
     vm.registerNative("set_window_title", native_set_window_title, 1);
     vm.registerNative("set_fullscreen", native_set_fullscreen, 1);
     vm.registerNative("set_window_resizable", native_set_window_resizable, 1);
     vm.registerNative("close_window", native_close_window, 0);
-
-    vm.registerNative("set_camera_zoom", native_set_camera_zoom, 1);
-    vm.registerNative("set_camera_rotation", native_set_camera_rotation, 1);
-    vm.registerNative("set_camera_target", native_set_camera_target, 2);
-    vm.registerNative("set_camera_offset", native_set_camera_offset, 2);
-    vm.registerNative("start_camera_shake", native_start_camera_shake, 4);
-    vm.registerNative("stop_camera_shake", native_stop_camera_shake, 0);
-
     vm.registerNative("set_log_level", native_set_log_level, 1);
 
     FileLoaderContext ctx;
@@ -625,12 +426,9 @@ int main(int argc, char *argv[])
     SetExitKey(KEY_NULL); // Disable default ESC exit from Raylib.
     InitSound();
     InitScene();
-
-    camera.target = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
-    camera.offset = (Vector2){WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
-    gCameraBaseOffset = camera.offset;
-    camera.rotation = 0.0f;
-    camera.zoom = 1.0f;
+    gCamera.init(WINDOW_WIDTH, WINDOW_HEIGHT);
+    gCamera.setScreenScaleMode(SCALE_NONE);
+    gCamera.setVirtualScreenEnabled(false); 
 
     if (!vm.run(code.c_str(), false))
     {
@@ -650,9 +448,21 @@ int main(int argc, char *argv[])
     SetWindowState(flags);
     SetTargetFPS(60);
 
+
+    // gCamera.setZoom(1.0f);
+    
+    
+    // gCamera.setVirtualScreenEnabled(true);
+    // gCamera.setScreenScaleMode(SCALE_FIT);   
+
  
 
-    while (!CAN_CLOSE)
+     //gCamera.setDesignResolution(30 * 24, 20 * 24); // Configurar resolução de design para 720x480 (30x20 tiles de 24px)
+    // gCamera.setScreenScaleMode(SCALE_STRETCH);  // Usar modo FIT para manter aspecto ratio e mostrar barras pretas se necessário
+    // gCamera.setVirtualScreenEnabled(true); // Ativar virtual screen para usar a resolução de design
+
+
+    while (!CAN_CLOSE && vm.getTotalAliveProcesses() > 0)
     {
         if (WindowShouldClose())
         {
@@ -663,44 +473,39 @@ int main(int argc, char *argv[])
         {
             CAN_CLOSE = true;
         }
+ 
+        //   // Mudar modo de escala
+        // if (IsKeyPressed(KEY_F1)) gCamera.setScreenScaleMode(SCALE_NONE);
+        // if (IsKeyPressed(KEY_F2)) gCamera.setScreenScaleMode(SCALE_FIT);
+        // if (IsKeyPressed(KEY_F3)) gCamera.setScreenScaleMode(SCALE_STRETCH);
+        // if (IsKeyPressed(KEY_F4)) gCamera.setScreenScaleMode(SCALE_FILL);
 
+
+       
         
-
         float dt = GetFrameTime();
-        BindingsDraw::resetDrawCommands();
+        gCamera.update(dt);
+        UpdateFade(dt);
+        gScene.updateCollision();
 
-        UpdateFade(dt); 
-        
-        gScene.updateCollision();  
-        
+         
+
         BeginDrawing();
-        
         ClearBackground(BACKGROUND_COLOR);
-        
-        
-        updateCameraShake(dt);
-        
-        BeginMode2D(camera);
-        
+        gCamera.begin();
         RenderScene();
         gParticleSystem.update(dt);
         vm.update(dt);
-        vm.render();
-
+        gParticleSystem.cleanup();
         gParticleSystem.draw();
-        
-        EndMode2D();
-        
-        BindingsDraw::RenderScreenCommands();
+        gCamera.end();
+
+
 
         DrawFade();
-        
+
+        DrawText(TextFormat("FPS: %d Processes: %d", GetFPS(), vm.getTotalAliveProcesses()), 10, 10, 20, WHITE);
         EndDrawing();
-
- 
-
-
-        
     }
     gParticleSystem.clear();
     BindingsDraw::unloadFonts();

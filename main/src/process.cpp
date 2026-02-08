@@ -3,8 +3,10 @@
 #include "math.hpp"
 #include "interpreter.hpp"
 #include <raylib.h>
+#include <cfloat>
 extern GraphLib gGraphLib;
 extern Scene gScene;
+ 
 
 namespace BindingsProcess
 {
@@ -396,35 +398,33 @@ namespace BindingsProcess
         if (argCount != 2)
         {
             Error("place_meeting expects 2 arguments (x, y)");
-            vm->pushInt(-1);
+            vm->pushBool(false);
             return 1;
         }
         if (!args[0].isNumber() || !args[1].isNumber())
         {
             Error("place_meeting expects 2 number arguments (x, y)");
-             vm->pushInt(-1);
+            vm->pushBool(false);
             return 1;
         }
 
         Entity *entity = requireEntity(proc, "place_meeting");
         if (!entity)
         {
-             vm->pushInt(-1);
-                return 1;
+            vm->pushBool(false);
+            return 1;
         }
-         
+
         double x = args[0].asNumber();
         double y = args[1].asNumber();
         Entity *hit = entity->place_meeting(x, y);
         if (!hit)
         {
-            vm->pushInt(-1);
+            vm->pushBool(false);
             return 1;
         }
 
-//        vm->push(hit->procID);
-        vm->pushInt(hit->procID);
-
+        vm->push(vm->makeProcess(hit->procID));
         return 1;
     }
 
@@ -680,18 +680,78 @@ namespace BindingsProcess
  
 
 
-    // fget_angle(processID) -> angle from this process to target process (degrees)
+    // Helper: resolve target - accepts process ID (ValueType::PROCESS) or type (ValueType::INT)
+    // For type, finds the nearest process of that type
+    static Process *resolveTarget(Interpreter *vm, Process *proc, Value &arg)
+    {
+        // Direct process ID
+        if (arg.isProcess())
+            return vm->findProcessById(arg.as.integer);
+
+        // Type (blueprint index) -> find nearest
+        if (arg.isInt())
+        {
+            int blueprint = arg.asInt();
+            double mx = proc->privates[0].asNumber();
+            double my = proc->privates[1].asNumber();
+            double bestDist = DBL_MAX;
+            Process *best = nullptr;
+
+            const auto &alive = vm->getAliveProcesses();
+            for (size_t i = 0; i < alive.size(); i++)
+            {
+                Process *other = alive[i];
+                if (!other || other == proc) continue;
+                if (other->blueprint != blueprint) continue;
+                if (other->state == FiberState::DEAD || other->state == FiberState::FROZEN) continue;
+
+                double dx = other->privates[0].asNumber() - mx;
+                double dy = other->privates[1].asNumber() - my;
+                double d = dx * dx + dy * dy;
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = other;
+                }
+            }
+            return best;
+        }
+
+        return nullptr;
+    }
+
+    // get_nearest(type X) -> nearest process of type X
+    int native_get_nearest(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isInt())
+        {
+            Error("get_nearest expects 1 argument (type)");
+            vm->pushBool(false);
+            return 1;
+        }
+
+        Process *target = resolveTarget(vm, proc, args[0]);
+        if (!target)
+        {
+            vm->pushBool(false);
+            return 1;
+        }
+
+        vm->push(vm->makeProcess(target->id));
+        return 1;
+    }
+
+    // fget_angle(process | type) -> angle from this process to target (degrees)
     int native_fget_angle(Interpreter *vm, Process *proc, int argCount, Value *args)
     {
         if (argCount != 1)
         {
-            Error("fget_angle expects 1 argument (processID)");
+            Error("fget_angle expects 1 argument (process or type)");
             vm->pushDouble(0);
             return 1;
         }
 
-        int targetId = (int)args[0].asNumber();
-        Process *target = vm->findProcessById(targetId);
+        Process *target = resolveTarget(vm, proc, args[0]);
         if (!target)
         {
             vm->pushDouble(0);
@@ -704,24 +764,23 @@ namespace BindingsProcess
         double y2 = target->privates[1].asNumber();
 
         double dx = x2 - x1;
-        double dy = -(y2 - y1); // flip Y for screen coords
+        double dy = -(y2 - y1);
         double angle = atan2(dy, dx) * 180.0 / PI;
         vm->pushDouble(angle);
         return 1;
     }
 
-    // fget_dist(processID) -> distance from this process to target process
+    // fget_dist(process | type) -> distance from this process to target
     int native_fget_dist(Interpreter *vm, Process *proc, int argCount, Value *args)
     {
         if (argCount != 1)
         {
-            Error("fget_dist expects 1 argument (processID)");
+            Error("fget_dist expects 1 argument (process or type)");
             vm->pushDouble(0);
             return 1;
         }
 
-        int targetId = (int)args[0].asNumber();
-        Process *target = vm->findProcessById(targetId);
+        Process *target = resolveTarget(vm, proc, args[0]);
         if (!target)
         {
             vm->pushDouble(0);
@@ -739,19 +798,17 @@ namespace BindingsProcess
         return 1;
     }
 
-    // turn_to(processID, step) -> rotate this process's angle toward target by step degrees
+    // turn_to(process | type, step) -> rotate angle toward target by step degrees
     int native_turn_to(Interpreter *vm, Process *proc, int argCount, Value *args)
     {
-        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        if (argCount != 2)
         {
-            Error("turn_to expects 2 arguments (processID, step)");
+            Error("turn_to expects 2 arguments (target, step)");
             return 0;
         }
 
-        int targetId = (int)args[0].asNumber();
         double step = fabs(args[1].asNumber());
-
-        Process *target = vm->findProcessById(targetId);
+        Process *target = resolveTarget(vm, proc, args[0]);
         if (!target)
             return 0;
 
@@ -779,22 +836,45 @@ namespace BindingsProcess
         return 0;
     }
 
+    int native_let_me_alone(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        (void)argCount;
+        (void)args;
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *other = alive[i];
+            if (other && other != proc)
+                other->state = FiberState::DEAD;
+        }
+        return 0;
+    }
+
+ 
+
     int native_collision(Interpreter *vm, Process *proc, int argCount, Value *args)
     {
-        if (argCount != 3 || !args[0].isString() || !args[1].isNumber() || !args[2].isNumber())
+        if (argCount != 3 || !args[0].isInt() || !args[1].isNumber() || !args[2].isNumber())
         {
-            vm->pushInt(-1);
+            vm->pushBool(false);
+            return 1;
+        }
+
+        if(proc->state == FiberState::FROZEN || proc->state == FiberState::DEAD)
+        {
+           
+            vm->pushBool(false);
             return 1;
         }
 
         Entity *entity = requireEntity(proc, "collision");
         if (!entity || !entity->shape || !(entity->flags & B_COLLISION) || !entity->ready)
         {
-            vm->pushInt(-1);
+            vm->pushBool(false);
             return 1;
         }
 
-      
+        int targetBlueprint = args[0].asInt();
         double x = args[1].asNumber();
         double y = args[2].asNumber();
 
@@ -805,29 +885,48 @@ namespace BindingsProcess
         entity->markTransformDirty();
         entity->updateBounds();
 
-        // Itera processos vivos do tipo pedido
-        const auto &alive = vm->getAliveProcesses();
-        for (size_t i = 0; i < alive.size(); i++)
+        // Tilemap collision
+        if (entity->collide_with_tiles(entity->getBounds()))
         {
-            Process *other = alive[i];
-            if (!other || other == proc) continue;
-            if (!other->userData) continue;
-            if (!compare_strings(other->name, args[0].asString())) continue;
+            entity->x = old_x;
+            entity->y = old_y;
+            entity->markTransformDirty();
+            entity->bounds_dirty = true;
+            vm->pushBool(false);
+            return 1;
+        }
 
-            Entity *otherEntity = (Entity *)other->userData;
-            if (!otherEntity || !otherEntity->shape) continue;
-            if (!(otherEntity->flags & B_COLLISION)) continue;
-            if (otherEntity->flags & B_DEAD) continue;
+        // Broadphase: quadtree + dinâmicas, pré-filtradas por blueprint
+        std::vector<Entity *> nearby;
+        if (gScene.staticTree)
+            gScene.staticTree->query(entity->getBounds(), nearby);
+        for (Entity *dyn : gScene.dynamicEntities)
+        {
+            if (dyn != entity && dyn->blueprint == targetBlueprint)
+                nearby.push_back(dyn);
+        }
 
-            if (CheckCollisionRecs(entity->getBounds(), otherEntity->getBounds()))
+        for (Entity *other : nearby)
+        {
+            if (!other || other == entity) continue;
+            if (!other->shape || !(other->flags & B_COLLISION)) continue;
+            if (other->flags & B_DEAD) continue;
+            if (other->procID < 0) continue;
+
+            Process *otherProc = vm->findProcessById((uint32)other->procID);
+            if (!otherProc || otherProc->state == FiberState::DEAD) continue;
+            if (otherProc->blueprint != targetBlueprint) continue;
+ 
+
+            if (CheckCollisionRecs(entity->getBounds(), other->getBounds()))
             {
-                if (entity->intersects(otherEntity))
+                if (entity->intersects(other))
                 {
                     entity->x = old_x;
                     entity->y = old_y;
                     entity->markTransformDirty();
                     entity->bounds_dirty = true;
-                    vm->pushInt(other->id);
+                    vm->push(vm->makeProcess(otherProc->id));
                     return 1;
                 }
             }
@@ -839,7 +938,7 @@ namespace BindingsProcess
         entity->markTransformDirty();
         entity->bounds_dirty = true;
 
-        vm->pushInt(-1);
+        vm->pushBool(false);
         return 1;
     }
 
@@ -882,8 +981,11 @@ namespace BindingsProcess
         vm.registerNativeProcess("flip", native_flip, 2);
 
         // Game math (process-aware, DIV-style)
+        vm.registerNativeProcess("get_nearest", native_get_nearest, 1);
         vm.registerNativeProcess("fget_angle", native_fget_angle, 1);
         vm.registerNativeProcess("fget_dist", native_fget_dist, 1);
         vm.registerNativeProcess("turn_to", native_turn_to, 2);
+        vm.registerNativeProcess("let_me_alone", native_let_me_alone, 0);
+
     }
 }

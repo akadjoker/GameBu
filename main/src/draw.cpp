@@ -1,96 +1,25 @@
 #include "bindings.hpp"
 #include "engine.hpp"
+#include "render.hpp"
 #include <raylib.h>
 #include <vector>
+
+extern GraphLib gGraphLib;
+extern Scene gScene;
 
 namespace BindingsDraw
 {
 
     Color currentColor = WHITE;
-    bool currentScreenSpace = true;
+    int layer = 0;
+    bool screen= false;
 
     static std::vector<Font> loadedFonts;
 
-    struct TextCommand
+    static void draw_font_impl(String *text, int x, int y, int size, float spacing, Color color, int fontId)
     {
-        String *text;
-        int x, y, size;
-        Color color;
-    };
-
-    struct FontCommand
-    {
-        String *text;
-        int x, y, size;
-        float spacing;
-        int fontId;
-        Color color;
-    };
-
-    struct FontCommandRotated
-    {
-        String *text;
-        int x, y, size;
-        Vector2 origin;
-        float rotation;
-        float spacing;
-        int fontId;
-        Color color;
-    };
-
-    struct RectangleCommand
-    {
-        int x, y, width, height;
-        bool fill;
-        Color color;
-    };
-
-    struct CircleCommand
-    {
-        int centerX, centerY, radius;
-        bool fill;
-        Color color;
-    };
-
-    struct LineCommand
-    {
-        int x1, y1, x2, y2;
-        Color color;
-    };
-
-    struct DrawCommand
-    {
-
-        enum Type
+        if (fontId < 0 || fontId >= (int)loadedFonts.size())
         {
-            LINE,
-            POINT,
-            TEXT,
-            FONT,
-            FONTROTATED,
-            CIRCLE,
-            RECTANGLE
-        } type;
-
-        union
-        {
-            LineCommand line;
-            TextCommand text;
-            FontCommand font;
-            FontCommandRotated fontRotated;
-            CircleCommand circle;
-            RectangleCommand rectangle;
-        };
-    };
-
-    static Vector<DrawCommand> screenCommands;
-
-    static void draw_font(String *text, int x, int y, int size, float spacing, Color color, int fontId)
-    {
-
-        if (fontId < 0 || fontId >= loadedFonts.size())
-        {
-
             DrawTextEx(GetFontDefault(), text->chars(), {(float)x, (float)y}, (float)size, spacing, color);
             return;
         }
@@ -98,12 +27,11 @@ namespace BindingsDraw
         DrawTextEx(font, text->chars(), {(float)x, (float)y}, (float)size, spacing, color);
     }
 
-    static void draw_font_rotate(String *text, int x, int y, int size, float rotation, float spacing, float pivot_x, float pivot_y, Color color, int fontId)
+    static void draw_font_rotate_impl(String *text, int x, int y, int size, float rotation, float spacing, float pivot_x, float pivot_y, Color color, int fontId)
     {
-
-        if (fontId < 0 || fontId >= loadedFonts.size())
+        
+        if (fontId < 0 || fontId >= (int)loadedFonts.size())
         {
-            Warning("draw_font_rotate: invalid fontId %d, using default font", fontId);
             DrawTextPro(GetFontDefault(), text->chars(), {(float)x, (float)y}, {pivot_x, pivot_y}, rotation, (float)size, spacing, color);
             return;
         }
@@ -111,181 +39,65 @@ namespace BindingsDraw
         DrawTextPro(font, text->chars(), {(float)x, (float)y}, {pivot_x, pivot_y}, rotation, (float)size, spacing, color);
     }
 
-    void RenderScreenCommands()
-    {
+    // === Native functions ===
 
-        for (size_t i = 0; i < screenCommands.size(); i++)
+    static int native_set_draw_layer(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1)
         {
-            DrawCommand &cmd = screenCommands[i];
-            switch (cmd.type)
-            {
-            case DrawCommand::LINE:
-                DrawLine(cmd.line.x1, cmd.line.y1, cmd.line.x2, cmd.line.y2, cmd.line.color);
-                break;
-            case DrawCommand::POINT:
-                DrawPixel(cmd.line.x1, cmd.line.y1, cmd.line.color);
-                break;
-            case DrawCommand::TEXT:
-                DrawText(cmd.text.text->chars(), cmd.text.x, cmd.text.y, cmd.text.size, cmd.text.color);
-                break;
-            case DrawCommand::FONT:
-                draw_font(cmd.font.text, cmd.font.x, cmd.font.y, cmd.font.size, cmd.font.spacing, cmd.font.color, cmd.font.fontId);
-                break;
-            case DrawCommand::FONTROTATED:
-                draw_font_rotate(cmd.fontRotated.text, cmd.fontRotated.x, cmd.fontRotated.y, cmd.fontRotated.size, cmd.fontRotated.rotation, cmd.fontRotated.spacing, cmd.fontRotated.origin.x, cmd.fontRotated.origin.y, cmd.fontRotated.color, 0);
-                break;
-            case DrawCommand::CIRCLE:
-                if (cmd.circle.fill)
-                    DrawCircle(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius, cmd.circle.color);
-                else
-                    DrawCircleLines(cmd.circle.centerX, cmd.circle.centerY, cmd.circle.radius, cmd.circle.color);
-                break;
-            case DrawCommand::RECTANGLE:
-                if (cmd.rectangle.fill)
-                    DrawRectangle(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width, cmd.rectangle.height, cmd.rectangle.color);
-                else
-                    DrawRectangleLines(cmd.rectangle.x, cmd.rectangle.y, cmd.rectangle.width, cmd.rectangle.height, cmd.rectangle.color);
-                break;
-            }
+            Error("set_draw_layer expects 1 argument (layer)");
+            return 0;
         }
+       
+        layer = args[0].asInt();
+        if (layer < 0 || layer >= MAX_LAYERS)
+        {
+            Error("set_draw_layer: layer out of bounds");
+            layer = 0;
+        }
+        return 0;
     }
 
-    void resetDrawCommands()
+    static int native_set_draw_screen(Interpreter *vm, int argCount, Value *args)
     {
-        screenCommands.clear();
-    }
-
-    void addPointCommand(int x, int y, bool screenSpace)
-    {
-        if (screenSpace)
+        if (argCount != 1)
         {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::POINT;
-            cmd.line = {x, y, x, y, currentColor};
-            screenCommands.push(cmd);
+            Error("set_draw_screen expects 1 argument (bool)");
+            return 0;
         }
-        else
-        {
-            DrawPixel(x, y, currentColor);
-        }
-    }
-
-    void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::LINE;
-            cmd.line = {x1, y1, x2, y2, currentColor};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            DrawLine(x1, y1, x2, y2, currentColor);
-        }
-    }
-
-    void addTextCommand(String *text, int x, int y, int size, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::TEXT;
-            cmd.text = {text, x, y, size, currentColor};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            DrawText(text->chars(), x, y, size, currentColor);
-        }
-    }
-
-    void addFontCommand(String *text, int x, int y, int size, float spacing, Color color, int fontId, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::FONT;
-            cmd.font = {text, x, y, size, spacing, fontId, color};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            draw_font(text, x, y, size, spacing, color, fontId);
-        }
-    }
-
-    void addFontRotateCommand(String *text, int x, int y, int size, float rotation, float spacing, float pivot_x, float pivot_y, Color color, int fontId, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::FONTROTATED;
-            cmd.fontRotated = {text, x, y, size, rotation, spacing, pivot_x, pivot_y, fontId, color};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            draw_font_rotate(text, x, y, size, rotation, spacing, pivot_x, pivot_y, color, fontId);
-        }
-    }
-
-    void addCircleCommand(int centerX, int centerY, int radius, bool fill, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::CIRCLE;
-            cmd.circle = {centerX, centerY, radius, fill, currentColor};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            if (fill)
-                DrawCircle(centerX, centerY, radius, currentColor);
-            else
-                DrawCircleLines(centerX, centerY, radius, currentColor);
-        }
-    }
-
-    void addRectangleCommand(int x, int y, int width, int height, bool fill, bool screenSpace)
-    {
-        if (screenSpace)
-        {
-            DrawCommand cmd;
-            cmd.type = DrawCommand::RECTANGLE;
-            cmd.rectangle = {x, y, width, height, fill, currentColor};
-            screenCommands.push(cmd);
-        }
-        else
-        {
-            if (fill)
-                DrawRectangle(x, y, width, height, currentColor);
-            else
-                DrawRectangleLines(x, y, width, height, currentColor);
-        }
+       
+        screen = args[0].asBool();
+        return 0;
     }
 
     static int native_line(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 4)
         {
-            Error("line expects 4 arguments (x1, y1, x2, y2)");
+            Error("draw_line expects 4 arguments (x1, y1, x2, y2)");
             return 0;
         }
         if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
         {
-            Error("line expects 4 number arguments (x1, y1, x2, y2)");
+            Error("draw_line expects 4 number arguments (x1, y1, x2, y2)");
             return 0;
         }
+        
 
         int x1 = (int)args[0].asNumber();
         int y1 = (int)args[1].asNumber();
         int x2 = (int)args[2].asNumber();
         int y2 = (int)args[3].asNumber();
-
-        addLineCommand(x1, y1, x2, y2, currentScreenSpace);
-
+            if (!screen)
+            {
+                Layer &l = gScene.layers[layer];
+                x1 -= l.scroll_x;
+                y1 -= l.scroll_y;
+                x2 -= l.scroll_x;
+                y2 -= l.scroll_y;
+                
+            }
+        DrawLine(x1, y1, x2, y2, currentColor);
         return 0;
     }
 
@@ -293,19 +105,24 @@ namespace BindingsDraw
     {
         if (argCount != 2)
         {
-            Error("point expects 2 arguments (x, y)");
+            Error("draw_point expects 2 arguments (x, y)");
             return 0;
         }
         if (!args[0].isNumber() || !args[1].isNumber())
         {
-            Error("point expects 2 number arguments (x, y)");
+            Error("draw_point expects 2 number arguments (x, y)");
             return 0;
         }
 
         int x = (int)args[0].asNumber();
         int y = (int)args[1].asNumber();
-        addPointCommand(x, y, currentScreenSpace);
-
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+        DrawPixel(x, y, currentColor);
         return 0;
     }
 
@@ -313,12 +130,12 @@ namespace BindingsDraw
     {
         if (argCount != 4)
         {
-            Error("text expects 4 arguments (text, x, y, size)");
+            Error("draw_text expects 4 arguments (text, x, y, size)");
             return 0;
         }
         if (!args[0].isString() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
         {
-            Error("text expects 1 string and 3 number arguments (text, x, y, size)");
+            Error("draw_text expects 1 string and 3 number arguments (text, x, y, size)");
             return 0;
         }
 
@@ -326,8 +143,13 @@ namespace BindingsDraw
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
         int size = (int)args[3].asNumber();
-        addTextCommand(text, x, y, size, currentScreenSpace);
-
+            if (!screen)
+            {
+                Layer &l = gScene.layers[layer];
+                x -= l.scroll_x;
+                y -= l.scroll_y;
+            }
+        DrawText(text->chars(), x, y, size, currentColor);
         return 0;
     }
 
@@ -342,12 +164,18 @@ namespace BindingsDraw
         String *text = args[0].asString();
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+
         int size = (int)args[3].asNumber();
         float spacing = (float)args[4].asNumber();
         int fontId = args[5].asInt();
-
-        addFontCommand(text, x, y, size, spacing, currentColor, fontId, currentScreenSpace);
-
+        draw_font_impl(text, x, y, size, spacing, currentColor, fontId);
         return 0;
     }
 
@@ -362,15 +190,22 @@ namespace BindingsDraw
         String *text = args[0].asString();
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+
+
         int size = (int)args[3].asNumber();
         float rotation = (float)args[4].asNumber();
         float spacing = (float)args[5].asNumber();
         float pivot_x = (float)args[6].asNumber();
         float pivot_y = (float)args[7].asNumber();
         int fontId = args[8].asInt();
-
-        addFontRotateCommand(text, x, y, size, rotation, spacing, pivot_x, pivot_y, currentColor, fontId, currentScreenSpace);
-
+        draw_font_rotate_impl(text, x, y, size, rotation, spacing, pivot_x, pivot_y, currentColor, fontId);
         return 0;
     }
 
@@ -378,17 +213,29 @@ namespace BindingsDraw
     {
         if (argCount != 4)
         {
-            Error("circle expects 4 arguments (centerX, centerY, radius, fill)");
+            Error("draw_circle expects 4 arguments (centerX, centerY, radius, fill)");
             return 0;
         }
 
         int centerX = (int)args[0].asNumber();
         int centerY = (int)args[1].asNumber();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            centerX -= l.scroll_x;
+            centerY -= l.scroll_y;
+
+            
+        }
+
         int radius = (int)args[2].asNumber();
-        int fill = (int)args[3].asNumber();
+        bool fill = (int)args[3].asNumber() != 0;
 
-        addCircleCommand(centerX, centerY, radius, fill != 0, currentScreenSpace);
-
+        if (fill)
+            DrawCircle(centerX, centerY, radius, currentColor);
+        else
+            DrawCircleLines(centerX, centerY, radius, currentColor);
         return 0;
     }
 
@@ -396,18 +243,127 @@ namespace BindingsDraw
     {
         if (argCount != 5)
         {
-            Error("rectangle expects 5 arguments (x, y, width, height, fill)");
+            Error("draw_rectangle expects 5 arguments (x, y, width, height, fill)");
             return 0;
         }
-         
 
         int x = (int)args[0].asNumber();
         int y = (int)args[1].asNumber();
         int width = (int)args[2].asNumber();
         int height = (int)args[3].asNumber();
-        bool fill =  args[4].asBool();
+        bool fill = args[4].asBool();
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
 
-        addRectangleCommand(x, y, width, height, fill , currentScreenSpace);
+        if (fill)
+            DrawRectangle(x, y, width, height, currentColor);
+        else
+            DrawRectangleLines(x, y, width, height, currentColor);
+        return 0;
+    }
+
+    static int native_triangle(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 7)
+        {
+            Error("draw_triangle expects 7 arguments (x1, y1, x2, y2, x3, y3, fill)");
+            return 0;
+        }
+
+        Vector2 v1 = {(float)args[0].asNumber(), (float)args[1].asNumber()};
+        Vector2 v2 = {(float)args[2].asNumber(), (float)args[3].asNumber()};
+        Vector2 v3 = {(float)args[4].asNumber(), (float)args[5].asNumber()};
+            if (!screen)
+            {
+                Layer &l = gScene.layers[layer];
+                v1.x -= l.scroll_x;
+                v1.y -= l.scroll_y;
+                v2.x -= l.scroll_x;
+                v2.y -= l.scroll_y;
+                v3.x -= l.scroll_x;
+                v3.y -= l.scroll_y;
+            }
+        bool fill = args[6].asBool();
+
+        if (fill)
+            DrawTriangle(v1, v2, v3, currentColor);
+        else
+            DrawTriangleLines(v1, v2, v3, currentColor);
+        return 0;
+    }
+
+    static int native_draw_graph(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3)
+        {
+            Error("draw_graph expects 3 arguments (graphId, x, y)");
+            return 0;
+        }
+
+        int graphId = (int)args[0].asNumber();
+        float x = (float)args[1].asNumber();
+        float y = (float)args[2].asNumber();
+
+        if (!screen)        
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+
+        Graph *graph = gGraphLib.getGraph(graphId);
+        if (!graph) return 0;
+        Texture2D *tex = gGraphLib.getTexture(graph->texture);
+        if (!tex) return 0;
+        DrawTextureRec(*tex, graph->clip, {x, y}, currentColor);
+        return 0;
+    }
+
+    static int native_draw_graph_ex(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 8)
+        {
+            Error("draw_graph_ex expects 8 arguments (graphId, x, y, angle, sizeX, sizeY, flipX, flipY)");
+            return 0;
+        }
+
+        int graphId = (int)args[0].asNumber();
+        float x = (float)args[1].asNumber();
+        float y = (float)args[2].asNumber();
+        float angle = (float)args[3].asNumber();
+        float sizeX = (float)args[4].asNumber();
+        float sizeY = (float)args[5].asNumber();
+        bool flipX = args[6].asBool();
+        bool flipY = args[7].asBool();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+
+        Graph *graph = gGraphLib.getGraph(graphId);
+        if (!graph) return 0;
+        Texture2D *tex = gGraphLib.getTexture(graph->texture);
+        if (!tex) return 0;
+
+        if (angle == 0 && sizeX == 100 && sizeY == 100 && !flipX && !flipY)
+        {
+            DrawTextureRec(*tex, graph->clip, {x, y}, currentColor);
+        }
+        else
+        {
+            int pivotX = (int)(graph->clip.width / 2);
+            int pivotY = (int)(graph->clip.height / 2);
+            RenderTexturePivotRotateSizeXY(*tex, pivotX, pivotY, graph->clip,
+                                          x, y, angle, sizeX, sizeY,
+                                          flipX, flipY, currentColor);
+        }
         return 0;
     }
 
@@ -418,18 +374,14 @@ namespace BindingsDraw
             Error("set_color expects 3 arguments (red, green, blue)");
             return 0;
         }
-
         if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
         {
             Error("set_color expects 3 number arguments (red, green, blue)");
             return 0;
         }
-        int red = (int)args[0].asNumber();
-        int green = (int)args[1].asNumber();
-        int blue = (int)args[2].asNumber();
-        currentColor.r = red;
-        currentColor.g = green;
-        currentColor.b = blue;
+        currentColor.r = (int)args[0].asNumber();
+        currentColor.g = (int)args[1].asNumber();
+        currentColor.b = (int)args[2].asNumber();
         return 0;
     }
 
@@ -445,24 +397,7 @@ namespace BindingsDraw
             Error("set_alpha expects a number argument (alpha)");
             return 0;
         }
-        int alpha = (int)args[0].asNumber();
-        currentColor.a = alpha;
-        return 0;
-    }
-
-    static int native_set_screen_space(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("set_screen_space expects 1 argument (enabled)");
-            return 0;
-        }
-        if (!args[0].isBool())
-        {
-            Error("set_screen_space expects a boolean argument (enabled)");
-            return 0;
-        }
-        currentScreenSpace = args[0].asBool();
+        currentColor.a = (int)args[0].asNumber();
         return 0;
     }
 
@@ -493,7 +428,7 @@ namespace BindingsDraw
     {
         if (argCount != 2)
         {
-            Error("start_fade expects 2 arguments (targetAlpha, speed )");
+            Error("start_fade expects 2 arguments (targetAlpha, speed)");
             return 0;
         }
         if (!args[0].isNumber() || !args[1].isNumber())
@@ -504,7 +439,6 @@ namespace BindingsDraw
 
         float targetAlpha = (float)args[0].asNumber();
         float speed = (float)args[1].asNumber();
-
         StartFade(targetAlpha, speed, currentColor);
         return 0;
     }
@@ -517,7 +451,6 @@ namespace BindingsDraw
             vm->pushBool(false);
             return 1;
         }
-
         vm->pushBool(IsFadeComplete());
         return 1;
     }
@@ -530,45 +463,29 @@ namespace BindingsDraw
             vm->pushDouble(0.0);
             return 1;
         }
-
-        float progress = GetFadeProgress();
-        vm->pushDouble(progress);
+        vm->pushDouble(GetFadeProgress());
         return 1;
     }
 
     int native_fade_in(Interpreter *vm, int argCount, Value *args)
     {
-        if (argCount != 1)
+        if (argCount != 1 || !args[0].isNumber())
         {
-            Error("fade_in expects 1 argument (speed)");
+            Error("fade_in expects 1 number argument (speed)");
             return 0;
         }
-        if (!args[0].isNumber())
-        {
-            Error("fade_in expects a number argument (speed)");
-            return 0;
-        }
-
-        float speed = (float)args[0].asNumber();
-        FadeIn(speed, currentColor);
+        FadeIn((float)args[0].asNumber(), currentColor);
         return 0;
     }
 
     int native_fade_out(Interpreter *vm, int argCount, Value *args)
     {
-        if (argCount != 1)
+        if (argCount != 1 || !args[0].isNumber())
         {
-            Error("fade_out expects 1 argument (speed)");
+            Error("fade_out expects 1 number argument (speed)");
             return 0;
         }
-        if (!args[0].isNumber())
-        {
-            Error("fade_out expects a number argument (speed)");
-            return 0;
-        }
-
-        float speed = (float)args[0].asNumber();
-        FadeOut(speed, currentColor);
+        FadeOut((float)args[0].asNumber(), currentColor);
         return 0;
     }
 
@@ -579,12 +496,68 @@ namespace BindingsDraw
             Error("draw_fps expects 2 arguments (x, y)");
             return 0;
         }
-
-        int x = (int)args[0].asNumber();
-        int y = (int)args[1].asNumber();
-        DrawFPS(x, y);
+        DrawFPS((int)args[0].asNumber(), (int)args[1].asNumber());
         return 0;
     }
+
+    static int native_get_text_width(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isString() || !args[1].isNumber())
+        {
+            Error("get_text_width expects 2 arguments (text, size)");
+            vm->pushInt(0);
+            return 1;
+        }
+        vm->pushInt(MeasureText(args[0].asStringChars(), (int)args[1].asNumber()));
+        return 1;
+    }
+
+    static int native_get_font_text_width(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 4 || !args[0].isString() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
+        {
+            Error("get_font_text_width expects 4 arguments (text, size, spacing, fontId)");
+            vm->pushInt(0);
+            return 1;
+        }
+
+        int fontId = (int)args[3].asNumber();
+        Font font = GetFontDefault();
+        if (fontId >= 0 && fontId < (int)loadedFonts.size())
+            font = loadedFonts[fontId];
+
+        Vector2 measure = MeasureTextEx(font, args[0].asStringChars(), (float)args[1].asNumber(), (float)args[2].asNumber());
+        vm->pushInt((int)measure.x);
+        return 1;
+    }
+
+    static int native_get_graph_width(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("get_graph_width expects 1 argument (graphId)");
+            vm->pushInt(0);
+            return 1;
+        }
+        Graph *g = gGraphLib.getGraph((int)args[0].asNumber());
+        vm->pushInt(g ? g->width : 0);
+        return 1;
+    }
+
+    static int native_get_graph_height(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("get_graph_height expects 1 argument (graphId)");
+            vm->pushInt(0);
+            return 1;
+        }
+        Graph *g = gGraphLib.getGraph((int)args[0].asNumber());
+        vm->pushInt(g ? g->height : 0);
+        return 1;
+    }
+
+    // === Structs ===
 
     static void color_ctor(Interpreter *vm, void *buffer, int argc, Value *args)
     {
@@ -628,32 +601,42 @@ namespace BindingsDraw
         vm.addStructField(vec2, "y", offsetof(Vector2, y), FieldType::FLOAT);
     }
 
+    // === Registration ===
+
     void registerAll(Interpreter &vm)
     {
-
         vm.registerNative("draw_line", native_line, 4);
         vm.registerNative("draw_circle", native_circle, 4);
         vm.registerNative("draw_point", native_point, 2);
         vm.registerNative("draw_text", native_text, 4);
         vm.registerNative("draw_font", native_draw_font, 6);
         vm.registerNative("draw_font_rotate", native_draw_font_rotate, 9);
-
         vm.registerNative("draw_rectangle", native_rectangle, 5);
+        vm.registerNative("draw_triangle", native_triangle, 7);
+        vm.registerNative("draw_graph", native_draw_graph, 3);
+        vm.registerNative("draw_graph_ex", native_draw_graph_ex, 8);
+
+        vm.registerNative("set_draw_layer", native_set_draw_layer, 1);
+        vm.registerNative("set_draw_screen", native_set_draw_screen, 1);
+
+        vm.registerNative("get_text_width", native_get_text_width, 2);
+        vm.registerNative("get_font_text_width", native_get_font_text_width, 4);
+        vm.registerNative("get_graph_width", native_get_graph_width, 1);
+        vm.registerNative("get_graph_height", native_get_graph_height, 1);
 
         vm.registerNative("set_color", native_set_color, 3);
         vm.registerNative("set_alpha", native_set_alpha, 1);
-        vm.registerNative("set_screen_space", native_set_screen_space, 1);
 
         vm.registerNative("draw_fps", native_draw_fps, 2);
 
         vm.registerNative("start_fade", native_start_fade, 2);
         vm.registerNative("is_fade_complete", native_is_fade_complete, 0);
-
         vm.registerNative("fade_in", native_fade_in, 1);
         vm.registerNative("fade_out", native_fade_out, 1);
         vm.registerNative("get_fade_progress", native_get_fade_progress, 0);
 
         vm.registerNative("load_font", native_load_font, 1);
+
         registerColor(vm);
         registerVector2(vm);
     }

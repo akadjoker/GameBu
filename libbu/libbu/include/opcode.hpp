@@ -126,4 +126,11 @@ enum Opcode : uint8
     // Multi-return (88)
     OP_RETURN_N = 88,  // Returns N values from script function
 
+    // Type reference (89)
+    OP_TYPE = 89,  // Resolve process name to blueprint index
+
+    // Process utilities (90-91)
+    OP_PROC = 90,    // Convert process ID (int) to Process value
+    OP_GET_ID = 91,  // Get first alive process ID by blueprint index
+
 };

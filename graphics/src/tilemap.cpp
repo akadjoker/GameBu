@@ -284,15 +284,18 @@ void Tilemap::render()
     float scroll_x = l.scroll_x;
     float scroll_y = l.scroll_y;
 
-    int start_x = (int)(scroll_x / tilewidth) - 1;
-    int start_y = (int)(scroll_y / tileheight) - 1;
-    int end_x = start_x + (gScene.width / tilewidth) + 3;
-    int end_y = start_y + (gScene.height / tileheight) + 3;
-
-    // int start_x = 0;
-    // int start_y = 0;
-    // int end_x = width;
-    // int end_y = height;
+    // int start_x = (int)(scroll_x / tilewidth) - 1;
+    // int start_y = (int)(scroll_y / tileheight) - 1;
+    // int end_x = start_x + (gScene.width / tilewidth) + 3;
+    // int end_y = start_y + (gScene.height / tileheight) + 3;
+    // int start_x = (int)(scroll_x / tilewidth) - 1;
+    // int start_y = (int)(scroll_y / tileheight) - 1;
+    // int end_x = start_x + (gScene.width / tilewidth) + 3;
+    // int end_y = start_y + (gScene.height / tileheight) + 3;
+    int start_x = 0;
+     int start_y = 0;
+     int end_x = width;
+     int end_y = height;
 
     Texture2D atlas = gGraphLib.textures[g->texture];
 

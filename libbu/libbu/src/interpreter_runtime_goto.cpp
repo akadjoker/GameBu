@@ -310,6 +310,13 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
 
         // Multi-return (88)
         &&op_return_n,
+
+        // Type reference (89)
+        &&op_type,
+
+        // Process utilities (90-91)
+        &&op_proc,
+        &&op_get_id,
     };
 
 #define SAFE_CALL_NATIVE(fiber, argCount, callFunc)                                    \
@@ -5342,6 +5349,67 @@ op_return_n:
     }
 
     LOAD_FRAME();
+    DISPATCH();
+}
+
+op_type:
+{
+    Value nameVal = POP();
+    String *name = nameVal.asString();
+    ProcessDef *procDef = nullptr;
+    if (!processesMap.get(name, &procDef))
+    {
+        runtimeError("Unknown process type: %s", name->chars());
+        STORE_FRAME();
+        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+    }
+    PUSH(makeInt(procDef->index));
+    DISPATCH();
+}
+
+op_proc:
+{
+    Value idVal = POP();
+    if (!idVal.isNumber())
+    {
+        runtimeError("proc expects a number (process id)");
+        STORE_FRAME();
+        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+    }
+    uint32 id = (uint32)idVal.asNumber();
+    Process *target = findProcessById(id);
+    if (!target)
+    {
+        PUSH(makeNil());
+    }
+    else
+    {
+        PUSH(makeProcess(target->id));
+    }
+    DISPATCH();
+}
+
+op_get_id:
+{
+    Value blueprintVal = POP();
+    if (!blueprintVal.isInt())
+    {
+        PUSH(makeInt(-1));
+        DISPATCH();
+    }
+    int targetBlueprint = blueprintVal.asInt();
+    bool found = false;
+    for (size_t i = 0; i < aliveProcesses.size(); i++)
+    {
+        Process *p = aliveProcesses[i];
+        if (p && p->blueprint == targetBlueprint && p->state != FiberState::DEAD)
+        {
+            PUSH(makeInt(p->id));
+            found = true;
+            break;
+        }
+    }
+    if (!found) PUSH(makeInt(-1));
     DISPATCH();
 }
 

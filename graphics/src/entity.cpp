@@ -62,14 +62,22 @@ double Entity::getAngle()
     return atan2(world.b, world.a) * RAD2DEG;
 }
 
-Vector2 Entity::getLocalPoint(double x, double y)
+Vector2 Entity::getLocalPoint(double px, double py)
 {
-    return GetAbsoluteTransformation().TransformCoords(center_x + (float)x, center_y + (float)y);
+    float scale_final = (float)size / 100.0f;
+
+    Matrix2D mat = GetRelativeTransformation(
+        (float)x, (float)y,
+        scale_final, scale_final,
+        0.0f, 0.0f,
+        center_x, center_y,
+        angle);
+    return mat.TransformCoords((float)px, (float)py);
 }
 
 Vector2 Entity::getWorldPoint(double x, double y)
 {
-    return GetWorldTransformation().TransformCoords(center_x + (float)x, center_y + (float)y);
+    return GetWorldTransformation().TransformCoords(x,y);
 }
 
 Vector2 Entity::getRealPoint(int pointIdx)

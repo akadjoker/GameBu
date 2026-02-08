@@ -162,6 +162,12 @@ size_t Debug::disassembleInstruction(const Code &chunk, size_t offset)
     return simpleInstruction("OP_RETURN", offset);
   case OP_RETURN_N:
     return byteInstruction("OP_RETURN_N", chunk, offset);
+  case OP_TYPE:
+    return simpleInstruction("OP_TYPE", offset);
+  case OP_PROC:
+    return simpleInstruction("OP_PROC", offset);
+  case OP_GET_ID:
+    return simpleInstruction("OP_GET_ID", offset);
 
   case OP_CLOSURE:
   {

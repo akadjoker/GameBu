@@ -1638,7 +1638,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                     Process *proc = findProcessById((uint32)processId);
                     if (!proc)
                     {
-                        runtimeError("Process '%i' is dead or invalid", processId);
+                        runtimeError("Process '%i' is dead or invalid access to property '%s'", processId, name);
                         return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
                     }
                     int privateIdx = getProcessPrivateIndex(name);
@@ -5160,6 +5160,65 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 openUpvalues = upvalue->nextOpen;
             }
             DROP();
+            break;
+        }
+
+        case OP_TYPE:
+        {
+            Value nameVal = POP();
+            String *name = nameVal.asString();
+            ProcessDef *procDef = nullptr;
+            if (!processesMap.get(name, &procDef))
+            {
+                runtimeError("Unknown process type: %s", name->chars());
+                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            }
+            PUSH(makeInt(procDef->index));
+            break;
+        }
+
+        case OP_PROC:
+        {
+            Value idVal = POP();
+            if (!idVal.isNumber())
+            {
+                runtimeError("proc expects a number (process id)");
+                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            }
+            uint32 id = (uint32)idVal.asNumber();
+            Process *target = findProcessById(id);
+            if (!target)
+            {
+                PUSH(makeNil());
+            }
+            else
+            {
+                PUSH(makeProcess(target->id));
+            }
+            break;
+        }
+
+        case OP_GET_ID:
+        {
+            Value blueprintVal = POP();
+            if (!blueprintVal.isInt())
+            {
+                PUSH(makeInt(-1));
+                break;
+            }
+            int targetBlueprint = blueprintVal.asInt();
+            bool found = false;
+            for (size_t i = 0; i < aliveProcesses.size(); i++)
+            {
+                Process *p = aliveProcesses[i];
+                if (p && p->blueprint == targetBlueprint && p->state != FiberState::DEAD)
+                {
+                    PUSH(makeInt(p->id));
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) PUSH(makeInt(-1));
             break;
         }
 

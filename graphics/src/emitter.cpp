@@ -300,7 +300,7 @@ void Emitter::update(float dt)
     }
 
     // Marca finished
-    if (type == EMITTER_ONESHOT && !active && aliveCount == 0)
+    if (!active && aliveCount == 0)
     {
         finished = true;
     }
@@ -356,8 +356,13 @@ void Emitter::draw()
         //     continue;
         // }
 
-        DrawTexturePro(tex, g->clip, (Rectangle){p.pos.x - scroll_x, p.pos.y - scroll_y, p.size, p.size},
-                       (Vector2){g->clip.width / 2.0f, g->clip.height / 2.0f}, p.rotation, p.color);
+         
+
+           DrawTexturePro(tex, g->clip, (Rectangle){p.pos.x - scroll_x, p.pos.y - scroll_y, p.size, p.size},
+                       (Vector2){p.size / 2.0f, p.size / 2.0f}, p.rotation, p.color);
+                       
+        // DrawTexturePro(tex, g->clip, (Rectangle){p.pos.x - scroll_x, p.pos.y - scroll_y, p.size, p.size},
+        //                (Vector2){g->clip.width / 2.0f, g->clip.height / 2.0f}, p.rotation, p.color);
     }
 
     EndBlendMode();
@@ -762,7 +767,7 @@ Emitter *ParticleSystem::createRunTrail(Vector2 pos, int graph,float size_start,
 
     e->colorStart = ColorAlpha(LIGHTGRAY, 0.5f);
     e->colorEnd = ColorAlpha(GRAY, 0.0f);
-   e->sizeStart = size_start;
+    e->sizeStart = size_start;
     e->sizeEnd = size_end;
 
     e->gravity = {0, 0};
@@ -1075,19 +1080,21 @@ Emitter *ParticleSystem::createSparks(Vector2 pos, int graph, Color color)
 
 void ParticleSystem::update(float dt)
 {
-    // Swap-and-pop pattern
+    for (size_t i = 0; i < emitters.size(); i++)
+    {
+        emitters[i]->update(dt);
+    }
+}
+
+void ParticleSystem::cleanup()
+{
     for (size_t i = 0; i < emitters.size();)
     {
-        Emitter *e = emitters[i];
-        e->update(dt);
-
-        // Remove oneshots finalizados
-        if (e->finished && e->type == EMITTER_ONESHOT)
+        if (emitters[i]->finished)
         {
-            delete e;
+            delete emitters[i];
             emitters[i] = emitters.back();
             emitters.pop_back();
-            // Não incrementa i
         }
         else
         {

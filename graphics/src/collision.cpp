@@ -650,8 +650,8 @@ void Entity::updateBounds()
     double screenY = y;
 
     Layer &l = gScene.layers[layer];
-    screenX -= l.scroll_x;
-    screenY -= l.scroll_y;
+    // screenX -= l.scroll_x;
+    // screenY -= l.scroll_y;
 
     // Criar matriz de transformação
     float scale_final = (float)size / 100.0f;
@@ -721,6 +721,10 @@ bool Entity::collide_with_tiles(const Rectangle &box)
         if (!tm)
             continue;
 
+         Layer &l = gScene.layers[layer];
+         float scroll_x = l.scroll_x;
+         float scroll_y = l.scroll_y;
+
         int gx0, gy0, gx1, gy1;
         tm->worldToGrid({box.x, box.y}, gx0, gy0);
         tm->worldToGrid({box.x + box.width, box.y + box.height}, gx1, gy1);
@@ -739,16 +743,24 @@ bool Entity::collide_with_tiles(const Rectangle &box)
 
                 Vector2 wp = tm->gridToWorld(gx, gy);
 
-                Rectangle tileRect = {
+                Rectangle tileRect0 = {
                     wp.x,
                     wp.y,
                     (float)tm->tilewidth,
                     (float)tm->tileheight};
 
-                //  DrawRectangleLinesEx(tileRect, 1, RED);
+                Rectangle tileRect1 = {
+                   (float)(wp.x - l.scroll_x),
+                    (float)(wp.y - l.scroll_y),
+                    (float)tm->tilewidth,
+                    (float)tm->tileheight};
 
-                if (CheckCollisionRecs(box, tileRect))
-                    return true;
+                 //DrawRectangleLinesEx(tileRect0, 1, RED);
+                // DrawRectangleLinesEx(tileRect1, 1, LIME);
+
+
+                 if (CheckCollisionRecs(box, tileRect0))
+                     return true;
             }
     }
 
@@ -1003,18 +1015,14 @@ Entity *Entity::place_meeting(double x, double y)
             continue;
         if (other->flags & B_DEAD)
             continue;
+        if (!this->canCollideWith(other))
+            continue;
 
          if (CheckCollisionRecs(bounds, other->getBounds()))
         {
             if (intersects(other))
             {
-                // DrawRectangleLinesEx(bounds, 2, RED);
-                // DrawRectangleLinesEx(other->getBounds(), 2, RED);
-                // shape->draw(this, LIME);
-                // other->shape->draw(other, RED);
-    
                 hit = other;
-                
                 break;
             }
         }
@@ -1369,6 +1377,8 @@ bool Entity::move_and_slide(Vector2 &velocity, float delta, Vector2 up_direction
 
 void Scene::initCollision(Rectangle worldBounds)
 {
+    if (staticTree)
+        delete staticTree;
     staticTree = new Quadtree(worldBounds);
     updateCollision();
 }

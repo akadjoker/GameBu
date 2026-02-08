@@ -115,6 +115,12 @@ const char *tokenTypeToString(TokenType type)
     
     case TOKEN_PROCESS:
         return "PROCESS";
+    case TOKEN_TYPE:
+        return "TYPE";
+    case TOKEN_PROC:
+        return "PROC";
+    case TOKEN_GET_ID:
+        return "GET_ID";
     case TOKEN_FRAME:
         return "FRAME";
     case TOKEN_EXIT:

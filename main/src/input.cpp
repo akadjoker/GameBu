@@ -1,8 +1,18 @@
 #include "bindings.hpp"
+#include "camera.hpp"
 #include <raylib.h>
+
+extern CameraManager gCamera;
+
 
 namespace BindingsInput
 {
+    static Vector2 getMouseWorldPosition()
+    {
+        Vector2 screenPos = GetMousePosition();
+        return GetScreenToWorld2D(screenPos, gCamera.getCamera());
+    }
+
 
     //   RLAPI bool IsKeyPressed(int key);                             // Check if a key has been pressed once
     // RLAPI bool IsKeyPressedRepeat(int key);                       // Check if a key has been pressed again (Only PLATFORM_DESKTOP)
@@ -215,8 +225,8 @@ namespace BindingsInput
             return 0;
         }
 
-        int mouseX = GetMouseX();
-        vm->pushInt(mouseX);
+        Vector2 worldPos = getMouseWorldPosition();
+        vm->pushFloat(worldPos.x);
         return 1;
     }
 
@@ -228,8 +238,8 @@ namespace BindingsInput
             return 0;
         }
 
-        int mouseY = GetMouseY();
-        vm->pushInt(mouseY);
+        Vector2 worldPos = getMouseWorldPosition();
+        vm->pushFloat(worldPos.y);
         return 1;
     }
 
@@ -241,10 +251,49 @@ namespace BindingsInput
             return 0;
         }
 
+        Vector2 worldPos = getMouseWorldPosition();
+        vm->pushFloat(worldPos.x);
+        vm->pushFloat(worldPos.y);
+       
+        return 2;
+    }
+
+    static int getMouseScreenX(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_screen_x expects no arguments");
+            return 0;
+        }
+
+        vm->pushInt(GetMouseX());
+        return 1;
+    }
+
+    static int getMouseScreenY(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_screen_y expects no arguments");
+            return 0;
+        }
+
+        vm->pushInt(GetMouseY());
+        return 1;
+    }
+
+    static int getMouseScreenPosition(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_screen_position expects no arguments");
+            return 0;
+        }
+
         Vector2 pos = GetMousePosition();
         vm->pushFloat(pos.x);
         vm->pushFloat(pos.y);
-       
+
         return 2;
     }
 
@@ -338,6 +387,9 @@ namespace BindingsInput
         vm.registerNative("get_mouse_x", getMouseX, 0);
         vm.registerNative("get_mouse_y", getMouseY, 0);
         vm.registerNative("get_mouse_position", getMousePosition, 0);
+        vm.registerNative("get_mouse_screen_x", getMouseScreenX, 0);
+        vm.registerNative("get_mouse_screen_y", getMouseScreenY, 0);
+        vm.registerNative("get_mouse_screen_position", getMouseScreenPosition, 0);
         vm.registerNative("get_mouse_delta", getMouseDelta, 0);
         vm.registerNative("set_mouse_position", setMousePosition, 2);
         vm.registerNative("set_mouse_offset", setMouseOffset, 2);

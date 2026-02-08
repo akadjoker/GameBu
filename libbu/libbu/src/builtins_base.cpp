@@ -52,6 +52,10 @@ static void valueToString(const Value &v, std::string &out)
     out += v.asStringChars();
     break;
   }
+  case ValueType::PROCESS:
+    snprintf(buffer, 256, "<process:%u>", v.as.integer);
+    out += buffer;
+    break;
   case ValueType::ARRAY:
     out += "[array]";
     break;

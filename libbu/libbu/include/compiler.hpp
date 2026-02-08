@@ -329,6 +329,9 @@ private:
   void mathUnary(bool canAssign);
   void mathBinary(bool canAssign);
   void expressionClock(bool canAssign);
+  void typeExpression(bool canAssign);
+  void procExpression(bool canAssign);
+  void getIdExpression(bool canAssign);
 
   // Parse functions (infix)
   void binary(bool canAssign);

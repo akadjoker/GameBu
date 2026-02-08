@@ -138,6 +138,7 @@ struct Entity
     Matrix2D WorldTransformation;
     uint32 id;
     uint32 procID;
+    int blueprint{-1};
     int graph; // referencia ao Graph via ID
     Shape *shape;
     uint8 layer;
@@ -443,6 +444,7 @@ public:
 
 
     void update(float dt);
+    void cleanup();
     void draw();
     void clear();
 
@@ -629,6 +631,7 @@ struct Scene
     Quadtree *staticTree;
     double scroll_x, scroll_y;
     int width, height;
+    bool clip = false;
 
     CollisionCallback onCollision;
     void *collisionUserData;

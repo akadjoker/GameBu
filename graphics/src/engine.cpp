@@ -297,6 +297,8 @@ void SetScroll(double x, double y)
         layer.scroll_y = y ;
 
         // Clamp aos limites do mundo (se layer tem bounds definidos)
+        if(gScene.clip)
+        {
         if (layer.size.width > 0 && layer.size.height > 0)
         {
             // Limite esquerdo/superior
@@ -313,6 +315,7 @@ void SetScroll(double x, double y)
                 layer.scroll_x = max_scroll_x;
             if (layer.scroll_y > max_scroll_y)
                 layer.scroll_y = max_scroll_y;
+        }
         }
     }
 }

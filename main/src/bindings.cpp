@@ -815,46 +815,73 @@ namespace Bindings
         vm->pushString(target->name->chars());
         return 1;
     }
+    static void applySignal(Process *proc, int signalType)
+    {
+        switch (signalType)
+        {
+        case 0: // S_KILL
+            proc->state = FiberState::DEAD;
+            break;
+        case 1: // S_FREEZE
+            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
+                proc->state = FiberState::FROZEN;
+            break;
+        case 2: // S_HIDE - freeze + hide (same as freeze for now)
+            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
+                proc->state = FiberState::FROZEN;
+            break;
+        case 3: // S_SHOW - wakeup from frozen
+            if (proc->state == FiberState::FROZEN)
+                proc->state = FiberState::RUNNING;
+            break;
+        }
+    }
+
     int native_signal(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2)
         {
-            Error("signal expects 2 arguments (process id, type)");
-            return 0;
-        }
-        if (!args[0].isNumber())
-        {
-            Error("signal expects 1 number argument (process id)");
-            return 0;
-        }
-        if (!args[1].isInt())
-        {
-            Error("signal expects 1 int argument (signal type)");
+            Error("signal expects 2 arguments (target, signal_type)");
             return 0;
         }
 
-        int id = (int)args[0].asNumber();
-        int type = (int)args[1].asInt();
 
-        if (type == 0) // KILL
+        //Info(" type %s",valueTypeToString(args[0].type));
+
+        int signalType = (int)args[1].asInt();
+
+        // signal(process_id, SKILL) - by specific process ID
+        if (args[0].isProcess())
         {
-            if(id==-1)
-            {
-                vm->killAliveProcess();
-                return 0;
-            }else
-            {
-                Process *proc = vm->findProcessById(id);
-                if (proc)
-                {
-                    proc->state = FiberState::DEAD;
-                }
-            }
-        }
-        else
-        {
+            int id = args[0].as.integer;
             Process *proc = vm->findProcessById(id);
-            proc->signal = type;
+            if (proc)
+                applySignal(proc, signalType);
+            return 0;
+        }
+
+        int target = (int)args[0].asInt();
+
+        // signal(-1, SKILL) - all processes
+        if (target == -1)
+        {
+            const auto &alive = vm->getAliveProcesses();
+            for (size_t i = 0; i < alive.size(); i++)
+            {
+                Process *proc = alive[i];
+                if (proc)
+                    applySignal(proc, signalType);
+            }
+            return 0;
+        }
+
+        // signal(type enemy, SKILL) - by blueprint index
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (proc && proc->blueprint == target)
+                applySignal(proc, signalType);
         }
 
         return 0;
@@ -862,35 +889,107 @@ namespace Bindings
 
     int native_exists(Interpreter *vm, int argCount, Value *args)
     {
-        if (argCount != 1 || !args[0].isNumber())
+        if (argCount != 1)
         {
             vm->pushBool(false);
             return 1;
         }
 
-        uint32 id = (uint32)args[0].asNumber();
-        Process *target = vm->findProcessById(id);
-        vm->pushBool(target != nullptr);
-        return 1;
-    }
-
-    int native_get_id(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1 || !args[0].isString())
+        // exists(type enemy) - check if any process of this type is alive
+        if (args[0].isInt())
         {
-            vm->pushInt(-1);
+            int targetBlueprint = args[0].asInt();
+            const auto &alive = vm->getAliveProcesses();
+            for (size_t i = 0; i < alive.size(); i++)
+            {
+                Process *proc = alive[i];
+                if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                {
+                    vm->pushBool(true);
+                    return 1;
+                }
+            }
+            vm->pushBool(false);
             return 1;
         }
 
-        
+        // exists(process_id) - check if specific process exists
+        if (args[0].isNumber())
+        {
+            uint32 id = (uint32)args[0].asNumber();
+            Process *target = vm->findProcessById(id);
+            vm->pushBool(target != nullptr);
+            return 1;
+        }
+
+        vm->pushBool(false);
+        return 1;
+    }
+
+    int native_get_count(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isInt())
+        {
+            vm->pushInt(0);
+            return 1;
+        }
+
+        int targetBlueprint = args[0].asInt();
+        int count = 0;
 
         const auto &alive = vm->getAliveProcesses();
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && compareString(proc->name, args[0].asString()))
+            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                count++;
+        }
+
+        vm->pushInt(count);
+        return 1;
+    }
+
+    int native_get_ids(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isInt())
+        {
+            vm->push(vm->makeArray());
+            return 1;
+        }
+
+        int targetBlueprint = args[0].asInt();
+        Value arr = vm->makeArray();
+        ArrayInstance *array = arr.as.array;
+
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                array->values.push(vm->makeInt(proc->id));
+        }
+
+        vm->push(arr);
+        return 1;
+    }
+
+    int native_get_id(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isInt())
+        {
+            vm->pushInt(-1);
+            return 1;
+        }
+
+        int targetBlueprint = args[0].asInt();
+
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (proc && proc->blueprint == targetBlueprint)
             {
-                vm->push(vm->makeProcess(proc->id));
+                vm->pushInt(proc->id);
                 return 1;
             }
         }
@@ -1039,6 +1138,22 @@ namespace Bindings
         int mode = (int)args[1].asInt();
 
         SetLayerMode(layer, mode);
+        return 0;
+    }
+
+    int native_set_layer_clip(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1)
+        {
+            Error("set_layer_clip expects 1 argument (clip)");
+            return 0;
+        }
+        if (!args[0].isBool())
+        {
+            Error("set_layer_clip expects 1 bool argument (clip)");
+            return 0;
+        }
+        gScene.clip = args[0].asBool();
         return 0;
     }
 
@@ -1627,17 +1742,18 @@ namespace Bindings
         vm.registerNative("load_graphics", native_load_graphics, 1);
         vm.registerNative("set_graphics_point", native_set_graphics_pointer, 3);
         vm.registerNative("init_collision", native_init_collision, 4);
-        vm.registerNative("type", native_type, 1);
-        vm.registerNative("proc", native_proc, 1);
         vm.registerNative("signal", native_signal, 2);
         vm.registerNative("exists", native_exists, 1);
-        vm.registerNative("get_id", native_get_id, 1);
+        vm.registerNative("get_count", native_get_count, 1);
+        vm.registerNative("get_ids", native_get_ids, 1);
         vm.registerNative("play_sound", native_play_sound, 3);
         vm.registerNative("stop_sound", native_stop_sound, 1);
+        vm.registerNative("load_sound", native_load_sound, 1);
         vm.registerNative("is_sound_playing", native_is_sound_playing, 1);
         vm.registerNative("pause_sound", native_pause_sound, 1);
         vm.registerNative("resume_sound", native_resume_sound, 1);
         vm.registerNative("set_layer_mode", native_set_layer_mode, 2);
+        vm.registerNative("set_layer_clip", native_set_layer_clip, 1);
 
         vm.registerNative("set_layer_scroll_factor", native_set_layer_scroll_factor, 3);
         vm.registerNative("set_layer_size", native_set_layer_size, 5);

@@ -157,7 +157,7 @@ process player()
 
         // Debug HUD
         set_color(255, 255, 255);
-        set_screen_space(true);
+   
         draw_text("Scroll: " + int(scroll_x) + ", " + int(scroll_y), 10, 10, 16);
         draw_text("Player: " + int(x) + ", " + int(y), 10, 30, 16);
         draw_text("Collisions: " + collisions, 10, 50, 16);

@@ -7,7 +7,7 @@ typedef const char* (*FileLoaderCallback)(const char* filename, size_t* outSize,
 
 
 
-static constexpr int MAX_PRIVATES = 20;
+static constexpr int MAX_PRIVATES = 24;
  
 static constexpr int STACK_MAX = 1024;
 static constexpr int FRAMES_MAX = 1024;
@@ -25,7 +25,8 @@ enum class FiberState : uint8
 {
     RUNNING,
     SUSPENDED,
-    DEAD 
+    FROZEN,
+    DEAD
 };
 
 
