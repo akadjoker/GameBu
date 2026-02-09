@@ -10,11 +10,11 @@ Entity *Scene::addEntity(int graphId, int layer, double x, double y)
     Entity *node = new Entity();
     Graph *g = gGraphLib.getGraph(graphId);
     node->graph = graphId;
-    node->layer = layer;
     node->x = x;
     node->y = y;
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
+    node->layer = layer;
     node->id = layers[layer].nodes.size();
     layers[layer].nodes.push_back(node);
     return node;
@@ -25,22 +25,47 @@ void Scene::moveEntityToLayer(Entity *node, int layer)
     if (!node)
         return;
 
-    if (layer < 0 || layer > 5)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
-    if (node->layer == layer)
-        return;
 
     int srcLayer = node->layer;
+    if (srcLayer < 0 || srcLayer >= MAX_LAYERS)
+        return;
+
+    if (srcLayer == layer)
+        return;
+
+    Layer &src = layers[srcLayer];
     uint32 idx = node->id;
 
+    if (src.nodes.empty())
+        return;
+
+    // Defensive: id can be stale after script/runtime mistakes.
+    if (idx >= src.nodes.size() || src.nodes[idx] != node)
+    {
+        bool found = false;
+        for (uint32 i = 0; i < src.nodes.size(); ++i)
+        {
+            if (src.nodes[i] == node)
+            {
+                idx = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return;
+    }
+
     // node a mover (pode ser o próprio "node")
-    Entity *remove = layers[srcLayer].nodes[idx];
+    Entity *remove = src.nodes[idx];
 
     // swap-remove NO LAYER DE ORIGEM
-    Entity *back = layers[srcLayer].nodes.back();
-    layers[srcLayer].nodes[idx] = back;
+    Entity *back = src.nodes.back();
+    src.nodes[idx] = back;
     back->id = idx;
-    layers[srcLayer].nodes.pop_back();
+    src.nodes.pop_back();
 
     // adicionar ao destino
     remove->layer = (uint8)layer;
@@ -51,6 +76,9 @@ void Scene::moveEntityToLayer(Entity *node, int layer)
 void Scene::moveEntityToParent(Entity *node, Entity *newParent, bool front)
 {
     if (!node || !newParent)
+        return;
+
+    if (node->layer < 0 || node->layer >= MAX_LAYERS)
         return;
 
     Layer &layer = layers[node->layer];
@@ -92,6 +120,9 @@ bool Scene::IsOutOfScreen(Entity *entity) const
 void Scene::removeEntity(Entity *node)
 {
     if (!node)
+        return;
+
+    if (node->layer < 0 || node->layer >= MAX_LAYERS)
         return;
 
     Layer &layer = layers[node->layer];

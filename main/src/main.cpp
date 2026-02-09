@@ -252,10 +252,14 @@ void onStart(Interpreter *vm, Process *proc)
         // Warning("Process %d has no associated entity!", proc->id);
         return;
     }
-    if (entity->layer != z)
+    int safeLayer = z;
+    if (safeLayer < 0 || safeLayer >= MAX_LAYERS)
+        safeLayer = 0;
+
+    if (entity->layer != safeLayer)
     {
 
-        gScene.moveEntityToLayer(entity, z);
+        gScene.moveEntityToLayer(entity, safeLayer);
     }
 
     entity->graph = graph;
@@ -314,10 +318,13 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
     else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
         alpha = proc->privates[12].asNumber();
 
-    if (entity->layer != z)
+    int safeLayer = z;
+    if (safeLayer < 0 || safeLayer >= MAX_LAYERS)
+        safeLayer = 0;
+
+    if (entity->layer != safeLayer)
     {
-        entity->layer = z;
-        gScene.moveEntityToLayer(entity, z);
+        gScene.moveEntityToLayer(entity, safeLayer);
     }
     entity->graph = graph;
     entity->setPosition(x, y);

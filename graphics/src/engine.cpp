@@ -215,7 +215,7 @@ Entity *CreateEntity(int graphId, int layer, double x, double y)
 
 void SetLayerMode(int layer, uint8 mode)
 {
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
 
     gScene.layers[layer].mode = mode;
@@ -223,7 +223,7 @@ void SetLayerMode(int layer, uint8 mode)
 
 void SetLayerScrollFactor(int layer, double x, double y)
 {
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
 
     gScene.layers[layer].scroll_factor_x = x;
@@ -233,7 +233,7 @@ void SetLayerScrollFactor(int layer, double x, double y)
 void SetLayerSize(int layer, int x, int y, int width, int height)
 {
 
-    if (layer > MAX_LAYERS)
+    if (layer >= MAX_LAYERS)
         layer = MAX_LAYERS - 1;
 
     if (layer < 0)
@@ -257,7 +257,7 @@ void SetLayerSize(int layer, int x, int y, int width, int height)
 
 void SetLayerBackGraph(int layer, int graph)
 {
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
 
     gScene.layers[layer].back = graph;
@@ -265,7 +265,7 @@ void SetLayerBackGraph(int layer, int graph)
 
 void SetLayerFrontGraph(int layer, int graph)
 {
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
 
     gScene.layers[layer].front = graph;
@@ -273,7 +273,7 @@ void SetLayerFrontGraph(int layer, int graph)
 
 void SetLayerVisible(int layer, bool visible)
 {
-    if (layer < 0 || layer > MAX_LAYERS)
+    if (layer < 0 || layer >= MAX_LAYERS)
         layer = 0;
 
     gScene.layers[layer].visible = visible;
