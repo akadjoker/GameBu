@@ -507,6 +507,7 @@ int main(int argc, char *argv[])
         DrawText(TextFormat("FPS: %d Processes: %d", GetFPS(), vm.getTotalAliveProcesses()), 10, 10, 20, WHITE);
         EndDrawing();
     }
+    BindingsMessage::clearAllMessages();
     gParticleSystem.clear();
     BindingsDraw::unloadFonts();
     DestroySound();

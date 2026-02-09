@@ -1,0 +1,646 @@
+print("Arkanoid - Loading...");
+import math;
+
+// ============================================
+// CONSTANTES
+// ============================================
+var KEY_ESCAPE = 256;
+var KEY_SPACE = 32;
+var KEY_R = 82;
+
+var WINDOW_WIDTH = 800;
+var WINDOW_HEIGHT = 600;
+
+// Dimensões dos tijolos
+var BRICK_WIDTH = 64;
+var BRICK_HEIGHT = 24;
+var BRICKS_PER_ROW = 12;
+var BRICK_ROWS = 10;
+var BRICK_OFFSET_X = 16;
+var BRICK_OFFSET_Y = 60;
+
+// Estados
+var game_state = "playing"; // "playing", "win", "lose"
+var score = 0;
+var lives = 3;
+var level = 1;
+var bricks_remaining = 0;
+var combo = 0;
+var combo_timer = 0;
+
+// Cores dos tijolos (por tipo)
+var brick_colors = [
+    Color(0, 0, 0, 0),        // 0 = vazio
+    Color(200, 50, 50, 255),   // 1 = vermelho
+    Color(50, 150, 200, 255),  // 2 = azul
+    Color(50, 200, 50, 255),   // 3 = verde
+    Color(200, 200, 50, 255),  // 4 = amarelo
+    Color(200, 50, 200, 255),  // 5 = magenta
+    Color(200, 120, 50, 255),  // 6 = laranja
+    Color(150, 150, 150, 255) // 7 = cinza (indestrutível)
+];
+
+// Pontos por tipo
+var brick_points = [0, 10, 20, 30, 40, 50, 60, 0];
+
+// HP por tipo
+var brick_hp_max = [0, 1, 1, 2, 2, 3, 3, 999];
+
+// ============================================
+// MAPAS DE NÍVEIS
+// ============================================
+var level_maps = [
+    // LEVEL 1 - Simples
+    [
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,1,1,1,1,1,1,1,1,1,1,0,
+        0,2,2,2,2,2,2,2,2,2,2,0,
+        0,3,3,3,3,3,3,3,3,3,3,0,
+        0,4,4,4,4,4,4,4,4,4,4,0,
+        0,5,5,5,5,5,5,5,5,5,5,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0
+    ],
+    
+    // LEVEL 2 - Pirâmide
+    [
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,5,5,0,0,0,0,0,
+        0,0,0,0,4,4,4,4,0,0,0,0,
+        0,0,0,3,3,3,3,3,3,0,0,0,
+        0,0,2,2,2,2,2,2,2,2,0,0,
+        0,1,1,1,1,1,1,1,1,1,1,0,
+        0,2,2,2,2,2,2,2,2,2,2,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0
+    ],
+    
+    // LEVEL 3 - Xadrez
+    [
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,1,0,1,0,1,0,1,0,1,0,0,
+        0,0,2,0,2,0,2,0,2,0,2,0,
+        0,3,0,3,0,3,0,3,0,3,0,0,
+        0,0,4,0,4,0,4,0,4,0,4,0,
+        0,5,0,5,0,7,7,0,5,0,5,0,
+        0,0,4,0,4,0,4,0,4,0,4,0,
+        0,3,0,3,0,3,0,3,0,3,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0
+    ]
+];
+
+var current_map = [];
+var brick_hp = []; // HP atual de cada tijolo
+
+// ============================================
+// FUNÇÕES DO MAPA
+// ============================================
+def load_level(_level_index)
+{
+    if (_level_index >= len(level_maps))
+    {
+        _level_index = len(level_maps) - 1;
+    }
+    
+    current_map = [];
+    brick_hp = [];
+    bricks_remaining = 0;
+    
+    var source_map = level_maps[_level_index];
+    for (var i = 0; i < len(source_map); i += 1)
+    {
+        current_map[i] = source_map[i];
+        brick_hp[i] = brick_hp_max[source_map[i]];
+        
+        if (source_map[i] > 0 && source_map[i] != 7)
+        {
+            bricks_remaining += 1;
+        }
+    }
+}
+
+def get_brick_at(grid_x, grid_y)
+{
+    if (grid_x < 0 || grid_x >= BRICKS_PER_ROW || grid_y < 0 || grid_y >= BRICK_ROWS)
+    {
+        return 0;
+    }
+    var index = grid_y * BRICKS_PER_ROW + grid_x;
+    return current_map[index];
+}
+
+def set_brick_at(grid_x, grid_y, value)
+{
+    if (grid_x < 0 || grid_x >= BRICKS_PER_ROW || grid_y < 0 || grid_y >= BRICK_ROWS)
+    {
+        return;
+    }
+    var index = grid_y * BRICKS_PER_ROW + grid_x;
+    current_map[index] = value;
+}
+
+def get_brick_hp_at(grid_x, grid_y)
+{
+    if (grid_x < 0 || grid_x >= BRICKS_PER_ROW || grid_y < 0 || grid_y >= BRICK_ROWS)
+    {
+        return 0;
+    }
+    var index = grid_y * BRICKS_PER_ROW + grid_x;
+    return brick_hp[index];
+}
+
+
+// ============================================
+// EFEITOS VISUAIS
+// ============================================
+def create_brick_explosion(ex, ey, brick_color)
+{
+    var particles = create_emitter(false, 0, 20);
+    particles.set_position(ex, ey);
+    particles.set_spread(6.28);
+    particles.set_speed_range(50, 150);
+    particles.set_life(0.5);
+    particles.set_size_curve(12, 2);
+    particles.set_color_curve(brick_color, Color(brick_color.r, brick_color.g, brick_color.b, 0));
+    particles.set_drag(0.88);
+    particles.set_emission_rate(1000);
+    particles.set_lifetime(0.05);
+}
+
+def create_paddle_hit_effect(px, py)
+{
+    var effect = create_emitter(false, 0, 15);
+    effect.set_position(px, py);
+    effect.set_spread(3.14);
+    effect.set_speed_range(30, 80);
+    effect.set_life(0.3);
+    effect.set_size_curve(8, 1);
+    effect.set_color_curve(Color(255, 255, 255, 200), Color(200, 200, 255, 0));
+    effect.set_drag(0.9);
+    effect.set_emission_rate(1000);
+    effect.set_lifetime(0.03);
+    effect.set_direction(-90);
+}
+
+// ============================================
+// POWER-UPS
+// ============================================
+process powerup(start_x, start_y, power_type)
+{
+    x = start_x;
+    y = start_y;
+    var fall_speed = 100;
+    var size = 20;
+    
+    // Tipos: 0=expand pad, 1=multiball, 2=slow ball
+    var colors = [
+        Color(100, 200, 255, 255), // Azul - Expand
+        Color(255, 200, 100, 255), // Amarelo - Multiball
+        Color(200, 100, 255, 255) // Roxo - Slow
+    ];
+    
+    var labels = ["EXPAND", "MULTI", "SLOW"];
+    
+    loop
+    {
+        y += fall_speed * delta();
+        
+        // Desenhar power-up
+        set_color(colors[power_type].r, colors[power_type].g, colors[power_type].b);
+        draw_circle(x, y, size, true);
+        set_color(255, 255, 255);
+        draw_circle(x, y, size, false);
+        draw_text(labels[power_type], x - 24, y - 6, 10);
+        
+        if (y > WINDOW_HEIGHT)
+        {
+            break;
+        }
+        
+        frame;
+    }
+}
+
+
+def damage_brick_at(grid_x, grid_y)
+{
+    if (grid_x < 0 || grid_x >= BRICKS_PER_ROW || grid_y < 0 || grid_y >= BRICK_ROWS)
+    {
+        return false;
+    }
+    
+    var index = grid_y * BRICKS_PER_ROW + grid_x;
+    var brick_type = current_map[index];
+    
+    if (brick_type == 0 || brick_type == 7)
+    {
+        return false; // Vazio ou indestrutível
+    }
+    
+    brick_hp[index] =brick_hp[index] - 1;
+    
+    if (brick_hp[index] <= 0)
+    {
+        // Destruiu tijolo
+        current_map[index] = 0;
+        brick_hp[index] = 0;
+        bricks_remaining -= 1;
+        
+        combo += 1;
+        combo_timer = 2.0;
+        score += brick_points[brick_type] * combo;
+        
+        // Partículas de destruição
+        var bx = BRICK_OFFSET_X + grid_x * BRICK_WIDTH + BRICK_WIDTH / 2;
+        var by = BRICK_OFFSET_Y + grid_y * BRICK_HEIGHT + BRICK_HEIGHT / 2;
+        create_brick_explosion(bx, by, brick_colors[brick_type]);
+        
+        // Chance de power-up (10%)
+        if (math.rand() < 0.1)
+        {
+            var power_type = math.irand(0, 2); // 0=expand, 1=multiball, 2=slow
+            powerup(bx, by, power_type);
+        }
+        
+        return true;
+    }
+    
+    return false; // Não destruiu, só dano
+}
+
+// ============================================
+// BOLA
+// ============================================
+process ball(start_x, start_y, vx, vy, is_initial)
+{
+    x = start_x;
+    y = start_y;
+    var velocity_x = vx;
+    var velocity_y = vy;
+    var radius = 8;
+    var speed = 350;
+    var stuck = is_initial;
+    var stuck_offset = 0;
+    
+    // Trail
+    var trail = create_emitter(true, 0, 30);
+    trail.set_spread(3.14);
+    trail.set_speed_range(5, 15);
+    trail.set_life(0.3);
+    trail.set_size_curve(10, 1);
+    trail.set_color_curve(Color(255, 255, 200, 180), Color(255, 200, 100, 0));
+    trail.set_drag(0.95);
+    trail.set_emission_rate(40);
+    
+    loop
+    {
+        trail.set_position(x, y);
+        
+       
+           // Movimento livre
+            var dt = delta();
+            x += velocity_x * dt;
+            y += velocity_y * dt;
+            
+            // Colisão com paredes laterais
+            if (x - radius < 0)
+            {
+                x = radius;
+                velocity_x = abs(velocity_x);
+            }
+            if (x + radius > WINDOW_WIDTH)
+            {
+                x = WINDOW_WIDTH - radius;
+                velocity_x = -abs(velocity_x);
+            }
+            
+            // Colisão com teto
+            if (y - radius < 0)
+            {
+                y = radius;
+                velocity_y = abs(velocity_y);
+            }
+            
+            // Morte (fundo)
+            if (y - radius > WINDOW_HEIGHT)
+            {
+                lives -= 1;
+                combo = 0;
+            
+            }
+            
+           
+        
+        
+        // Desenhar bola
+        set_color(255, 255, 200);
+        draw_circle(x, y, radius, true);
+        set_color(255, 200, 100);
+        draw_circle(x, y, radius, false);
+        
+        frame;
+    }
+    
+    trail.stop();
+}
+
+// ============================================
+// PADDLE
+// ============================================
+process paddle()
+{
+    x = WINDOW_WIDTH / 2;
+    y = WINDOW_HEIGHT - 40;
+    var width = 100;
+    var height = 16;
+    var speed = 600;
+    var expand_timer = 0;
+    var slow_timer = 0;
+    var base_width = 100;
+    
+    loop
+    {
+        var dt = delta();
+        
+        // Controle com mouse
+        var target_x = get_mouse_x();
+        
+        // Suavizar movimento
+        x += (target_x - x) * 12 * dt;
+        
+        // Limites
+        x = math.clamp(x, width / 2, WINDOW_WIDTH - width / 2);
+        
+        // Power-ups ativos
+        if (expand_timer > 0)
+        {
+            expand_timer -= dt;
+            width = base_width * 1.5;
+        }
+        else
+        {
+            width = base_width;
+        }
+        
+        if (slow_timer > 0)
+        {
+            slow_timer -= dt;
+        }
+        
+        // Coleta de power-ups
+        var pwrup = collision(type powerup, x, y);
+        if (pwrup)
+        {
+            if (pwrup.power_type == 0)
+            {
+                expand_timer = 10.0;
+            }
+            elif (pwrup.power_type == 1)
+            {
+                // Multiball
+                ball(x - 20, y - 20, -200, -300, false);
+                ball(x + 20, y - 20, 200, -300, false);
+            }
+            elif (pwrup.power_type == 2)
+            {
+                slow_timer = 8.0;
+            }
+            signal(pwrup, 0);
+            score += 50;
+        }
+        
+        // Colisão com bola
+        var ball_obj = collision(type ball, x, y);
+        if (ball_obj && !ball_obj.stuck)
+        {
+            if (ball_obj.y < y && ball_obj.velocity_y > 0)
+            {
+                // Rebote com ângulo baseado na posição de impacto
+                var hit_pos = (ball_obj.x - x) / (width / 2);
+                hit_pos = math.clamp(hit_pos, -1, 1);
+                
+                ball_obj.velocity_x = hit_pos * 400;
+                ball_obj.velocity_y = -abs(ball_obj.velocity_y);
+                
+                create_paddle_hit_effect(ball_obj.x, ball_obj.y);
+                combo = 0;
+            }
+        }
+        
+        // // Manter bola inicial colada
+        // var balls = get_id(type ball);
+        // for (var i = 0; i < len(balls); i += 1)
+        // {
+        //     if (balls[i].stuck)
+        //     {
+        //         balls[i].x = x;
+        //         balls[i].y = y - 20;
+        //     }
+        // }
+        
+        // Desenhar paddle
+        var paddle_color = Color(100, 150, 255, 255);
+        if (expand_timer > 0)
+        {
+            paddle_color = Color(150, 255, 150, 255);
+        }
+        
+        set_color(paddle_color.r, paddle_color.g, paddle_color.b);
+        draw_rectangle(x - width / 2, y - height / 2, width, height, true);
+        set_color(255, 255, 255);
+        draw_rectangle(x - width / 2, y - height / 2, width, height, false);
+        
+        // Indicador de direção
+        set_color(255, 255, 255);
+        draw_line_ex(x - width / 2, y - height / 2 - 4, x + width / 2, y - height / 2 - 4, 2);
+        
+        frame;
+    }
+}
+
+// ============================================
+// RENDERIZADOR DE TIJOLOS
+// ============================================
+process brick_renderer()
+{
+    loop
+    {
+        for (var row = 0; row < BRICK_ROWS; row += 1)
+        {
+            for (var col = 0; col < BRICKS_PER_ROW; col += 1)
+            {
+                var brick_type = get_brick_at(col, row);
+                
+                if (brick_type > 0)
+                {
+                    var bx = BRICK_OFFSET_X + col * BRICK_WIDTH;
+                    var by = BRICK_OFFSET_Y + row * BRICK_HEIGHT;
+                    
+                    var color = brick_colors[brick_type];
+                    
+                    // HP visual
+                    var hp = get_brick_hp_at(col, row);
+                    var max_hp = brick_hp_max[brick_type];
+                    var alpha_mult = 1.0;
+                    
+                    if (max_hp > 1 && hp < max_hp)
+                    {
+                        alpha_mult = 0.6 + 0.4 * (hp / max_hp);
+                    }
+                    
+                    set_color(color.r * alpha_mult, color.g * alpha_mult, color.b * alpha_mult);
+                    draw_rectangle(bx + 2, by + 2, BRICK_WIDTH - 4, BRICK_HEIGHT - 4, true);
+                    
+                    // Borda
+                    set_color(255, 255, 255);
+                    draw_rectangle(bx + 2, by + 2, BRICK_WIDTH - 4, BRICK_HEIGHT - 4, false);
+                    
+                    // HP text
+                    if (brick_type != 7 && max_hp > 1)
+                    {
+                        set_color(255, 255, 255);
+                        draw_text(format("{}", hp), bx + BRICK_WIDTH / 2 - 4, by + BRICK_HEIGHT / 2 - 6, 12);
+                    }
+                }
+            }
+        }
+        
+        frame;
+    }
+}
+
+// ============================================
+// HUD
+// ============================================
+process hud()
+{
+    loop
+    {
+        var dt = delta();
+        
+        // Combo timer
+        if (combo_timer > 0)
+        {
+            combo_timer -= dt;
+            if (combo_timer <= 0)
+            {
+                combo = 0;
+            }
+        }
+        
+        // Info superior
+        set_color(255, 255, 255);
+        draw_text(format("SCORE: {}", score), 20, 20, 20);
+        draw_text(format("LEVEL: {}", level), WINDOW_WIDTH / 2 - 40, 20, 20);
+        
+        // Vidas
+        for (var i = 0; i < lives; i += 1)
+        {
+            set_color(255, 100, 100);
+            draw_circle(WINDOW_WIDTH - 40 - i * 30, 30, 10, true);
+        }
+        
+        // Combo
+        if (combo > 1)
+        {
+            set_color(255, 255, 100);
+            draw_text(format("COMBO x{}", combo), WINDOW_WIDTH / 2 - 50, 45, 18);
+        }
+        
+        // Bricks restantes
+        set_color(200, 200, 200);
+        draw_text(format("Bricks: {}", bricks_remaining), 20, WINDOW_HEIGHT - 30, 16);
+        
+        // Estados de jogo
+        if (game_state == "win")
+        {
+            set_color(100, 255, 100);
+            draw_text("LEVEL COMPLETE!", WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2 - 40, 28);
+            draw_text("Press SPACE to continue", WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2, 18);
+            
+            if (key_pressed(KEY_SPACE))
+            {
+                level += 1;
+                load_level((level - 1) % len(level_maps));
+                game_state = "playing";
+                score += 500;
+ 
+                ball(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 60, 0, -300, true);
+            }
+        }
+        elif (game_state == "lose")
+        {
+            set_color(255, 100, 100);
+            draw_text("GAME OVER", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 - 40, 32);
+            draw_text(format("Final Score: {}", score), WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2, 20);
+            draw_text("Press R to restart", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 + 30, 18);
+            
+            if (key_pressed(KEY_R))
+            {
+                // Reset completo
+                score = 0;
+                lives = 3;
+                level = 1;
+                combo = 0;
+                game_state = "playing";
+                load_level(0);
+ 
+                ball(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 60, 0, -300, true);
+            }
+        }
+        
+        frame;
+    }
+}
+
+// ============================================
+// SETUP
+// ============================================
+set_window_size(WINDOW_WIDTH, WINDOW_HEIGHT);
+set_window_title("Arkanoid - Array Map Edition");
+ 
+init_collision(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+// // Criar partícula
+// var img_data = Image(8, 8);
+// for (var py = 0; py < 8; py += 1)
+// {
+//     for (var px = 0; px < 8; px += 1)
+//     {
+//         var dx = px - 4;
+//         var dy = py - 4;
+//         var dist = math.sqrt(dx * dx + dy * dy);
+//         if (dist < 4)
+//         {
+//             var alpha = int(255 * (1.0 - dist / 4.0));
+//             img_data.set_pixel(px, py, Color(255, 255, 255, alpha));
+//         }
+//     }
+// }
+// load_image(img_data);
+
+// Load level
+//load_level(0);
+
+// Spawn inicial
+//brick_renderer();
+ paddle();
+ ball(300, 100, 2, 2, false);
+// hud();
+
+print(format("Level loaded: {} bricks", bricks_remaining));
+
+loop
+{
+    if (key_down(KEY_ESCAPE))
+    {
+        let_me_alone();
+        break;
+    }
+    
+    frame;
+}

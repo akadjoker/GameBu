@@ -266,6 +266,64 @@ namespace BindingsDraw
         return 0;
     }
 
+    //draw_rotated_rectangle
+
+    static int native_rotated_rectangle(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 6)
+        {
+            Error("draw_rotated_rectangle expects 6 arguments (x, y, width, height, rotation, fill)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int width = (int)args[2].asNumber();
+        int height = (int)args[3].asNumber();
+        float rotation = (float)args[4].asNumber();
+        bool fill = args[5].asBool();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x -= l.scroll_x;
+            y -= l.scroll_y;
+        }
+
+        if (fill)
+            DrawRectanglePro({(float)x, (float)y, (float)width, (float)height}, {(float)width / 2, (float)height / 2}, rotation, currentColor);
+        else
+            DrawRectanglePro({(float)x, (float)y, (float)width, (float)height}, {(float)width / 2, (float)height / 2}, rotation, currentColor);
+        return 0;
+    }
+
+    static int native_line_ex(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 5)
+        {
+            Error("draw_line_ex expects 5 arguments (x1, y1, x2, y2, thickness)");
+            return 0;
+        }
+
+        int x1 = (int)args[0].asNumber();
+        int y1 = (int)args[1].asNumber();
+        int x2 = (int)args[2].asNumber();
+        int y2 = (int)args[3].asNumber();
+        float thickness = (float)args[4].asNumber();
+
+        if (!screen)
+        {
+            Layer &l = gScene.layers[layer];
+            x1 -= l.scroll_x;
+            y1 -= l.scroll_y;
+            x2 -= l.scroll_x;
+            y2 -= l.scroll_y;
+        }
+
+        DrawLineEx({(float)x1, (float)y1}, {(float)x2, (float)y2}, thickness, currentColor);
+        return 0;
+    }
+
     static int native_triangle(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 7)
@@ -615,6 +673,9 @@ namespace BindingsDraw
         vm.registerNative("draw_triangle", native_triangle, 7);
         vm.registerNative("draw_graph", native_draw_graph, 3);
         vm.registerNative("draw_graph_ex", native_draw_graph_ex, 8);
+
+        vm.registerNative("draw_line_ex", native_line_ex, 5);
+        vm.registerNative("draw_rotated_rectangle", native_rotated_rectangle, 6);
 
         vm.registerNative("set_draw_layer", native_set_draw_layer, 1);
         vm.registerNative("set_draw_screen", native_set_draw_screen, 1);
