@@ -511,9 +511,7 @@ process tower(px, py, tower_type)
 
         if (GAME_STATE == STATE_PLAY)
         {
-            var target = nil;
-            var cid = get_id(type creep);
-            if (cid != -1) target = proc(cid);
+            var target = get_nearest(type creep);
 
             if (target)
             {
