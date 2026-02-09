@@ -3,4 +3,11 @@ print("Load Main");
 //include "test_collision.bu";
 //include "game_simples.bu";
 //include "test_scroll_collide.bu";
-include "galax.bu";
+//include "galax.bu";
+var i = 0;
+while (i < 200000)
+{
+    var c = Color(255, 0, 0, 255);
+    i += 1;
+}
+

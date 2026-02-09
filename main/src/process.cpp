@@ -424,7 +424,11 @@ namespace BindingsProcess
             return 1;
         }
 
-        vm->push(vm->makeProcess(hit->procID));
+        Process *hitProc = (Process*)hit->userData;
+        if (hitProc && hitProc->state != FiberState::DEAD)
+            vm->push(vm->makeProcessInstance(hitProc));
+        else
+            vm->pushBool(false);
         return 1;
     }
 
@@ -435,7 +439,7 @@ namespace BindingsProcess
             Error("atach expects 2 arguments (childProcID,front)");
             return 0;
         }
-        if (!args[0].isProcess())
+        if (!args[0].isProcessInstance())
         {
             Error("atach expects 1 integer argument (childProcID)  get %s", valueTypeToString(args[0].type));
             return 0;
@@ -449,17 +453,15 @@ namespace BindingsProcess
         Entity *entity = requireEntity(proc, "atach");
         if (!entity) return 0;
         
-        int childProcID = args[0].as.integer;
-        
-         Process *childProc = vm->findProcessById(childProcID);
-         if (!childProc)
+        Process *childProc = args[0].asProcess();
+         if (!childProc || childProc->state == FiberState::DEAD)
          {
-             Error("atach: no process found with ID %d", childProcID);
+             Error("atach: child process is dead or invalid");
              return 0;
          }
          if (!childProc->userData)
          {
-             Error("atach: child process %d has no associated entity!", childProcID);
+             Error("atach: child process has no associated entity!");
              return 0;
          }
 
@@ -680,13 +682,13 @@ namespace BindingsProcess
  
 
 
-    // Helper: resolve target - accepts process ID (ValueType::PROCESS) or type (ValueType::INT)
+    // Helper: resolve target - accepts Process* (ValueType::PROCESS_INSTANCE) or type (ValueType::INT)
     // For type, finds the nearest process of that type
     static Process *resolveTarget(Interpreter *vm, Process *proc, Value &arg)
     {
-        // Direct process ID
-        if (arg.isProcess())
-            return vm->findProcessById(arg.as.integer);
+        // Direct process pointer
+        if (arg.isProcessInstance())
+            return arg.asProcess();
 
         // Type (blueprint index) -> find nearest
         if (arg.isInt())
@@ -737,7 +739,7 @@ namespace BindingsProcess
             return 1;
         }
 
-        vm->push(vm->makeProcess(target->id));
+        vm->push(vm->makeProcessInstance(target));
         return 1;
     }
 
@@ -897,7 +899,8 @@ namespace BindingsProcess
         }
 
         // Broadphase: quadtree + dinâmicas, pré-filtradas por blueprint
-        std::vector<Entity *> nearby;
+        static std::vector<Entity *> nearby;
+        nearby.clear();
         if (gScene.staticTree)
             gScene.staticTree->query(entity->getBounds(), nearby);
         for (Entity *dyn : gScene.dynamicEntities)
@@ -913,7 +916,7 @@ namespace BindingsProcess
             if (other->flags & B_DEAD) continue;
             if (other->procID < 0) continue;
 
-            Process *otherProc = vm->findProcessById((uint32)other->procID);
+            Process *otherProc = (Process*)other->userData;
             if (!otherProc || otherProc->state == FiberState::DEAD) continue;
             if (otherProc->blueprint != targetBlueprint) continue;
  
@@ -926,7 +929,7 @@ namespace BindingsProcess
                     entity->y = old_y;
                     entity->markTransformDirty();
                     entity->bounds_dirty = true;
-                    vm->push(vm->makeProcess(otherProc->id));
+                    vm->push(vm->makeProcessInstance(otherProc));
                     return 1;
                 }
             }
@@ -966,14 +969,6 @@ namespace BindingsProcess
         vm.registerNativeProcess("out_screen", native_out_screen, 0);
         vm.registerNativeProcess("set_layer", native_set_layer, 1);
         vm.registerNativeProcess("get_layer", native_get_layer, 0);
-
-        vm.registerNativeProcess("set_collision_layer", native_set_collision_layer, 1);
-        vm.registerNativeProcess("set_collision_mask", native_set_collision_mask, 1);
-        vm.registerNativeProcess("add_collision_mask", native_add_collision_mask, 1);
-        vm.registerNativeProcess("remove_collision_mask", native_remove_collision_mask, 1);
-        vm.registerNativeProcess("set_static", native_set_static, 0);
-        vm.registerNativeProcess("enable_collision", native_enable_collision, 0);
-        vm.registerNativeProcess("disable_collision", native_disable_collision, 0);
 
         vm.registerNativeProcess("flip_vertical", native_mirror_vertical, 1);
         vm.registerNativeProcess("flip_horizontal", native_mirror_horizontal, 1);

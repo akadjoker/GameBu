@@ -1119,14 +1119,14 @@ op_call:
         fiber->stackTop -= (argCount + 1);
 
         instance->privates[(int)PrivateIndex::ID] = makeInt(instance->id);
-        instance->privates[(int)PrivateIndex::FATHER] = makeProcess(process->id);
+        instance->privates[(int)PrivateIndex::FATHER] = makeProcessInstance(process);
 
         if (hooks.onCreate)
         {
             hooks.onCreate(this,instance);
         }
-        // Push ID do processo criado
-        PUSH(makeProcess(instance->id));
+        // Push process instance directly
+        PUSH(makeProcessInstance(instance));
 
         //  Não criou frame no current fiber!
         DISPATCH();
@@ -1690,16 +1690,16 @@ op_get_property:
     else
 
         // === PROCESS PRIVATES (external access) ===
-        if (object.isProcess())
+        if (object.isProcessInstance())
         {
-
-            int processId = object.asProcessId();
-
-            Process *proc = findProcessById((uint32)processId);
-            if (!proc)
+            Process *proc = object.asProcess();
+            if (!proc || proc->state == FiberState::DEAD)
             {
-                runtimeError("Process '%i' is dead or invalid", processId);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                if (debugMode_)
+                    safetimeError("GET property '%s' on dead process (returning nil)", name);
+                DROP();
+                PUSH(makeNil());
+                DISPATCH();
             }
             int privateIdx = getProcessPrivateIndex(name);
             if (privateIdx != -1)
@@ -1709,8 +1709,8 @@ op_get_property:
             }
             else
             {
-                runtimeError("Proces  does not support '%s' property access", name);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                runtimeError("Process does not support '%s' property access", name);
+                return {FiberResult::ERROR, instructionsRun, 0, 0};
             }
 
             DISPATCH();
@@ -1923,15 +1923,18 @@ op_set_property:
     }
 
     // === PROCESS PRIVATES (external write) ===
-    if (object.isProcess())
+    if (object.isProcessInstance())
     {
-        int processId = object.asProcessId();
-        Process *proc = findProcessById((uint32)processId);
+        Process *proc = object.asProcess();
 
-        if (!proc) // || proc->state == FiberState::DEAD)
+        if (!proc || proc->state == FiberState::DEAD)
         {
-            runtimeError("Process '%i' is dead or invalid", processId);
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            if (debugMode_)
+                safetimeError("SET property '%s' on dead process (ignored)", name);
+            DROP();      // Remove value
+            DROP();      // Remove process
+            PUSH(value); // Assignment still returns value
+            DISPATCH();
         }
 
         // Lookup private pelo nome
@@ -5384,7 +5387,7 @@ op_proc:
     }
     else
     {
-        PUSH(makeProcess(target->id));
+        PUSH(makeProcessInstance(target));
     }
     DISPATCH();
 }

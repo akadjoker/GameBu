@@ -467,16 +467,30 @@ void Interpreter::run_process_step(Process *proc)
     currentFiber = fiber;
 
     proc->current = fiber;
+
+    // Reset fatal error before each process step to prevent cascade
+    hasFatalError_ = false;
+
     FiberResult result = run_fiber(fiber, proc);
-
-    // printf("  Executing Fiber %d\n", fiber - proc->fibers);
-    //  Warning("  [run_process_step] result.reason=%d, instructions=%d",   (int)result.reason, result.instructionsRun);
-
-   // currentFiber = nullptr;
 
     if (proc->state == FiberState::DEAD)
     {
         proc->initialized = false;
+        return;
+    }
+
+    if (result.reason == FiberResult::ERROR)
+    {
+        // Runtime error occurred - kill this process cleanly
+        if (debugMode_)
+        {
+            Info("  Process '%s' (id=%u) killed due to runtime error",
+                 proc->name ? proc->name->chars() : "?", proc->id);
+        }
+        fiber->state = FiberState::DEAD;
+        proc->state = FiberState::DEAD;
+        proc->initialized = false;
+        hasFatalError_ = false;
         return;
     }
 
@@ -490,10 +504,8 @@ void Interpreter::run_process_step(Process *proc)
     if (result.reason == FiberResult::PROCESS_FRAME)
     {
         proc->state = FiberState::SUSPENDED;
-        //proc->resumeTime = currentTime;
         proc->resumeTime = currentTime + (lastFrameTime * (result.framePercent - 100) / 100.0f);
 
-        // proc->frameCounter = result.framePercent / 100;
         if (!proc->initialized)
         {
             proc->initialized = true;
@@ -507,7 +519,6 @@ void Interpreter::run_process_step(Process *proc)
     if (result.reason == FiberResult::FIBER_DONE)
     {
         fiber->state = FiberState::DEAD;
-        // Warning("  [run_process_step] Fiber DONE");
         return;
     }
 }

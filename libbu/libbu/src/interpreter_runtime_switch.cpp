@@ -975,15 +975,15 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
               // Info("Spawned process %d from blueprint '%d'", instance->id, process->id);
 
                 instance->privates[(int)PrivateIndex::ID] = makeInt(instance->id);
-                instance->privates[(int)PrivateIndex::FATHER] = makeProcess(process->id);
+                instance->privates[(int)PrivateIndex::FATHER] = makeProcessInstance(process);
 
                  if (hooks.onCreate)
                  {
                      hooks.onCreate(this,instance);
                  }
 
-                // Push ID do processo criado
-                PUSH(makeProcess(instance->id));
+                // Push process instance directly
+                PUSH(makeProcessInstance(instance));
             }
             else if (callee.isStruct())
             {
@@ -1631,33 +1631,32 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             else
 
                 // === PROCESS PRIVATES (external access) ===
-                if (object.isProcess())
+                if (object.isProcessInstance())
                 {
-
-                    int processId = object.asProcessId();
-                    Process *proc = findProcessById((uint32)processId);
-                    if (!proc)
+                    Process *proc = object.asProcess();
+                    if (!proc || proc->state == FiberState::DEAD)
                     {
-                        runtimeError("Process '%i' is dead or invalid access to property '%s'", processId, name);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        // Process died between frames - return nil silently
+                        if (debugMode_)
+                            safetimeError("GET property '%s' on dead process (returning nil)", name);
+                        DROP();
+                        PUSH(makeNil());
+                        break;
                     }
                     int privateIdx = getProcessPrivateIndex(name);
                     if (privateIdx != -1)
                     {
-
-//                        Info("Accessing process private '%s' (idx %d)", name, privateIdx);
-
                         DROP();
                         PUSH(proc->privates[privateIdx]);
                     }
                      else
                     {
                         runtimeError("Process does not support '%s' property access", name);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {FiberResult::ERROR, instructionsRun, 0, 0};
                     }
 
                     break;
-                 } 
+                 }
 
                 else if (object.isStructInstance())
                 {
@@ -1860,15 +1859,19 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             }
 
             // === PROCESS PRIVATES (external write) ===
-            if (object.isProcess())
+            if (object.isProcessInstance())
             {
-                int processId = object.asProcessId();
-                Process *proc = findProcessById((uint32)processId);
+                Process *proc = object.asProcess();
 
-                if (!proc) // || proc->state == FiberState::DEAD)
+                if (!proc || proc->state == FiberState::DEAD)
                 {
-                    runtimeError("Process '%i' is dead or invalid", processId);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    // Process died between frames - ignore write silently
+                    if (debugMode_)
+                        safetimeError("SET property '%s' on dead process (ignored)", name);
+                    DROP();      // Remove value
+                    DROP();      // Remove process
+                    PUSH(value); // Assignment still returns value
+                    break;
                 }
 
                 // Lookup private pelo nome
@@ -5193,7 +5196,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             }
             else
             {
-                PUSH(makeProcess(target->id));
+                PUSH(makeProcessInstance(target));
             }
             break;
         }
@@ -5224,9 +5227,10 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
 
         default:
         {
-            Debug::dumpFunction(func);
+            if (debugMode_)
+                Debug::dumpFunction(func);
             runtimeError("Unknown opcode %d", instruction);
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {FiberResult::ERROR, instructionsRun, 0, 0};
         }
         }
     }
