@@ -1824,6 +1824,7 @@ namespace Bindings
         BindingsDraw::registerAll(vm);
         BindingsParticles::registerAll(vm);
         BindingsEase::registerAll(vm);
+        BindingsMessage::registerAll(vm);
     }
 
 } // namespace OgreBindings

@@ -44,3 +44,9 @@ namespace BindingsEase
 {
     void registerAll(Interpreter &vm);
 }
+
+namespace BindingsMessage
+{
+    void registerAll(Interpreter &vm);
+    void clearAllMessages();
+}
