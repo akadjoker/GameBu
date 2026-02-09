@@ -1,0 +1,1068 @@
+print("Load Dead Rails");
+import math;
+
+var VIEW_W = 1280;
+var VIEW_H = 720;
+var WORLD_W = 3400;
+var WORLD_H = 2400;
+
+var KEY_W = 87;
+var KEY_A = 65;
+var KEY_S = 83;
+var KEY_D = 68;
+var KEY_R = 82;
+var KEY_TAB = 258;
+var KEY_ESCAPE = 256;
+
+var HEAD_ID = -1;
+var WAGON_IDS = [];
+var WAGON_COUNT = 3;
+
+var CAM_X = 0;
+var CAM_Y = 0;
+
+var GAME_OVER = false;
+var SHOW_RAIL_DEBUG = false;
+
+var SCORE = 0;
+var SCRAP = 0;
+var LAPS = 0;
+var WAVE = 1;
+
+var TRAIN_MAX_HP = 40;
+var TRAIN_HP = 40;
+var TRAIN_SPEED = 0;
+var TRAIN_BASE_SPEED = 190;
+var TRAIN_BOOST_TIMER = 0.0;
+
+var ENEMIES_ALIVE = 0;
+
+// Closed rail loop.
+var RAIL_COUNT = 14;
+var RAIL_X = [
+    260,  900, 1650, 2550, 3080,
+    3080, 2780, 2100, 1400, 760,
+    280,  160,  170,  220
+];
+var RAIL_Y = [
+    220,  170,  240,  220,  520,
+    1420, 2050, 2210, 2230, 2150,
+    2050, 1540,  900,  480
+];
+
+var PLAYER_SPAWN_WPS = [0, 1, 2, 5, 7, 9, 11];
+var PLAYER_SPAWN_COUNT = 7;
+
+
+def clamp(v, lo, hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+def angle_delta(current, target)
+{
+    var d = target - current;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return d;
+}
+
+def approach_angle(current, target, step)
+{
+    var d = angle_delta(current, target);
+    if (abs(d) <= step)
+    {
+        return target;
+    }
+    if (d > 0) return current + step;
+    return current - step;
+}
+
+def world_mouse_x()
+{
+    return get_mouse_x() + CAM_X;
+}
+
+def world_mouse_y()
+{
+    return get_mouse_y() + CAM_Y;
+}
+
+def get_nearest_train_target(tx, ty)
+{
+    var best_id = -1;
+    var best_d = 99999999;
+
+    if (HEAD_ID != -1)
+    {
+        var h = proc(HEAD_ID);
+        if (h)
+        {
+            var d0 = get_dist(tx, ty, h.x, h.y);
+            best_d = d0;
+            best_id = HEAD_ID;
+        }
+    }
+
+    var i = 0;
+    while (i < len(WAGON_IDS))
+    {
+        var wid = WAGON_IDS[i];
+        var w = proc(wid);
+        if (w)
+        {
+            var dw = get_dist(tx, ty, w.x, w.y);
+            if (dw < best_d)
+            {
+                best_d = dw;
+                best_id = wid;
+            }
+        }
+        i += 1;
+    }
+
+    return best_id;
+}
+
+def pick_spawn_wp_far_from_train()
+{
+    if (HEAD_ID == -1)
+    {
+        return math.irand(0, RAIL_COUNT - 1);
+    }
+
+    var h = proc(HEAD_ID);
+    if (!h)
+    {
+        return math.irand(0, RAIL_COUNT - 1);
+    }
+
+    var best_wp = 0;
+    var best_d = -1;
+    var i = 0;
+    while (i < RAIL_COUNT)
+    {
+        var d = get_dist(h.x, h.y, RAIL_X[i], RAIL_Y[i]);
+        if (d > best_d)
+        {
+            best_d = d;
+            best_wp = i;
+        }
+        i += 1;
+    }
+
+    return best_wp;
+}
+
+def draw_backdrop(camx, camy)
+{
+    set_color(10, 14, 22);
+    draw_rectangle(camx, camy, VIEW_W, VIEW_H, true);
+
+    set_color(22, 30, 44);
+    var gx = int(camx / 64) * 64;
+    while (gx < camx + VIEW_W + 64)
+    {
+        draw_line(gx, camy, gx, camy + VIEW_H);
+        gx += 64;
+    }
+    var gy = int(camy / 64) * 64;
+    while (gy < camy + VIEW_H + 64)
+    {
+        draw_line(camx, gy, camx + VIEW_W, gy);
+        gy += 64;
+    }
+
+    // Dark city blocks.
+    set_alpha(70);
+    set_color(5, 8, 14);
+    var bx = int(camx / 320) * 320;
+    while (bx < camx + VIEW_W + 320)
+    {
+        var by = int(camy / 240) * 240;
+        while (by < camy + VIEW_H + 240)
+        {
+            draw_rectangle(bx + 16, by + 16, 192, 128, true);
+            by += 240;
+        }
+        bx += 320;
+    }
+    set_alpha(255);
+}
+
+def draw_rail_network()
+{
+    // Sleepers.
+    var i = 0;
+    while (i < RAIL_COUNT)
+    {
+        var j = i + 1;
+        if (j >= RAIL_COUNT) j = 0;
+
+        var x1 = RAIL_X[i];
+        var y1 = RAIL_Y[i];
+        var x2 = RAIL_X[j];
+        var y2 = RAIL_Y[j];
+
+        var seg_a = get_angle(x1, y1, x2, y2);
+        var seg_len = get_dist(x1, y1, x2, y2);
+        var steps = int(seg_len / 44);
+        if (steps < 1) steps = 1;
+
+        var s = 0;
+        while (s <= steps)
+        {
+            var t = s / steps;
+            var px = x1 + (x2 - x1) * t;
+            var py = y1 + (y2 - y1) * t;
+            var ax = px + get_distx(seg_a + 90, 10);
+            var ay = py + get_disty(seg_a + 90, 10);
+            var bx = px + get_distx(seg_a - 90, 10);
+            var by = py + get_disty(seg_a - 90, 10);
+
+            set_color(64, 48, 28);
+            draw_line_ex(ax, ay, bx, by, 4);
+            s += 1;
+        }
+
+        i += 1;
+    }
+
+    // Double rails.
+    i = 0;
+    while (i < RAIL_COUNT)
+    {
+        var j2 = i + 1;
+        if (j2 >= RAIL_COUNT) j2 = 0;
+
+        var rx1 = RAIL_X[i];
+        var ry1 = RAIL_Y[i];
+        var rx2 = RAIL_X[j2];
+        var ry2 = RAIL_Y[j2];
+
+        var a = get_angle(rx1, ry1, rx2, ry2);
+
+        var l1x = rx1 + get_distx(a + 90, 10);
+        var l1y = ry1 + get_disty(a + 90, 10);
+        var l2x = rx2 + get_distx(a + 90, 10);
+        var l2y = ry2 + get_disty(a + 90, 10);
+
+        var r1x = rx1 + get_distx(a - 90, 10);
+        var r1y = ry1 + get_disty(a - 90, 10);
+        var r2x = rx2 + get_distx(a - 90, 10);
+        var r2y = ry2 + get_disty(a - 90, 10);
+
+        set_color(150, 162, 176);
+        draw_line_ex(l1x, l1y, l2x, l2y, 3);
+        draw_line_ex(r1x, r1y, r2x, r2y, 3);
+
+        i += 1;
+    }
+
+    // Stations.
+    set_color(30, 44, 64);
+    draw_rectangle(RAIL_X[0] - 34, RAIL_Y[0] - 20, 68, 40, true);
+    draw_rectangle(RAIL_X[6] - 42, RAIL_Y[6] - 24, 84, 48, true);
+    draw_rectangle(RAIL_X[10] - 34, RAIL_Y[10] - 20, 68, 40, true);
+
+    set_color(120, 170, 220);
+    draw_rectangle(RAIL_X[0] - 34, RAIL_Y[0] - 20, 68, 40, false);
+    draw_rectangle(RAIL_X[6] - 42, RAIL_Y[6] - 24, 84, 48, false);
+    draw_rectangle(RAIL_X[10] - 34, RAIL_Y[10] - 20, 68, 40, false);
+
+    if (SHOW_RAIL_DEBUG)
+    {
+        var k = 0;
+        while (k < RAIL_COUNT)
+        {
+            set_color(140, 255, 220);
+            draw_circle(RAIL_X[k], RAIL_Y[k], 5, true);
+            set_color(15, 42, 36);
+            draw_circle(RAIL_X[k], RAIL_Y[k], 5, false);
+            k += 1;
+        }
+    }
+}
+
+process fx_particle(px, py, r, g, b, life_max)
+{
+    x = px;
+    y = py;
+    var a = math.rand(0, 360);
+    var sp = math.rand(70, 300);
+    velx = get_distx(a, sp);
+    vely = get_disty(a, sp);
+    var life = life_max;
+
+    loop
+    {
+        var dt = delta();
+        life -= dt;
+        if (life <= 0)
+        {
+            break;
+        }
+
+        x += velx * dt;
+        y += vely * dt;
+        vely += 640 * dt;
+        velx *= (1.0 - dt * 2.8);
+
+        var t = life / life_max;
+        set_alpha(int(255 * t));
+        set_color(r, g, b);
+        draw_circle(x, y, 2 + t * 3, true);
+        set_alpha(255);
+
+        frame;
+    }
+}
+
+def fx_burst(px, py, n, r, g, b)
+{
+    var i = 0;
+    while (i < n)
+    {
+        fx_particle(px, py, r, g, b, math.rand(0.12, 0.35));
+        i += 1;
+    }
+}
+
+process muzzle_flash(px, py)
+{
+    x = px;
+    y = py;
+    var life = 0.06;
+    loop
+    {
+        var dt = delta();
+        life -= dt;
+        if (life <= 0) break;
+
+        set_alpha(int(255 * (life / 0.06)));
+        set_color(255, 230, 170);
+        draw_circle(x, y, 9, true);
+        set_alpha(255);
+        frame;
+    }
+}
+
+process cannon_bullet(px, py, ang, damage)
+{
+    x = px;
+    y = py;
+    set_circle_shape(4);
+
+    var speed_b = 920;
+    var life = 1.25;
+
+    loop
+    {
+        var dt = delta();
+        life -= dt;
+        if (life <= 0)
+        {
+            break;
+        }
+
+        x += get_distx(ang, speed_b) * dt;
+        y += get_disty(ang, speed_b) * dt;
+
+        if (x < -60 || x > WORLD_W + 60 || y < -60 || y > WORLD_H + 60)
+        {
+            break;
+        }
+
+        var e = collision(type rail_raider, x, y);
+        if (e)
+        {
+            e.state += damage;
+            fx_burst(x, y, 7, 255, 215, 120);
+            break;
+        }
+
+        set_alpha(110);
+        set_color(255, 205, 110);
+        draw_circle(x, y, 7, true);
+        set_alpha(255);
+        set_color(255, 245, 190);
+        draw_circle(x, y, 4, true);
+
+        frame;
+    }
+}
+
+process raider_bullet(px, py, ang, damage)
+{
+    x = px;
+    y = py;
+
+    var speed_b = 640;
+    var life = 1.9;
+
+    loop
+    {
+        var dt = delta();
+        life -= dt;
+        if (life <= 0)
+        {
+            break;
+        }
+
+        x += get_distx(ang, speed_b) * dt;
+        y += get_disty(ang, speed_b) * dt;
+
+        if (x < -60 || x > WORLD_W + 60 || y < -60 || y > WORLD_H + 60)
+        {
+            break;
+        }
+
+        var target_id = get_nearest_train_target(x, y);
+        if (target_id != -1)
+        {
+            var t = proc(target_id);
+            if (t)
+            {
+                if (get_dist(x, y, t.x, t.y) < 18)
+                {
+                    TRAIN_HP -= damage;
+                    if (TRAIN_HP < 0) TRAIN_HP = 0;
+                    if (TRAIN_HP <= 0) GAME_OVER = true;
+                    start_camera_shake(-2, -2, 20, 8);
+                    fx_burst(x, y, 6, 255, 120, 120);
+                    break;
+                }
+            }
+        }
+
+        set_color(255, 150, 150);
+        draw_circle(x, y, 3, true);
+        set_color(255, 220, 220);
+        draw_circle(x, y, 1, true);
+
+        frame;
+    }
+}
+
+process pickup_scrap(px, py, kind, amount)
+{
+    x = px;
+    y = py;
+    var life = 20.0;
+    var t0 = time() + math.rand(0, 10);
+
+    loop
+    {
+        var dt = delta();
+        life -= dt;
+        if (life <= 0)
+        {
+            break;
+        }
+
+        var bob = sin(time() * 6 + t0) * 4;
+        var draw_y = y + bob;
+
+        if (kind == 0)
+        {
+            set_color(255, 210, 120);
+        }
+        elif (kind == 1)
+        {
+            set_color(120, 255, 160);
+        }
+        else
+        {
+            set_color(160, 210, 255);
+        }
+        draw_circle(x, draw_y, 10, true);
+        set_color(20, 30, 40);
+        draw_circle(x, draw_y, 10, false);
+
+        var collected = false;
+
+        if (HEAD_ID != -1)
+        {
+            var h = proc(HEAD_ID);
+            if (h && get_dist(x, draw_y, h.x, h.y) < 30)
+            {
+                collected = true;
+            }
+        }
+
+        if (!collected)
+        {
+            var i = 0;
+            while (i < len(WAGON_IDS))
+            {
+                var wid = WAGON_IDS[i];
+                var w = proc(wid);
+                if (w && get_dist(x, draw_y, w.x, w.y) < 26)
+                {
+                    collected = true;
+                    break;
+                }
+                i += 1;
+            }
+        }
+
+        if (collected)
+        {
+            if (kind == 0)
+            {
+                SCRAP += amount;
+                SCORE += amount * 3;
+            }
+            elif (kind == 1)
+            {
+                TRAIN_HP += amount;
+                if (TRAIN_HP > TRAIN_MAX_HP)
+                {
+                    TRAIN_HP = TRAIN_MAX_HP;
+                }
+                SCORE += 5;
+            }
+            else
+            {
+                TRAIN_BOOST_TIMER += amount * 0.8;
+                if (TRAIN_BOOST_TIMER > 8.0)
+                {
+                    TRAIN_BOOST_TIMER = 8.0;
+                }
+                SCORE += 8;
+            }
+
+            fx_burst(x, draw_y, 12, 255, 240, 180);
+            break;
+        }
+
+        frame;
+    }
+}
+
+process wagon_car(leader_id, index)
+{
+    var leader = proc(leader_id);
+    if (leader)
+    {
+        x = leader.x + get_distx(leader.angle + 180, 58);
+        y = leader.y + get_disty(leader.angle + 180, 58);
+        angle = leader.angle;
+    }
+
+    var follow_dist = 58;
+
+    set_rect_shape(0, 0, 40, 22);
+
+    loop
+    {
+        var dt = delta();
+        var l = proc(leader_id);
+        if (!l)
+        {
+            break;
+        }
+
+        var tx = l.x + get_distx(l.angle + 180, follow_dist);
+        var ty = l.y + get_disty(l.angle + 180, follow_dist);
+
+        var target_a = get_angle(x, y, tx, ty);
+        angle = approach_angle(angle, target_a, 270 * dt);
+
+        var p = clamp(dt * 7.2, 0, 1);
+        x += (tx - x) * p;
+        y += (ty - y) * p;
+
+        var draw_angle = -angle;
+        set_color(90, 118, 146);
+        draw_rotated_rectangle(x, y, 40, 22, draw_angle, true);
+        set_color(28, 36, 52);
+        draw_rotated_rectangle(x, y, 40, 22, draw_angle, false);
+
+        set_color(120, 150, 180);
+        draw_rotated_rectangle(x, y, 18, 10, draw_angle, true);
+
+        frame;
+    }
+}
+
+process train_head(start_wp)
+{
+    var wp_i = start_wp;
+    var wp_next = wp_i + 1;
+    if (wp_next >= RAIL_COUNT) wp_next = 0;
+
+    x = RAIL_X[wp_i];
+    y = RAIL_Y[wp_i];
+    angle = get_angle(x, y, RAIL_X[wp_next], RAIL_Y[wp_next]);
+
+    set_rect_shape(0, 0, 54, 28);
+
+    var fire_cd = 0.0;
+
+    loop
+    {
+        var dt = delta();
+
+        if (!GAME_OVER)
+        {
+            if (TRAIN_BOOST_TIMER > 0)
+            {
+                TRAIN_BOOST_TIMER -= dt;
+            }
+
+            TRAIN_SPEED = TRAIN_BASE_SPEED + WAVE * 5;
+            if (TRAIN_BOOST_TIMER > 0)
+            {
+                TRAIN_SPEED += 130;
+            }
+
+            var tx = RAIL_X[wp_next];
+            var ty = RAIL_Y[wp_next];
+            var target_a = get_angle(x, y, tx, ty);
+            angle = approach_angle(angle, target_a, 220 * dt);
+
+            var dist = get_dist(x, y, tx, ty);
+            var step = TRAIN_SPEED * dt;
+
+            if (step >= dist)
+            {
+                x = tx;
+                y = ty;
+                wp_i = wp_next;
+                wp_next = wp_i + 1;
+                if (wp_next >= RAIL_COUNT) wp_next = 0;
+
+                if (wp_i == 0)
+                {
+                    LAPS += 1;
+                    SCORE += 50;
+                    pickup_scrap(x + math.rand(-20, 20), y + math.rand(-20, 20), math.irand(0, 2), math.irand(1, 3));
+                }
+            }
+            else
+            {
+                x += get_distx(angle, step);
+                y += get_disty(angle, step);
+            }
+
+            if (fire_cd > 0) fire_cd -= dt;
+            var mx = world_mouse_x();
+            var my = world_mouse_y();
+            var aim = get_angle(x, y, mx, my);
+
+            if (mouse_down(0) && fire_cd <= 0)
+            {
+                fire_cd = 0.17;
+
+                var muzzle_x = x + get_distx(aim, 30);
+                var muzzle_y = y + get_disty(aim, 30);
+
+                cannon_bullet(muzzle_x, muzzle_y, aim, 1);
+                muzzle_flash(muzzle_x, muzzle_y);
+                fx_burst(muzzle_x, muzzle_y, 2, 255, 230, 180);
+            }
+        }
+        else
+        {
+            TRAIN_SPEED *= (1.0 - dt * 1.5);
+            if (TRAIN_SPEED < 0) TRAIN_SPEED = 0;
+        }
+
+        var body_color_r = 95;
+        var body_color_g = 182;
+        var body_color_b = 255;
+        if (GAME_OVER)
+        {
+            body_color_r = 120;
+            body_color_g = 120;
+            body_color_b = 130;
+        }
+
+        var draw_a = -angle;
+        set_color(body_color_r, body_color_g, body_color_b);
+        draw_rotated_rectangle(x, y, 54, 28, draw_a, true);
+        set_color(30, 40, 58);
+        draw_rotated_rectangle(x, y, 54, 28, draw_a, false);
+
+        // Engine section.
+        set_color(44, 56, 84);
+        draw_rotated_rectangle(x + get_distx(angle + 180, 10), y + get_disty(angle + 180, 10), 18, 16, draw_a, true);
+
+        // Cannon.
+        var cmx = world_mouse_x();
+        var cmy = world_mouse_y();
+        var cang = get_angle(x, y, cmx, cmy);
+        var bx = x + get_distx(cang, 26);
+        var by = y + get_disty(cang, 26);
+        set_color(60, 72, 104);
+        draw_line_ex(x, y, bx, by, 6);
+        set_color(160, 178, 220);
+        draw_line_ex(x, y, bx, by, 2);
+        set_color(28, 38, 54);
+        draw_circle(x, y, 6, true);
+
+        // Local HP bar.
+        set_color(26, 26, 32);
+        draw_rectangle(x - 26, y - 32, 52, 5, true);
+        set_color(255, 110, 130);
+        draw_rectangle(x - 26, y - 32, 52 * (TRAIN_HP / TRAIN_MAX_HP), 5, true);
+
+        frame;
+    }
+}
+
+process rail_raider(spawn_wp)
+{
+    x = RAIL_X[spawn_wp] + math.rand(-40, 40);
+    y = RAIL_Y[spawn_wp] + math.rand(-40, 40);
+    angle = math.rand(0, 360);
+
+    var hp = 3 + int(WAVE * 0.30);
+    if (hp > 8) hp = 8;
+    var hp_max = hp;
+
+    var attack_cd = 0.0;
+    var fire_cd = math.rand(0.2, 1.1);
+    var hit_flash = 0.0;
+
+    set_circle_shape(11);
+
+    loop
+    {
+        var dt = delta();
+
+        if (hit_flash > 0) hit_flash -= dt;
+        if (attack_cd > 0) attack_cd -= dt;
+        if (fire_cd > 0) fire_cd -= dt;
+
+        if (!GAME_OVER)
+        {
+            if (state > 0)
+            {
+                hp -= state;
+                state = 0;
+                hit_flash = 0.14;
+                fx_burst(x, y, 4, 255, 150, 150);
+
+                if (hp <= 0)
+                {
+                    SCORE += 20;
+                    SCRAP += 1;
+                    ENEMIES_ALIVE -= 1;
+                    if (ENEMIES_ALIVE < 0) ENEMIES_ALIVE = 0;
+
+                    if (math.rand(0.0, 1.0) < 0.46)
+                    {
+                        pickup_scrap(x, y, math.irand(0, 2), math.irand(1, 3));
+                    }
+
+                    fx_burst(x, y, 14, 255, 190, 190);
+                    break;
+                }
+            }
+
+            var target_id = get_nearest_train_target(x, y);
+            if (target_id != -1)
+            {
+                var t = proc(target_id);
+                if (t)
+                {
+                    var ta = get_angle(x, y, t.x, t.y);
+                    angle = approach_angle(angle, ta, 300 * dt);
+
+                    var ms = 115 + WAVE * 5;
+                    if (ms > 230) ms = 230;
+                    x += get_distx(angle, ms) * dt;
+                    y += get_disty(angle, ms) * dt;
+
+                    var d = get_dist(x, y, t.x, t.y);
+                    if (d < 28 && attack_cd <= 0)
+                    {
+                        attack_cd = 0.72;
+                        TRAIN_HP -= 1;
+                        if (TRAIN_HP < 0) TRAIN_HP = 0;
+                        if (TRAIN_HP <= 0) GAME_OVER = true;
+                        start_camera_shake(-2, -2, 20, 8);
+                        fx_burst(x, y, 6, 255, 130, 130);
+                    }
+
+                    if (WAVE >= 2 && d < 520 && fire_cd <= 0)
+                    {
+                        fire_cd = math.max(0.55, 1.3 - WAVE * 0.06);
+                        raider_bullet(x + get_distx(ta, 12), y + get_disty(ta, 12), ta, 1);
+                    }
+                }
+            }
+        }
+
+        // Keep enemies inside world.
+        x = clamp(x, 40, WORLD_W - 40);
+        y = clamp(y, 40, WORLD_H - 40);
+
+        var da = -angle;
+        if (hit_flash > 0)
+        {
+            set_color(255, 115, 140);
+        }
+        else
+        {
+            set_color(210, 96, 120);
+        }
+        draw_rotated_rectangle(x, y, 28, 18, da, true);
+        set_color(44, 24, 34);
+        draw_rotated_rectangle(x, y, 28, 18, da, false);
+
+        set_color(245, 210, 220);
+        draw_rotated_rectangle(x + get_distx(angle, 6), y + get_disty(angle, 6), 10, 5, da, true);
+
+        // HP bar.
+        set_color(25, 18, 22);
+        draw_rectangle(x - 14, y - 18, 28, 4, true);
+        set_color(255, 120, 130);
+        draw_rectangle(x - 14, y - 18, 28 * (hp / hp_max), 4, true);
+
+        frame;
+    }
+}
+
+process enemy_spawner()
+{
+    var timer = 0.0;
+    var wave_timer = 0.0;
+    var interval = 2.0;
+
+    loop
+    {
+        var dt = delta();
+
+        if (!GAME_OVER)
+        {
+            timer += dt;
+            wave_timer += dt;
+
+            if (wave_timer >= 18.0)
+            {
+                wave_timer = 0;
+                WAVE += 1;
+                SCORE += 30;
+                fx_burst(RAIL_X[0], RAIL_Y[0], 8, 170, 220, 255);
+            }
+
+            var max_alive = 3 + int(WAVE * 0.8);
+            if (max_alive > 18) max_alive = 18;
+
+            if (timer >= interval && ENEMIES_ALIVE < max_alive)
+            {
+                timer = 0;
+                var wp = pick_spawn_wp_far_from_train();
+                rail_raider(wp);
+                ENEMIES_ALIVE += 1;
+
+                if (interval > 0.55)
+                {
+                    interval -= 0.008;
+                }
+            }
+        }
+
+        frame;
+    }
+}
+
+process pickup_spawner()
+{
+    var timer = 3.2;
+
+    loop
+    {
+        var dt = delta();
+
+        if (GAME_OVER)
+        {
+            frame;
+            continue;
+        }
+
+        timer -= dt;
+        if (timer <= 0)
+        {
+            timer = math.rand(4.0, 8.0);
+
+            var wp = math.irand(0, RAIL_COUNT - 1);
+            var kind = math.irand(0, 2);
+            var amt = 2;
+            if (kind == 0) amt = math.irand(1, 3);
+            if (kind == 1) amt = math.irand(2, 4);
+            if (kind == 2) amt = math.irand(2, 3);
+
+            pickup_scrap(RAIL_X[wp] + math.rand(-36, 36), RAIL_Y[wp] + math.rand(-36, 36), kind, amt);
+        }
+
+        frame;
+    }
+}
+
+process game_gui()
+{
+    loop
+    {
+        set_draw_screen(true);
+
+        set_alpha(188);
+        set_color(8, 12, 20);
+        draw_rectangle(14, 12, 460, 182, true);
+        set_alpha(255);
+        set_color(86, 118, 170);
+        draw_rectangle(14, 12, 460, 182, false);
+
+        set_color(244, 248, 255);
+        draw_text("DEAD RAILS", 26, 20, 30);
+
+        draw_text(format("Wave: {}", WAVE), 26, 58, 18);
+        draw_text(format("Laps: {}", LAPS), 26, 80, 18);
+        draw_text(format("Score: {}", SCORE), 26, 102, 18);
+        draw_text(format("Scrap: {}", SCRAP), 26, 124, 18);
+
+        draw_text(format("Speed: {}", int(TRAIN_SPEED)), 210, 58, 18);
+        draw_text(format("Enemies: {}", ENEMIES_ALIVE), 210, 80, 18);
+
+        set_color(26, 28, 34);
+        draw_rectangle(210, 108, 230, 14, true);
+        set_color(255, 110, 130);
+        draw_rectangle(210, 108, 230 * (TRAIN_HP / TRAIN_MAX_HP), 14, true);
+        set_color(255, 190, 200);
+        draw_rectangle(210, 108, 230, 14, false);
+        set_color(245, 248, 255);
+        draw_text(format("TRAIN HP: {}/{}", TRAIN_HP, TRAIN_MAX_HP), 210, 128, 16);
+
+        if (TRAIN_BOOST_TIMER > 0)
+        {
+            set_color(160, 230, 255);
+            draw_text(format("BOOST {}s", int(TRAIN_BOOST_TIMER * 10) / 10), 210, 150, 16);
+        }
+
+        draw_text("LMB fire | R restart | TAB rail debug", 26, 154, 15);
+
+        if (GAME_OVER)
+        {
+            set_color(255, 120, 120);
+            draw_text("TRAIN DESTROYED - PRESS R", VIEW_W / 2 - 220, VIEW_H / 2 - 16, 36);
+        }
+
+        set_draw_screen(false);
+        frame;
+    }
+}
+
+def start_game()
+{
+    let_me_alone();
+
+    GAME_OVER = false;
+    SHOW_RAIL_DEBUG = false;
+
+    SCORE = 0;
+    SCRAP = 0;
+    LAPS = 0;
+    WAVE = 1;
+
+    TRAIN_HP = TRAIN_MAX_HP;
+    TRAIN_SPEED = TRAIN_BASE_SPEED;
+    TRAIN_BOOST_TIMER = 0;
+
+    ENEMIES_ALIVE = 0;
+
+    HEAD_ID = -1;
+    WAGON_IDS = [];
+
+    CAM_X = 0;
+    CAM_Y = 0;
+
+    var start_wp = PLAYER_SPAWN_WPS[math.irand(0, PLAYER_SPAWN_COUNT - 1)];
+    var h = train_head(start_wp);
+    if (h)
+    {
+        HEAD_ID = h.id;
+    }
+
+    var leader_id = HEAD_ID;
+    var i = 0;
+    while (i < WAGON_COUNT)
+    {
+        var w = wagon_car(leader_id, i);
+        if (w)
+        {
+            WAGON_IDS.push(w.id);
+            leader_id = w.id;
+        }
+        i += 1;
+    }
+
+    enemy_spawner();
+    pickup_spawner();
+    game_gui();
+}
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Dead Rails - Bu Prototype");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(0);
+init_collision(0, 0, WORLD_W, WORLD_H);
+
+start_game();
+
+loop
+{
+    var dt = delta();
+
+    if (HEAD_ID != -1)
+    {
+        var head = proc(HEAD_ID);
+        if (head)
+        {
+            var tx = head.x - VIEW_W * 0.5;
+            var ty = head.y - VIEW_H * 0.5;
+            tx = clamp(tx, 0, WORLD_W - VIEW_W);
+            ty = clamp(ty, 0, WORLD_H - VIEW_H);
+
+            CAM_X += (tx - CAM_X) * math.min(1.0, dt * 7.0);
+            CAM_Y += (ty - CAM_Y) * math.min(1.0, dt * 7.0);
+        }
+    }
+
+    set_scroll(CAM_X, CAM_Y);
+    draw_backdrop(CAM_X, CAM_Y);
+    draw_rail_network();
+
+    // world-space crosshair
+    var mx = world_mouse_x();
+    var my = world_mouse_y();
+    set_color(255, 228, 170);
+    draw_circle(mx, my, 8, false);
+    draw_line(mx - 12, my, mx - 4, my);
+    draw_line(mx + 4, my, mx + 12, my);
+    draw_line(mx, my - 12, mx, my - 4);
+    draw_line(mx, my + 4, mx, my + 12);
+
+    if (key_pressed(KEY_TAB))
+    {
+        SHOW_RAIL_DEBUG = !SHOW_RAIL_DEBUG;
+    }
+
+    if (key_pressed(KEY_R))
+    {
+        start_game();
+    }
+
+    if (key_pressed(KEY_ESCAPE))
+    {
+        let_me_alone();
+        break;
+    }
+
+    frame;
+}

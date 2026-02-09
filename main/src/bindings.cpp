@@ -899,6 +899,8 @@ namespace Bindings
         return 0;
     }
 
+ 
+
     int native_exists(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1)
@@ -1764,7 +1766,7 @@ namespace Bindings
         vm.registerNative("init_collision", native_init_collision, 4);
         vm.registerNative("signal", native_signal, 2);
         vm.registerNative("exists", native_exists, 1);
-        vm.registerNative("get_count", native_get_count, 1);
+        vm.registerNative("count_processes", native_get_count, 1);
         vm.registerNative("get_ids", native_get_ids, 1);
         vm.registerNative("play_sound", native_play_sound, 3);
         vm.registerNative("stop_sound", native_stop_sound, 1);

@@ -5,6 +5,15 @@ print("Load Main");
 //include "test_scroll_collide.bu";
 //include "galax.bu";
 //include "rambo.bu";
-
-
-
+//include "arkanoid.bu";
+//include "arkanoid_hard.bu";
+//include "super_shapes.bu";
+//include "super_square_world.bu";
+//include "rect_mouse_shooter.bu";
+//include "square_world_gunner.bu";
+//include "topdown_chaos_cars.bu";
+//include "topdown_chaos_waypoints.bu";
+//include "car_physics_bounce.bu";
+//include "fast_and_chaos.bu";
+include "dead_rails.bu";
+ 

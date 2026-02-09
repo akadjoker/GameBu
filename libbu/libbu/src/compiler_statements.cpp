@@ -829,7 +829,24 @@ void Compiler::block()
     while (!check(TOKEN_RBRACE) && !check(TOKEN_EOF))
     {
         if (hadError)
-            break;
+        {
+            // Recovery local do bloco atual para evitar erros em cascata:
+            // consome até ao '}' correspondente e sai silenciosamente.
+            int braceDepth = 1;
+            while (!check(TOKEN_EOF) && braceDepth > 0)
+            {
+                if (check(TOKEN_LBRACE))
+                {
+                    braceDepth++;
+                }
+                else if (check(TOKEN_RBRACE))
+                {
+                    braceDepth--;
+                }
+                advance();
+            }
+            return;
+        }
         declaration();
     }
     consume(TOKEN_RBRACE, "Expect '}' after block");
@@ -1099,10 +1116,18 @@ void Compiler::loopStatement()
 
 void Compiler::switchStatement()
 {
+    if (!enterSwitchContext())
+    {
+        return;
+    }
+
     consume(TOKEN_LPAREN, "Expect '(' after 'switch'");
     expression(); // [value]
     if (hadError)
+    {
+        leaveSwitchContext();
         return;
+    }
     consume(TOKEN_RPAREN, "Expect ')' after switch expression");
     consume(TOKEN_LBRACE, "Expect '{' before switch body");
 
@@ -1115,7 +1140,11 @@ void Compiler::switchStatement()
         emitByte(OP_DUP); // [value, value]
         expression();     // [value, value, case_val]
         if (hadError)
+        {
+            recoverToCurrentSwitchEnd();
+            leaveSwitchContext();
             return;
+        }
         consume(TOKEN_COLON, "Expect ':' after case value");
         emitByte(OP_EQUAL); // [value, bool]
 
@@ -1130,7 +1159,11 @@ void Compiler::switchStatement()
         {
             statement();
             if (hadError)
+            {
+                recoverToCurrentSwitchEnd();
+                leaveSwitchContext();
                 return;
+            }
         }
 
         endJumps.push_back(emitJump(OP_JUMP));
@@ -1150,7 +1183,11 @@ void Compiler::switchStatement()
         {
             statement();
             if (hadError)
+            {
+                recoverToCurrentSwitchEnd();
+                leaveSwitchContext();
                 return;
+            }
         }
     }
     else
@@ -1165,10 +1202,22 @@ void Compiler::switchStatement()
     {
         patchJump(jump);
     }
+
+    leaveSwitchContext();
 }
 
 void Compiler::breakStatement()
 {
+    if (switchDepth_ > 0)
+    {
+        int switchLoopDepth = switchLoopDepthStack_[switchDepth_ - 1];
+        if (loopDepth_ <= switchLoopDepth)
+        {
+            error("Switch cases auto-exit; 'break' here would break an outer loop");
+            consume(TOKEN_SEMICOLON, "Expect ';' after 'break'");
+            return;
+        }
+    }
 
     emitBreak();
     consume(TOKEN_SEMICOLON, "Expect ';' after 'break'");

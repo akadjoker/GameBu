@@ -2,6 +2,7 @@
 #include "engine.hpp"
 #include "render.hpp"
 #include <raylib.h>
+#include <string>
 #include <vector>
 
 extern GraphLib gGraphLib;
@@ -15,6 +16,271 @@ namespace BindingsDraw
     bool screen= false;
 
     static std::vector<Font> loadedFonts;
+    enum class DrawCommandType
+    {
+        Line,
+        Point,
+        Text,
+        FontText,
+        FontTextRotate,
+        Circle,
+        Rectangle,
+        RotatedRectangle,
+        RotatedRectangleEx,
+        LineEx,
+        Triangle,
+        Graph,
+        GraphEx
+    };
+
+    struct LineCmd { int x1, y1, x2, y2; };
+    struct PointCmd { int x, y; };
+    struct TextCmd { std::string text; int x, y, size; };
+    struct FontTextCmd { std::string text; int x, y, size; float spacing; int fontId; };
+    struct FontTextRotateCmd { std::string text; int x, y, size; float rotation, spacing, pivotX, pivotY; int fontId; };
+    struct CircleCmd { int x, y, radius; bool fill; };
+    struct RectangleCmd { int x, y, width, height; bool fill; };
+    struct RotatedRectangleCmd { int x, y, width, height; float rotation; bool fill; };
+    struct RotatedRectangleExCmd { int x, y, width, height; float rotation; bool fill; float originX, originY; };
+    struct LineExCmd { int x1, y1, x2, y2; float thickness; };
+    struct TriangleCmd { int x1, y1, x2, y2, x3, y3; bool fill; };
+    struct GraphCmd { int graphId; int x, y; };
+    struct GraphExCmd { int graphId; int x, y; float rotation, sizeX, sizeY; bool flipX, flipY; };
+
+    struct DrawCommand
+    {
+        DrawCommandType type = DrawCommandType::Line;
+        Color color = WHITE;
+        std::string text;
+        int x1 = 0;
+        int y1 = 0;
+        int x2 = 0;
+        int y2 = 0;
+        int x3 = 0;
+        int y3 = 0;
+        int width = 0;
+        int height = 0;
+        int radius = 0;
+        int size = 0;
+        int graphId = -1;
+        int fontId = -1;
+        float rotation = 0.0f;
+        float spacing = 0.0f;
+        float pivotX = 0.0f;
+        float pivotY = 0.0f;
+        float sizeX = 100.0f;
+        float sizeY = 100.0f;
+        float thickness = 1.0f;
+        float originX = 0.0f;
+        float originY = 0.0f;
+        bool fill = false;
+        bool flipX = false;
+        bool flipY = false;
+    };
+
+    static std::vector<DrawCommand> screenCommands;
+
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const LineCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x1; cmd.y1 = p.y1; cmd.x2 = p.x2; cmd.y2 = p.y2;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const PointCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const TextCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.text = p.text; cmd.x1 = p.x; cmd.y1 = p.y; cmd.size = p.size;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const FontTextCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.text = p.text; cmd.x1 = p.x; cmd.y1 = p.y; cmd.size = p.size; cmd.spacing = p.spacing; cmd.fontId = p.fontId;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const FontTextRotateCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.text = p.text; cmd.x1 = p.x; cmd.y1 = p.y; cmd.size = p.size;
+        cmd.rotation = p.rotation; cmd.spacing = p.spacing; cmd.pivotX = p.pivotX; cmd.pivotY = p.pivotY; cmd.fontId = p.fontId;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const CircleCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.radius = p.radius; cmd.fill = p.fill;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const RectangleCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height; cmd.fill = p.fill;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const RotatedRectangleCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height; cmd.rotation = p.rotation; cmd.fill = p.fill;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const RotatedRectangleExCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height; cmd.rotation = p.rotation; cmd.fill = p.fill;
+        cmd.originX = p.originX; cmd.originY = p.originY;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const LineExCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x1; cmd.y1 = p.y1; cmd.x2 = p.x2; cmd.y2 = p.y2; cmd.thickness = p.thickness;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const TriangleCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x1; cmd.y1 = p.y1; cmd.x2 = p.x2; cmd.y2 = p.y2; cmd.x3 = p.x3; cmd.y3 = p.y3; cmd.fill = p.fill;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const GraphCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.graphId = p.graphId; cmd.x1 = p.x; cmd.y1 = p.y;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const GraphExCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.graphId = p.graphId; cmd.x1 = p.x; cmd.y1 = p.y; cmd.rotation = p.rotation;
+        cmd.sizeX = p.sizeX; cmd.sizeY = p.sizeY; cmd.flipX = p.flipX; cmd.flipY = p.flipY;
+        screenCommands.push_back(std::move(cmd));
+    }
+
+    static void draw_font_buffered(const DrawCommand &cmd)
+    {
+        if (cmd.fontId < 0 || cmd.fontId >= (int)loadedFonts.size())
+        {
+            DrawTextEx(GetFontDefault(), cmd.text.c_str(), {(float)cmd.x1, (float)cmd.y1}, (float)cmd.size, cmd.spacing, cmd.color);
+            return;
+        }
+        Font &font = loadedFonts[cmd.fontId];
+        DrawTextEx(font, cmd.text.c_str(), {(float)cmd.x1, (float)cmd.y1}, (float)cmd.size, cmd.spacing, cmd.color);
+    }
+
+    static void draw_font_rotate_buffered(const DrawCommand &cmd)
+    {
+        if (cmd.fontId < 0 || cmd.fontId >= (int)loadedFonts.size())
+        {
+            DrawTextPro(GetFontDefault(), cmd.text.c_str(), {(float)cmd.x1, (float)cmd.y1}, {cmd.pivotX, cmd.pivotY}, cmd.rotation, (float)cmd.size, cmd.spacing, cmd.color);
+            return;
+        }
+        Font &font = loadedFonts[cmd.fontId];
+        DrawTextPro(font, cmd.text.c_str(), {(float)cmd.x1, (float)cmd.y1}, {cmd.pivotX, cmd.pivotY}, cmd.rotation, (float)cmd.size, cmd.spacing, cmd.color);
+    }
+
+    static void renderCommand(const DrawCommand &cmd)
+    {
+        switch (cmd.type)
+        {
+        case DrawCommandType::Line:
+            DrawLine(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.color);
+            break;
+        case DrawCommandType::Point:
+            DrawPixel(cmd.x1, cmd.y1, cmd.color);
+            break;
+        case DrawCommandType::Text:
+            DrawText(cmd.text.c_str(), cmd.x1, cmd.y1, cmd.size, cmd.color);
+            break;
+        case DrawCommandType::FontText:
+            draw_font_buffered(cmd);
+            break;
+        case DrawCommandType::FontTextRotate:
+            draw_font_rotate_buffered(cmd);
+            break;
+        case DrawCommandType::Circle:
+            if (cmd.fill)
+                DrawCircle(cmd.x1, cmd.y1, cmd.radius, cmd.color);
+            else
+                DrawCircleLines(cmd.x1, cmd.y1, cmd.radius, cmd.color);
+            break;
+        case DrawCommandType::Rectangle:
+            if (cmd.fill)
+                DrawRectangle(cmd.x1, cmd.y1, cmd.width, cmd.height, cmd.color);
+            else
+                DrawRectangleLines(cmd.x1, cmd.y1, cmd.width, cmd.height, cmd.color);
+            break;
+        case DrawCommandType::RotatedRectangle:
+            DrawRectanglePro({(float)cmd.x1, (float)cmd.y1, (float)cmd.width, (float)cmd.height},
+                             {(float)cmd.width / 2, (float)cmd.height / 2}, cmd.rotation, cmd.color);
+            break;
+        case DrawCommandType::RotatedRectangleEx:
+            DrawRectanglePro({(float)cmd.x1, (float)cmd.y1, (float)cmd.width, (float)cmd.height},
+                             {cmd.originX, cmd.originY}, cmd.rotation, cmd.color);
+            break;
+        case DrawCommandType::LineEx:
+            DrawLineEx({(float)cmd.x1, (float)cmd.y1}, {(float)cmd.x2, (float)cmd.y2}, cmd.thickness, cmd.color);
+            break;
+        case DrawCommandType::Triangle:
+            if (cmd.fill)
+                DrawTriangle({(float)cmd.x1, (float)cmd.y1}, {(float)cmd.x2, (float)cmd.y2}, {(float)cmd.x3, (float)cmd.y3}, cmd.color);
+            else
+                DrawTriangleLines({(float)cmd.x1, (float)cmd.y1}, {(float)cmd.x2, (float)cmd.y2}, {(float)cmd.x3, (float)cmd.y3}, cmd.color);
+            break;
+        case DrawCommandType::Graph:
+        {
+            Graph *graph = gGraphLib.getGraph(cmd.graphId);
+            if (!graph)
+                break;
+            Texture2D *tex = gGraphLib.getTexture(graph->texture);
+            if (!tex)
+                break;
+            DrawTextureRec(*tex, graph->clip, {(float)cmd.x1, (float)cmd.y1}, cmd.color);
+            break;
+        }
+        case DrawCommandType::GraphEx:
+        {
+            Graph *graph = gGraphLib.getGraph(cmd.graphId);
+            if (!graph)
+                break;
+            Texture2D *tex = gGraphLib.getTexture(graph->texture);
+            if (!tex)
+                break;
+
+            if (cmd.rotation == 0.0f && cmd.sizeX == 100.0f && cmd.sizeY == 100.0f && !cmd.flipX && !cmd.flipY)
+            {
+                DrawTextureRec(*tex, graph->clip, {(float)cmd.x1, (float)cmd.y1}, cmd.color);
+            }
+            else
+            {
+                int pivotX = (int)(graph->clip.width / 2);
+                int pivotY = (int)(graph->clip.height / 2);
+                RenderTexturePivotRotateSizeXY(*tex, pivotX, pivotY, graph->clip,
+                                               (float)cmd.x1, (float)cmd.y1, cmd.rotation, cmd.sizeX, cmd.sizeY,
+                                               cmd.flipX, cmd.flipY, cmd.color);
+            }
+            break;
+        }
+        }
+    }
 
     static void draw_font_impl(String *text, int x, int y, int size, float spacing, Color color, int fontId)
     {
@@ -88,15 +354,17 @@ namespace BindingsDraw
         int y1 = (int)args[1].asNumber();
         int x2 = (int)args[2].asNumber();
         int y2 = (int)args[3].asNumber();
-            if (!screen)
-            {
-                Layer &l = gScene.layers[layer];
-                x1 -= l.scroll_x;
-                y1 -= l.scroll_y;
-                x2 -= l.scroll_x;
-                y2 -= l.scroll_y;
-                
-            }
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Line, currentColor, LineCmd{x1, y1, x2, y2});
+            return 0;
+        }
+        Layer &l = gScene.layers[layer];
+        x1 -= l.scroll_x;
+        y1 -= l.scroll_y;
+        x2 -= l.scroll_x;
+        y2 -= l.scroll_y;
         DrawLine(x1, y1, x2, y2, currentColor);
         return 0;
     }
@@ -116,12 +384,14 @@ namespace BindingsDraw
 
         int x = (int)args[0].asNumber();
         int y = (int)args[1].asNumber();
-        if (!screen)
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
+            enqueueScreenCommand(DrawCommandType::Point, currentColor, PointCmd{x, y});
+            return 0;
         }
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
         DrawPixel(x, y, currentColor);
         return 0;
     }
@@ -143,12 +413,14 @@ namespace BindingsDraw
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
         int size = (int)args[3].asNumber();
-            if (!screen)
-            {
-                Layer &l = gScene.layers[layer];
-                x -= l.scroll_x;
-                y -= l.scroll_y;
-            }
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Text, currentColor, TextCmd{std::string(text->chars()), x, y, size});
+            return 0;
+        }
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
         DrawText(text->chars(), x, y, size, currentColor);
         return 0;
     }
@@ -164,17 +436,22 @@ namespace BindingsDraw
         String *text = args[0].asString();
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
-
-        if (!screen)
-        {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
-        }
-
         int size = (int)args[3].asNumber();
         float spacing = (float)args[4].asNumber();
         int fontId = args[5].asInt();
+
+        if (screen)
+        {
+            enqueueScreenCommand(
+                DrawCommandType::FontText,
+                currentColor,
+                FontTextCmd{std::string(text->chars()), x, y, size, spacing, fontId});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
         draw_font_impl(text, x, y, size, spacing, currentColor, fontId);
         return 0;
     }
@@ -190,21 +467,25 @@ namespace BindingsDraw
         String *text = args[0].asString();
         int x = (int)args[1].asNumber();
         int y = (int)args[2].asNumber();
-
-        if (!screen)
-        {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
-        }
-
-
         int size = (int)args[3].asNumber();
         float rotation = (float)args[4].asNumber();
         float spacing = (float)args[5].asNumber();
         float pivot_x = (float)args[6].asNumber();
         float pivot_y = (float)args[7].asNumber();
         int fontId = args[8].asInt();
+
+        if (screen)
+        {
+            enqueueScreenCommand(
+                DrawCommandType::FontTextRotate,
+                currentColor,
+                FontTextRotateCmd{std::string(text->chars()), x, y, size, rotation, spacing, pivot_x, pivot_y, fontId});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
         draw_font_rotate_impl(text, x, y, size, rotation, spacing, pivot_x, pivot_y, currentColor, fontId);
         return 0;
     }
@@ -219,18 +500,18 @@ namespace BindingsDraw
 
         int centerX = (int)args[0].asNumber();
         int centerY = (int)args[1].asNumber();
-
-        if (!screen)
-        {
-            Layer &l = gScene.layers[layer];
-            centerX -= l.scroll_x;
-            centerY -= l.scroll_y;
-
-            
-        }
-
         int radius = (int)args[2].asNumber();
         bool fill = (int)args[3].asNumber() != 0;
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Circle, currentColor, CircleCmd{centerX, centerY, radius, fill});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        centerX -= l.scroll_x;
+        centerY -= l.scroll_y;
 
         if (fill)
             DrawCircle(centerX, centerY, radius, currentColor);
@@ -252,12 +533,15 @@ namespace BindingsDraw
         int width = (int)args[2].asNumber();
         int height = (int)args[3].asNumber();
         bool fill = args[4].asBool();
-        if (!screen)
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
+            enqueueScreenCommand(DrawCommandType::Rectangle, currentColor, RectangleCmd{x, y, width, height, fill});
+            return 0;
         }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
 
         if (fill)
             DrawRectangle(x, y, width, height, currentColor);
@@ -267,6 +551,42 @@ namespace BindingsDraw
     }
 
     //draw_rotated_rectangle
+    static int native_rotated_rectangle_ex(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 8)
+        {
+            Error("draw_rotated_rectangle_ex expects 8 arguments (x, y, width, height, rotation, fill, center_x, center_y)");
+            return 0;
+        }
+  
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int width = (int)args[2].asNumber();
+        int height = (int)args[3].asNumber();
+        float rotation = (float)args[4].asNumber();
+        bool fill = args[5].asBool();
+        Vector2 origin = {(float)args[6].asNumber(), (float)args[7].asNumber()};
+
+        if (screen)
+        {
+            enqueueScreenCommand(
+                DrawCommandType::RotatedRectangleEx,
+                currentColor,
+                RotatedRectangleExCmd{x, y, width, height, rotation, fill, origin.x, origin.y});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+
+        if (fill)
+            DrawRectanglePro({(float)x, (float)y, (float)width, (float)height}, origin, rotation, currentColor);
+        else
+            DrawRectanglePro({(float)x, (float)y, (float)width, (float)height}, origin, rotation, currentColor);
+        return 0;
+    }
 
     static int native_rotated_rectangle(Interpreter *vm, int argCount, Value *args)
     {
@@ -283,12 +603,18 @@ namespace BindingsDraw
         float rotation = (float)args[4].asNumber();
         bool fill = args[5].asBool();
 
-        if (!screen)
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
+            enqueueScreenCommand(
+                DrawCommandType::RotatedRectangle,
+                currentColor,
+                RotatedRectangleCmd{x, y, width, height, rotation, fill});
+            return 0;
         }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
 
         if (fill)
             DrawRectanglePro({(float)x, (float)y, (float)width, (float)height}, {(float)width / 2, (float)height / 2}, rotation, currentColor);
@@ -311,15 +637,17 @@ namespace BindingsDraw
         int y2 = (int)args[3].asNumber();
         float thickness = (float)args[4].asNumber();
 
-        if (!screen)
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x1 -= l.scroll_x;
-            y1 -= l.scroll_y;
-            x2 -= l.scroll_x;
-            y2 -= l.scroll_y;
+            enqueueScreenCommand(DrawCommandType::LineEx, currentColor, LineExCmd{x1, y1, x2, y2, thickness});
+            return 0;
         }
 
+        Layer &l = gScene.layers[layer];
+        x1 -= l.scroll_x;
+        y1 -= l.scroll_y;
+        x2 -= l.scroll_x;
+        y2 -= l.scroll_y;
         DrawLineEx({(float)x1, (float)y1}, {(float)x2, (float)y2}, thickness, currentColor);
         return 0;
     }
@@ -335,17 +663,24 @@ namespace BindingsDraw
         Vector2 v1 = {(float)args[0].asNumber(), (float)args[1].asNumber()};
         Vector2 v2 = {(float)args[2].asNumber(), (float)args[3].asNumber()};
         Vector2 v3 = {(float)args[4].asNumber(), (float)args[5].asNumber()};
-            if (!screen)
-            {
-                Layer &l = gScene.layers[layer];
-                v1.x -= l.scroll_x;
-                v1.y -= l.scroll_y;
-                v2.x -= l.scroll_x;
-                v2.y -= l.scroll_y;
-                v3.x -= l.scroll_x;
-                v3.y -= l.scroll_y;
-            }
         bool fill = args[6].asBool();
+
+        if (screen)
+        {
+            enqueueScreenCommand(
+                DrawCommandType::Triangle,
+                currentColor,
+                TriangleCmd{(int)v1.x, (int)v1.y, (int)v2.x, (int)v2.y, (int)v3.x, (int)v3.y, fill});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        v1.x -= l.scroll_x;
+        v1.y -= l.scroll_y;
+        v2.x -= l.scroll_x;
+        v2.y -= l.scroll_y;
+        v3.x -= l.scroll_x;
+        v3.y -= l.scroll_y;
 
         if (fill)
             DrawTriangle(v1, v2, v3, currentColor);
@@ -366,12 +701,15 @@ namespace BindingsDraw
         float x = (float)args[1].asNumber();
         float y = (float)args[2].asNumber();
 
-        if (!screen)        
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
+            enqueueScreenCommand(DrawCommandType::Graph, currentColor, GraphCmd{graphId, (int)x, (int)y});
+            return 0;
         }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
 
         Graph *graph = gGraphLib.getGraph(graphId);
         if (!graph) return 0;
@@ -398,12 +736,18 @@ namespace BindingsDraw
         bool flipX = args[6].asBool();
         bool flipY = args[7].asBool();
 
-        if (!screen)
+        if (screen)
         {
-            Layer &l = gScene.layers[layer];
-            x -= l.scroll_x;
-            y -= l.scroll_y;
+            enqueueScreenCommand(
+                DrawCommandType::GraphEx,
+                currentColor,
+                GraphExCmd{graphId, (int)x, (int)y, angle, sizeX, sizeY, flipX, flipY});
+            return 0;
         }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
 
         Graph *graph = gGraphLib.getGraph(graphId);
         if (!graph) return 0;
@@ -659,6 +1003,25 @@ namespace BindingsDraw
         vm.addStructField(vec2, "y", offsetof(Vector2, y), FieldType::FLOAT);
     }
 
+    void resetDrawCommands()
+    {
+        screenCommands.clear();
+    }
+
+    void RenderWorldCommands()
+    {
+        // Reserved for future world command buffering.
+    }
+
+    void RenderScreenCommands()
+    {
+        for (size_t i = 0; i < screenCommands.size(); i++)
+        {
+            renderCommand(screenCommands[i]);
+        }
+        screenCommands.clear();
+    }
+
     // === Registration ===
 
     void registerAll(Interpreter &vm)
@@ -676,7 +1039,8 @@ namespace BindingsDraw
 
         vm.registerNative("draw_line_ex", native_line_ex, 5);
         vm.registerNative("draw_rotated_rectangle", native_rotated_rectangle, 6);
-
+        vm.registerNative("draw_rotated_rectangle_ex", native_rotated_rectangle_ex, 8);
+        
         vm.registerNative("set_draw_layer", native_set_draw_layer, 1);
         vm.registerNative("set_draw_screen", native_set_draw_screen, 1);
 

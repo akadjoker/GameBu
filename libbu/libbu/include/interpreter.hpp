@@ -571,11 +571,14 @@ enum class PrivateIndex : uint8
   GROUP = 16,
   VELX = 17,
   VELY = 18,
-  HIT = 19,
+  HP = 19,
   PROGRESS = 20,
   LIFE = 21,
   ACTIVE = 22,
   SHOW = 23,
+  XOLD = 24,
+  YOLD = 25,
+  
 
 };
 

@@ -369,6 +369,28 @@ namespace BindingsInput
         return 0;
     }
 
+    static int hideCursor(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("hide_cursor expects no arguments");
+            return 0;
+        }
+        HideCursor();
+        return 0;
+    }
+
+    static int showCursor(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("show_cursor expects no arguments");
+            return 0;
+        }
+        ShowCursor();
+        return 0;
+    }
+
     void registerAll(Interpreter &vm)
     {
 
@@ -394,6 +416,8 @@ namespace BindingsInput
         vm.registerNative("set_mouse_position", setMousePosition, 2);
         vm.registerNative("set_mouse_offset", setMouseOffset, 2);
         vm.registerNative("set_mouse_scale", setMouseScale, 2);
+        vm.registerNative("hide_cursor", hideCursor, 0);
+        vm.registerNative("show_cursor", showCursor, 0);
     }
 
 } // namespace BindingsInput

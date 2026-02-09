@@ -72,6 +72,7 @@ struct ParseRule
 #define MAX_LOCALS 1024
 #define MAX_LOOP_DEPTH 32
 #define MAX_BREAKS_PER_LOOP 256
+#define MAX_SWITCH_DEPTH 64
 
 struct Local
 {
@@ -214,6 +215,8 @@ private:
   int scopeDepth;
   int tryDepth;
   int loopDepth_;
+  int switchDepth_;
+  int switchLoopDepthStack_[MAX_SWITCH_DEPTH];
 
   Local locals_[MAX_LOCALS];
   int localCount_;
@@ -413,6 +416,9 @@ private:
 
   void initRules();
   void predeclareProcessGlobals();
+  bool enterSwitchContext();
+  void leaveSwitchContext();
+  void recoverToCurrentSwitchEnd();
 
   void frameStatement();
   void exitStatement();

@@ -68,55 +68,74 @@ void Process::reset()
 
 int Interpreter::getProcessPrivateIndex(const char *name)
 {
-    
+   // if (!name || name[0] == '\0') return -1;
+
     switch (name[0])
     {
     case 'x':
-        return (name[1] == '\0') ? 0 : -1;
+        if (name[1] == '\0') return (int)PrivateIndex::X;
+        if (strcmp(name, "xold") == 0) return (int)PrivateIndex::XOLD;
+        return -1;
+
     case 'y':
-        return (name[1] == '\0') ? 1 : -1;
+        if (name[1] == '\0') return (int)PrivateIndex::Y;
+        if (strcmp(name, "yold") == 0) return (int)PrivateIndex::YOLD;
+        return -1;
+
     case 'z':
-        return (name[1] == '\0') ? 2 : -1;
+        return (name[1] == '\0') ? (int)PrivateIndex::Z : -1;
+
     case 'g':
-        if (strcmp(name, "graph") == 0) return 3;
-        if (strcmp(name, "green") == 0) return 10;
-        if (strcmp(name, "group") == 0) return 16;
+        if (strcmp(name, "graph") == 0) return (int)PrivateIndex::GRAPH;
+        if (strcmp(name, "green") == 0) return (int)PrivateIndex::iGREEN;
+        if (strcmp(name, "group") == 0) return (int)PrivateIndex::GROUP;
         return -1;
+
     case 'a':
-        if (strcmp(name, "angle") == 0) return 4;
-        if (strcmp(name, "alpha") == 0) return 12;
-        if (strcmp(name, "active") == 0) return 22;
+        if (strcmp(name, "angle") == 0) return (int)PrivateIndex::ANGLE;
+        if (strcmp(name, "alpha") == 0) return (int)PrivateIndex::iALPHA;
+        if (strcmp(name, "active") == 0) return (int)PrivateIndex::ACTIVE;
         return -1;
+
     case 's':
-        if (strcmp(name, "size") == 0) return 5;
-        if (strcmp(name, "state") == 0) return 14;
-        if (strcmp(name, "speed") == 0) return 15;
-        if (strcmp(name, "show") == 0) return 23;
+        if (strcmp(name, "size") == 0) return (int)PrivateIndex::SIZE;
+        if (strcmp(name, "state") == 0) return (int)PrivateIndex::STATE;
+        if (strcmp(name, "speed") == 0) return (int)PrivateIndex::SPEED;
+        if (strcmp(name, "show") == 0) return (int)PrivateIndex::SHOW;
         return -1;
+
     case 'f':
-        if (strcmp(name, "flags") == 0) return 6;
-        if (strcmp(name, "father") == 0) return 8;
+        if (strcmp(name, "flags") == 0) return (int)PrivateIndex::FLAGS;
+        if (strcmp(name, "father") == 0) return (int)PrivateIndex::FATHER;
         return -1;
+
     case 'i':
-        return (strcmp(name, "id") == 0) ? 7 : -1;
+        return (strcmp(name, "id") == 0) ? (int)PrivateIndex::ID : -1;
+
     case 'r':
-        return (strcmp(name, "red") == 0) ? 9 : -1;
+        return (strcmp(name, "red") == 0) ? (int)PrivateIndex::iRED : -1;
+
     case 'b':
-        return (strcmp(name, "blue") == 0) ? 11 : -1;
+        return (strcmp(name, "blue") == 0) ? (int)PrivateIndex::iBLUE : -1;
+
     case 't':
-        return (strcmp(name, "tag") == 0) ? 13 : -1;
+        return (strcmp(name, "tag") == 0) ? (int)PrivateIndex::TAG : -1;
+
     case 'v':
-        if (strcmp(name, "velx") == 0) return 17;
-        if (strcmp(name, "vely") == 0) return 18;
+        if (strcmp(name, "velx") == 0) return (int)PrivateIndex::VELX;
+        if (strcmp(name, "vely") == 0) return (int)PrivateIndex::VELY;
         return -1;
+
     case 'h':
-        return (strcmp(name, "hit") == 0) ? 19 : -1;
+        return (strcmp(name, "hp") == 0) ? (int)PrivateIndex::HP : -1;
+
     case 'p':
-        return (strcmp(name, "progress") == 0) ? 20 : -1;
+        return (strcmp(name, "progress") == 0) ? (int)PrivateIndex::PROGRESS : -1;
+
     case 'l':
-        return (strcmp(name, "life") == 0) ? 21 : -1;
+        return (strcmp(name, "life") == 0) ? (int)PrivateIndex::LIFE : -1;
     }
-    // 'a' handles "angle", "alpha", "active"
+
     return -1;
 }
 
@@ -143,8 +162,8 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
 
     proc->privates[0] = makeDouble(0); // x
     proc->privates[1] = makeDouble(0); // y
-    proc->privates[2] = makeInt(0); // z
-    proc->privates[3] = makeInt(-1);    // graph
+    proc->privates[2] = makeInt(0);    // z
+    proc->privates[3] = makeInt(-1);   // graph
     proc->privates[4] = makeInt(0);    // angle
     proc->privates[5] = makeInt(100);  // size
     proc->privates[6] = makeInt(0);    // flags
@@ -160,11 +179,14 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
     proc->privates[16] = makeInt(0);   // group
     proc->privates[17] = makeDouble(0); // velx
     proc->privates[18] = makeDouble(0); // vely
-    proc->privates[19] = makeInt(0);    // hit
+    proc->privates[19] = makeInt(0);    // hp
     proc->privates[20] = makeDouble(0); // progress
     proc->privates[21] = makeInt(100);  // life
     proc->privates[22] = makeInt(1);    // active
     proc->privates[23] = makeInt(1);    // show
+    proc->privates[24] = makeInt(0);    // xold
+    proc->privates[25] = makeInt(0);    // yold
+
     proc->totalFibers = totalFibers;
 
     proc->fibers = (Fiber *)calloc(proc->totalFibers, sizeof(Fiber));

@@ -493,18 +493,20 @@ int main(int argc, char *argv[])
         BeginDrawing();
         ClearBackground(BACKGROUND_COLOR);
         gCamera.begin();
-        RenderScene();
         gParticleSystem.update(dt);
+        BindingsDraw::resetDrawCommands();
         vm.update(dt);
+        RenderScene();
         gParticleSystem.cleanup();
         gParticleSystem.draw();
         gCamera.end();
 
+        BindingsDraw::RenderScreenCommands();
 
 
         DrawFade();
 
-        DrawText(TextFormat("FPS: %d Processes: %d", GetFPS(), vm.getTotalAliveProcesses()), 10, 10, 20, WHITE);
+       // DrawText(TextFormat("FPS: %d Processes: %d", GetFPS(), vm.getTotalAliveProcesses()), 10, 10, 20, WHITE);
         EndDrawing();
     }
     BindingsMessage::clearAllMessages();

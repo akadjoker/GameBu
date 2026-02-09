@@ -28,7 +28,7 @@ Compiler::Compiler(Interpreter *vm)
       function(nullptr), currentChunk(nullptr),
       currentProcess(nullptr), hadError(false),
       panicMode(false), scopeDepth(0), localCount_(0), loopDepth_(0),
-      isProcess_(false), tryDepth(0),
+      switchDepth_(0), isProcess_(false), tryDepth(0),
       expressionDepth(0), declarationDepth(0), callDepth(0),
       upvalueCount_(0)
 {
@@ -207,6 +207,43 @@ void Compiler::predeclareProcessGlobals()
   }
 }
 
+bool Compiler::enterSwitchContext()
+{
+  if (switchDepth_ >= MAX_SWITCH_DEPTH)
+  {
+    error("Switch nested too deeply");
+    return false;
+  }
+
+  switchLoopDepthStack_[switchDepth_] = loopDepth_;
+  switchDepth_++;
+  return true;
+}
+
+void Compiler::leaveSwitchContext()
+{
+  if (switchDepth_ > 0)
+    switchDepth_--;
+}
+
+void Compiler::recoverToCurrentSwitchEnd()
+{
+  // Local recovery: consume everything until the matching '}' of current switch.
+  int braceDepth = 1;
+  while (!check(TOKEN_EOF) && braceDepth > 0)
+  {
+    if (check(TOKEN_LBRACE))
+    {
+      braceDepth++;
+    }
+    else if (check(TOKEN_RBRACE))
+    {
+      braceDepth--;
+    }
+    advance();
+  }
+}
+
 // ============================================
 // MAIN ENTRY POINT
 // ============================================
@@ -229,6 +266,7 @@ ProcessDef *Compiler::compile(const std::string &source)
   declaredGlobals_.clear();
   upvalueCount_ = 0;
   isProcess_ = true; // Top-level code IS a process
+  switchDepth_ = 0;
 
 
   globalIndices_.clear();
@@ -344,6 +382,7 @@ ProcessDef *Compiler::compileExpression(const std::string &source)
   stats.totalWarnings = 0;
   isProcess_ = true; // Expression compilation IS a process
   upvalueCount_ = 0;
+  switchDepth_ = 0;
   lexer = new Lexer(source);
 
   compileStartTime = std::chrono::steady_clock::now();
@@ -443,6 +482,7 @@ void Compiler::clear()
   scopeDepth = 0;
   localCount_ = 0;
   loopDepth_ = 0;
+  switchDepth_ = 0;
   cursor = 0;
   currentFunctionType = FunctionType::TYPE_SCRIPT;
 }
