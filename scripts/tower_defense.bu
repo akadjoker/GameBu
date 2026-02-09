@@ -58,14 +58,6 @@ var PATH_COUNT = 9;
 var PATH_X = [20, 220, 220, 520, 520, 900, 900, 1180, 1260];
 var PATH_Y = [360, 360, 140, 140, 560, 560, 250, 250, 250];
 
-def angle_delta(from_a, to_a)
-{
-    var d = to_a - from_a;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return d;
-}
-
 def tower_cost(t)
 {
     if (t == 0) return 80;   // cannon

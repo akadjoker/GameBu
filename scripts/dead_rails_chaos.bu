@@ -80,14 +80,6 @@ def clamp(v, lo, hi)
     return v;
 }
 
-def angle_delta(from_a, to_a)
-{
-    var d = to_a - from_a;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return d;
-}
-
 def track_precompute()
 {
     TRACK_SEG_LEN = [];

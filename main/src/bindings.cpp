@@ -1685,6 +1685,28 @@ namespace Bindings
         return 1;
     }
 
+    // angle_delta(from, to) -> shortest signed delta in [-180, 180]
+    static int native_angle_delta(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("angle_delta expects 2 number arguments (from, to)");
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        double from = args[0].asNumber();
+        double to = args[1].asNumber();
+        double diff = fmod(to - from, 360.0);
+        if (diff > 180.0)
+            diff -= 360.0;
+        if (diff < -180.0)
+            diff += 360.0;
+
+        vm->pushDouble(diff);
+        return 1;
+    }
+
     // near_angle(current, target, step) -> rotate current toward target by at most step degrees
     static int native_near_angle(Interpreter *vm, int argCount, Value *args)
     {
@@ -1807,6 +1829,7 @@ namespace Bindings
         vm.registerNative("get_disty", native_get_disty, 2);
         vm.registerNative("get_angle", native_get_angle, 4);
         vm.registerNative("get_dist", native_get_dist, 4);
+        vm.registerNative("angle_delta", native_angle_delta, 2);
         vm.registerNative("near_angle", native_near_angle, 3);
         vm.registerNative("normalize_angle", native_normalize_angle, 1);
 

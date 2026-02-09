@@ -71,14 +71,6 @@ var SPAWN_COUNT = 16;
 var SPAWN_X = [50, 220, 420, 640, 860, 1080, 1230, 1230, 1230, 1080, 860, 640, 420, 220, 50, 50];
 var SPAWN_Y = [50, 50, 50, 50, 50, 50, 120, 260, 460, 670, 670, 670, 670, 670, 590, 260];
 
-def angle_delta(from_a, to_a)
-{
-    var d = to_a - from_a;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return d;
-}
-
 def line_free(x1, y1, x2, y2)
 {
     var dx = x2 - x1;
