@@ -702,6 +702,7 @@ class Interpreter
   Process *currentProcess;
   Process *mainProcess;
   bool hasFatalError_;
+  bool debugMode_;
 
   Compiler *compiler;
   Upvalue *openUpvalues;
@@ -1012,6 +1013,9 @@ public:
  
 
   void dumpToFile(const char *filename);
+
+  void setDebugMode(bool enabled) { debugMode_ = enabled; }
+  bool isDebugMode() const { return debugMode_; }
 
   void setFileLoader(FileLoaderCallback loader, void *userdata = nullptr);
 
@@ -1396,6 +1400,14 @@ public:
     Value v;
     v.type = ValueType::PROCESS;
     v.as.integer = idx;
+    return v;
+  }
+
+  FORCE_INLINE Value makeProcessInstance(Process *proc)
+  {
+    Value v;
+    v.type = ValueType::PROCESS_INSTANCE;
+    v.as.process = proc;
     return v;
   }
 

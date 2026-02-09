@@ -784,35 +784,48 @@ namespace Bindings
             return 1;
         }
 
-        vm->push(vm->makeProcess(target->id));
+        vm->push(vm->makeProcessInstance(target));
 
         return 1;
     }
 
     int native_type(Interpreter *vm, int argCount, Value *args)
     {
-
         if (argCount != 1)
         {
-            Error("type expects 1 argument (process id)");
-            return 0;
-        }
-        if (!args[0].isNumber())
-        {
-            Error("type expects 1 number argument (process id)");
-            return 0;
-        }
-
-        uint32 id = (uint32)args[0].asNumber();
-
-        Process *target = vm->findProcessById(id);
-        if (!target || !target->name)
-        {
+            Error("type expects 1 argument (process or id)");
             vm->pushString("nil");
             return 1;
         }
 
-        vm->pushString(target->name->chars());
+        // type(process_instance) - direct pointer access
+        if (args[0].isProcessInstance())
+        {
+            Process *target = args[0].asProcess();
+            if (!target || !target->name)
+            {
+                vm->pushString("nil");
+                return 1;
+            }
+            vm->pushString(target->name->chars());
+            return 1;
+        }
+
+        // type(id) - lookup by integer id
+        if (args[0].isNumber())
+        {
+            uint32 id = (uint32)args[0].asNumber();
+            Process *target = vm->findProcessById(id);
+            if (!target || !target->name)
+            {
+                vm->pushString("nil");
+                return 1;
+            }
+            vm->pushString(target->name->chars());
+            return 1;
+        }
+
+        vm->pushString("nil");
         return 1;
     }
     static void applySignal(Process *proc, int signalType)
@@ -850,12 +863,11 @@ namespace Bindings
 
         int signalType = (int)args[1].asInt();
 
-        // signal(process_id, SKILL) - by specific process ID
-        if (args[0].isProcess())
+        // signal(process_instance, SKILL) - by specific process
+        if (args[0].isProcessInstance())
         {
-            int id = args[0].as.integer;
-            Process *proc = vm->findProcessById(id);
-            if (proc)
+            Process *proc = args[0].asProcess();
+            if (proc && proc->state != FiberState::DEAD)
                 applySignal(proc, signalType);
             return 0;
         }
@@ -895,6 +907,14 @@ namespace Bindings
             return 1;
         }
 
+        // exists(process_instance) - direct pointer check
+        if (args[0].isProcessInstance())
+        {
+            Process *proc = args[0].asProcess();
+            vm->pushBool(proc && proc->state != FiberState::DEAD);
+            return 1;
+        }
+
         // exists(type enemy) - check if any process of this type is alive
         if (args[0].isInt())
         {
@@ -913,7 +933,7 @@ namespace Bindings
             return 1;
         }
 
-        // exists(process_id) - check if specific process exists
+        // exists(process_id) - check if specific process exists by int id
         if (args[0].isNumber())
         {
             uint32 id = (uint32)args[0].asNumber();
@@ -966,7 +986,7 @@ namespace Bindings
         {
             Process *proc = alive[i];
             if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
-                array->values.push(vm->makeInt(proc->id));
+                array->values.push(vm->makeProcessInstance(proc));
         }
 
         vm->push(arr);
@@ -977,7 +997,7 @@ namespace Bindings
     {
         if (argCount != 1 || !args[0].isInt())
         {
-            vm->pushInt(-1);
+            vm->pushNil();
             return 1;
         }
 
@@ -987,14 +1007,14 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
             {
-                vm->pushInt(proc->id);
+                vm->push(vm->makeProcessInstance(proc));
                 return 1;
             }
         }
 
-        vm->pushInt(-1);
+        vm->pushNil();
         return 1;
     }
 

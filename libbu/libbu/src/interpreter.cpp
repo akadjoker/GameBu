@@ -8,6 +8,8 @@
 Interpreter::Interpreter()
 {
   compiler = new Compiler(this);
+  debugMode_ = false;
+  hasFatalError_ = false;
 
   setPrivateTable();
   staticNames.resize((int)StaticNames::TOTAL_COUNT);
@@ -678,12 +680,34 @@ void Interpreter::runtimeError(const char *format, ...)
 {
   hasFatalError_ = true;
 
+  if (!debugMode_)
+  {
+    // Release mode: minimal output
+    OsPrintf("Runtime Error: ");
+    va_list args;
+    va_start(args, format);
+    OsVPrintf(format, args);
+    va_end(args);
+    if (currentProcess && currentProcess->name)
+      OsPrintf(" in '%s'", currentProcess->name->chars());
+    OsPrintf("\n");
+    return;
+  }
+
+  // Debug mode: full diagnostics
   OsPrintf("Runtime Error: ");
   va_list args;
   va_start(args, format);
   OsVPrintf(format, args);
   va_end(args);
   OsPrintf("\n");
+
+  if (currentProcess)
+  {
+    OsPrintf("  Process: '%s' (id=%u)\n",
+             currentProcess->name ? currentProcess->name->chars() : "?",
+             currentProcess->id);
+  }
 
   // Print stack trace with line numbers
   if (currentFiber && currentFiber->frameCount > 0)

@@ -11,6 +11,7 @@ struct ClassInstance;
 struct NativeClassInstance;
 struct NativeStructInstance;
 struct Closure;
+struct Process;
 
 enum class ValueType : uint8
 {
@@ -40,6 +41,7 @@ enum class ValueType : uint8
   CLASS,
   CLASSINSTANCE,
   PROCESS,
+  PROCESS_INSTANCE,
   POINTER,
   MODULEREFERENCE,
   CLOSURE,
@@ -67,6 +69,7 @@ struct Value
     NativeClassInstance *sClassInstance;
     NativeStructInstance *sNativeStruct;
     Closure *closure;
+    Process *process;
     void *pointer;
 
   } as;
@@ -92,6 +95,7 @@ struct Value
   FORCE_INLINE bool isNative() const { return type == ValueType::NATIVE; }
   FORCE_INLINE bool isNativeClass() const { return type == ValueType::NATIVECLASS; }
   FORCE_INLINE bool isProcess() const { return type == ValueType::PROCESS; }
+  FORCE_INLINE bool isProcessInstance() const { return type == ValueType::PROCESS_INSTANCE; }
   FORCE_INLINE bool isStruct() const { return type == ValueType::STRUCT; }
   FORCE_INLINE bool isStructInstance() const { return type == ValueType::STRUCTINSTANCE; }
   FORCE_INLINE bool isMap() const { return type == ValueType::MAP; }
@@ -116,6 +120,7 @@ struct Value
   FORCE_INLINE int asNativeId() const { return as.integer; }
   FORCE_INLINE int asProcessId() const { return as.integer; }
   FORCE_INLINE int asNativeProcessId() const { return as.integer; }
+  FORCE_INLINE Process *asProcess() const { return as.process; }
 
   FORCE_INLINE Closure * asClosure() const
   {
@@ -435,6 +440,9 @@ static FORCE_INLINE bool valuesEqual(const Value &a, const Value &b)
   case ValueType::CLOSURE:
     return a.asClosure() == b.asClosure();
   
+  case ValueType::PROCESS_INSTANCE:
+    return a.asProcess() == b.asProcess();
+
   case ValueType::POINTER:
     return a.asPointer() == b.asPointer();
 
