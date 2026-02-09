@@ -704,7 +704,7 @@ void Compiler::namedVariable(Token &name, bool canAssign)
 
     // Variável não foi declarada com 'var' - ERRO!
     // Mesmo em scope local, não permitimos criar globais implicitamente
-    fail("Undefined variable '%s'. Use 'var %s = ...' to declare it first.",
+    fail("Undefined variable '%s'!",
           name.lexeme.c_str(), name.lexeme.c_str());
     
     // Emite código dummy para continuar compilação
