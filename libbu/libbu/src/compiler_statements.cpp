@@ -690,7 +690,7 @@ void Compiler::namedVariable(Token &name, bool canAssign)
 
     // === 5. Fallback final: ERRO - variável não declarada ===
     // Se chegou aqui, a variável não foi declarada com 'var'
-    // OPTIMIZATION: Check if it's a native class/struct first (they use HashMap)
+
     String *nameStr = vm_->createString(name.lexeme.c_str());
     if (vm_->globals.exist(nameStr))
     {
@@ -2079,6 +2079,7 @@ void Compiler::includeStatement()
     // COMPILA inline
     this->lexer = new Lexer(source, sourceSize);
     this->tokens = lexer->scanAll();
+    predeclareProcessGlobals();
     this->cursor = 0;
     advance();
 

@@ -69,7 +69,7 @@ struct ParseRule
 #define MAX_GOTOS 32
 #define MAX_GOSUBS 32
 
-#define MAX_LOCALS 256
+#define MAX_LOCALS 1024
 #define MAX_LOOP_DEPTH 32
 #define MAX_BREAKS_PER_LOOP 256
 
@@ -412,6 +412,7 @@ private:
   bool inProcessFunction() const;
 
   void initRules();
+  void predeclareProcessGlobals();
 
   void frameStatement();
   void exitStatement();

@@ -39,34 +39,7 @@ def lerpf(current, target, speed, dt)
     return current + (target - current) * t;
 }
 
-process enemy_bullet(start_x, start_y, fire_angle)
-{
-    x = start_x;
-    y = start_y;
-    var speed = 350;
-    var lifetime = 2.0;
-    var timer = 0;
-    
-    set_circle_shape(4);
 
-    loop
-    {
-        xadvance(speed * delta_frame, fire_angle);
-        timer += delta_frame;
-
-        // Desenhar bala (círculo amarelo)
-        set_color(255, 200, 50);
-        draw_circle(x, y, 4, true);
-
-        if (timer >= lifetime)
-        {
-            break;
-        }
-
-        frame;
-    }
-}
- 
 process enemy_car(spawn_x, spawn_y)
 {
     x = spawn_x;
@@ -162,6 +135,35 @@ process enemy_car(spawn_x, spawn_y)
     
 }
 
+
+process enemy_bullet(start_x, start_y, fire_angle)
+{
+    x = start_x;
+    y = start_y;
+    var speed = 350;
+    var lifetime = 2.0;
+    var timer = 0;
+    
+    set_circle_shape(4);
+
+    loop
+    {
+        xadvance(speed * delta_frame, fire_angle);
+        timer += delta_frame;
+
+        // Desenhar bala (círculo amarelo)
+        set_color(255, 200, 50);
+        draw_circle(x, y, 4, true);
+
+        if (timer >= lifetime)
+        {
+            break;
+        }
+
+        frame;
+    }
+}
+ 
 process enemy_soldier(spawn_x, spawn_y)
 {
     x = spawn_x;
