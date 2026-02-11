@@ -320,6 +320,10 @@ void Interpreter::registerAll()
   registerJSON();
 #endif
 
+#ifdef BU_ENABLE_REGEX
+  registerRegex();
+#endif
+
 #ifdef BU_ENABLE_SOCKETS
   registerSocket();
 #endif

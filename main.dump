@@ -12,269 +12,154 @@ GLOBAL FUNCTIONS
     Has return: no
     Index: 0
 
-  Constants (52):
-    [0] = <module_reference 0 96 0>
-    [1] = "{"name":"bu","ok":true,"n":42,"arr":[1,2,3],"inner":{"x":7},"none":null}"
-    [2] = "name"
-    [3] = "bu"
-    [4] = "json.parse name"
-    [5] = "ok"
-    [6] = "json.parse bool"
-    [7] = "n"
-    [8] = 42
-    [9] = "json.parse int"
-    [10] = "arr"
-    [11] = 2
-    [12] = 3
-    [13] = "json.parse array"
-    [14] = "inner"
-    [15] = "x"
-    [16] = 7
-    [17] = "json.parse object"
-    [18] = "none"
-    [19] = "json.parse null"
-    [20] = <module_reference 0 96 0>
-    [21] = "{"value":1.5e2}"
-    [22] = "value"
-    [23] = 150
-    [24] = "json.parse exponent"
-    [25] = <module_reference 0 96 1>
-    [26] = "contains"
-    [27] = ""name""
-    [28] = "json.stringify key"
-    [29] = ""arr""
-    [30] = "json.stringify array key"
-    [31] = "null"
-    [32] = "json.stringify null"
-    [33] = <module_reference 0 96 1>
-    [34] = "a"
-    [35] = 1
-    [36] = "b"
-    [37] = "
-"
-    [38] = "json.stringify pretty newline"
-    [39] = "  "a""
-    [40] = "  "b""
-    [41] = "json.stringify pretty indent"
-    [42] = <module_reference 0 96 1>
-    [43] = "q"
-    [44] = "a"b\c
-"
-    [45] = <module_reference 0 96 0>
-    [46] = "json escape roundtrip"
-    [47] = <module_reference 0 96 0>
-    [48] = "{"letter":"\u0041"}"
-    [49] = "letter"
-    [50] = "A"
-    [51] = "json unicode"
+  Constants (33):
+    [0] = <module_reference 0 112 0>
+    [1] = "^abc$"
+    [2] = "abc"
+    [3] = "regex.match true"
+    [4] = <module_reference 0 112 0>
+    [5] = "abcc"
+    [6] = "regex.match false"
+    [7] = <module_reference 0 112 1>
+    [8] = "[0-9]+"
+    [9] = "id=1234"
+    [10] = "regex.search true"
+    [11] = <module_reference 0 112 1>
+    [12] = "no digits"
+    [13] = "regex.search false"
+    [14] = <module_reference 0 112 2>
+    [15] = "#"
+    [16] = "a1 b22 c333"
+    [17] = "a# b# c#"
+    [18] = "regex.replace"
+    [19] = <module_reference 0 112 3>
+    [20] = "[a-z]+"
+    [21] = "ab 12 cd EF gh"
+    [22] = 3
+    [23] = "regex.findall len"
+    [24] = 0
+    [25] = "ab"
+    [26] = "regex.findall 0"
+    [27] = 1
+    [28] = "cd"
+    [29] = "regex.findall 1"
+    [30] = 2
+    [31] = "gh"
+    [32] = "regex.findall 2"
 
   Bytecode:
-    0000    5 OP_CONSTANT             0 '<module_reference 0 96 0>'
-    0003    | OP_CONSTANT             1 '{"name":"bu","ok":true,"n":42,"arr":[1,2,3],"inner":{"x":7},"none":null}'
-    0006    | OP_CALL                 1
-    0008    | OP_DEFINE_GLOBAL       20
-    0011    6 OP_GET_GLOBAL          20
-    0014    | OP_CONSTANT             2 'name'
-    0017    | OP_GET_INDEX        
-    0018    | OP_CONSTANT             3 'bu'
-    0021    | OP_EQUAL            
-    0022    | OP_NOT              
-    0023    | OP_JUMP_IF_FALSE       23 -> 34
-    0026    | OP_POP              
-    0027    | OP_CONSTANT             4 'json.parse name'
-    0030    | OP_THROW            
-    0031    | OP_JUMP                31 -> 35
-    0034    | OP_POP              
-    0035    7 OP_GET_GLOBAL          20
-    0038    | OP_CONSTANT             5 'ok'
-    0041    | OP_GET_INDEX        
-    0042    | OP_NOT              
-    0043    | OP_JUMP_IF_FALSE       43 -> 54
+    0000    5 OP_CONSTANT             0 '<module_reference 0 112 0>'
+    0003    | OP_CONSTANT             1 '^abc$'
+    0006    | OP_CONSTANT             2 'abc'
+    0009    | OP_CALL                 2
+    0011    | OP_NOT              
+    0012    | OP_JUMP_IF_FALSE       12 -> 23
+    0015    | OP_POP              
+    0016    | OP_CONSTANT             3 'regex.match true'
+    0019    | OP_THROW            
+    0020    | OP_JUMP                20 -> 24
+    0023    | OP_POP              
+    0024    6 OP_CONSTANT             4 '<module_reference 0 112 0>'
+    0027    | OP_CONSTANT             1 '^abc$'
+    0030    | OP_CONSTANT             5 'abcc'
+    0033    | OP_CALL                 2
+    0035    | OP_JUMP_IF_FALSE       35 -> 46
+    0038    | OP_POP              
+    0039    | OP_CONSTANT             6 'regex.match false'
+    0042    | OP_THROW            
+    0043    | OP_JUMP                43 -> 47
     0046    | OP_POP              
-    0047    | OP_CONSTANT             6 'json.parse bool'
-    0050    | OP_THROW            
-    0051    | OP_JUMP                51 -> 55
-    0054    | OP_POP              
-    0055    8 OP_GET_GLOBAL          20
-    0058    | OP_CONSTANT             7 'n'
-    0061    | OP_GET_INDEX        
-    0062    | OP_CONSTANT             8 '42'
-    0065    | OP_EQUAL            
-    0066    | OP_NOT              
-    0067    | OP_JUMP_IF_FALSE       67 -> 78
+    0047    8 OP_CONSTANT             7 '<module_reference 0 112 1>'
+    0050    | OP_CONSTANT             8 '[0-9]+'
+    0053    | OP_CONSTANT             9 'id=1234'
+    0056    | OP_CALL                 2
+    0058    | OP_NOT              
+    0059    | OP_JUMP_IF_FALSE       59 -> 70
+    0062    | OP_POP              
+    0063    | OP_CONSTANT            10 'regex.search true'
+    0066    | OP_THROW            
+    0067    | OP_JUMP                67 -> 71
     0070    | OP_POP              
-    0071    | OP_CONSTANT             9 'json.parse int'
-    0074    | OP_THROW            
-    0075    | OP_JUMP                75 -> 79
-    0078    | OP_POP              
-    0079    9 OP_GET_GLOBAL          20
-    0082    | OP_CONSTANT            10 'arr'
-    0085    | OP_GET_INDEX        
-    0086    | OP_CONSTANT            11 '2'
-    0089    | OP_GET_INDEX        
-    0090    | OP_CONSTANT            12 '3'
-    0093    | OP_EQUAL            
-    0094    | OP_NOT              
-    0095    | OP_JUMP_IF_FALSE       95 -> 106
-    0098    | OP_POP              
-    0099    | OP_CONSTANT            13 'json.parse array'
-    0102    | OP_THROW            
-    0103    | OP_JUMP               103 -> 107
-    0106    | OP_POP              
-    0107   10 OP_GET_GLOBAL          20
-    0110    | OP_CONSTANT            14 'inner'
-    0113    | OP_GET_INDEX        
-    0114    | OP_CONSTANT            15 'x'
-    0117    | OP_GET_INDEX        
-    0118    | OP_CONSTANT            16 '7'
-    0121    | OP_EQUAL            
-    0122    | OP_NOT              
-    0123    | OP_JUMP_IF_FALSE      123 -> 134
-    0126    | OP_POP              
-    0127    | OP_CONSTANT            17 'json.parse object'
-    0130    | OP_THROW            
-    0131    | OP_JUMP               131 -> 135
-    0134    | OP_POP              
-    0135   11 OP_GET_GLOBAL          20
-    0138    | OP_CONSTANT            18 'none'
-    0141    | OP_GET_INDEX        
-    0142    | OP_NIL              
-    0143    | OP_EQUAL            
-    0144    | OP_NOT              
-    0145    | OP_JUMP_IF_FALSE      145 -> 156
-    0148    | OP_POP              
-    0149    | OP_CONSTANT            19 'json.parse null'
-    0152    | OP_THROW            
-    0153    | OP_JUMP               153 -> 157
-    0156    | OP_POP              
-    0157   13 OP_CONSTANT            20 '<module_reference 0 96 0>'
-    0160    | OP_CONSTANT            21 '{"value":1.5e2}'
-    0163    | OP_CALL                 1
-    0165    | OP_DEFINE_GLOBAL       21
-    0168   14 OP_GET_GLOBAL          21
-    0171    | OP_CONSTANT            22 'value'
-    0174    | OP_GET_INDEX        
-    0175    | OP_CONSTANT            23 '150'
-    0178    | OP_EQUAL            
-    0179    | OP_NOT              
-    0180    | OP_JUMP_IF_FALSE      180 -> 191
-    0183    | OP_POP              
-    0184    | OP_CONSTANT            24 'json.parse exponent'
-    0187    | OP_THROW            
-    0188    | OP_JUMP               188 -> 192
-    0191    | OP_POP              
-    0192   16 OP_CONSTANT            25 '<module_reference 0 96 1>'
-    0195    | OP_GET_GLOBAL          20
-    0198    | OP_CALL                 1
-    0200    | OP_DEFINE_GLOBAL       22
-    0203   17 OP_GET_GLOBAL          22
-    0206    | OP_CONSTANT            27 '"name"'
-    0209    | OP_INVOKE              26 'contains' (1 args)
-    0213    | OP_NOT              
-    0214    | OP_JUMP_IF_FALSE      214 -> 225
-    0217    | OP_POP              
-    0218    | OP_CONSTANT            28 'json.stringify key'
-    0221    | OP_THROW            
-    0222    | OP_JUMP               222 -> 226
-    0225    | OP_POP              
-    0226   18 OP_GET_GLOBAL          22
-    0229    | OP_CONSTANT            29 '"arr"'
-    0232    | OP_INVOKE              26 'contains' (1 args)
-    0236    | OP_NOT              
-    0237    | OP_JUMP_IF_FALSE      237 -> 248
-    0240    | OP_POP              
-    0241    | OP_CONSTANT            30 'json.stringify array key'
-    0244    | OP_THROW            
-    0245    | OP_JUMP               245 -> 249
-    0248    | OP_POP              
-    0249   19 OP_GET_GLOBAL          22
-    0252    | OP_CONSTANT            31 'null'
-    0255    | OP_INVOKE              26 'contains' (1 args)
-    0259    | OP_NOT              
-    0260    | OP_JUMP_IF_FALSE      260 -> 271
-    0263    | OP_POP              
-    0264    | OP_CONSTANT            32 'json.stringify null'
-    0267    | OP_THROW            
-    0268    | OP_JUMP               268 -> 272
-    0271    | OP_POP              
-    0272   21 OP_CONSTANT            33 '<module_reference 0 96 1>'
-    0275    | OP_CONSTANT            34 'a'
-    0278    | OP_CONSTANT            35 '1'
-    0281    | OP_CONSTANT            36 'b'
-    0284    | OP_TRUE             
-    0285    | OP_FALSE            
-    0286    | OP_NIL              
-    0287    | OP_DEFINE_ARRAY         3
-    0290    | OP_DEFINE_MAP           2
-    0293    | OP_CONSTANT            11 '2'
-    0296    | OP_CALL                 2
-    0298    | OP_DEFINE_GLOBAL       23
-    0301   22 OP_GET_GLOBAL          23
-    0304    | OP_CONSTANT            37 ''
-    0307    | OP_INVOKE              26 'contains' (1 args)
-    0311    | OP_NOT              
-    0312    | OP_JUMP_IF_FALSE      312 -> 323
-    0315    | OP_POP              
-    0316    | OP_CONSTANT            38 'json.stringify pretty newline'
-    0319    | OP_THROW            
-    0320    | OP_JUMP               320 -> 324
-    0323    | OP_POP              
-    0324   23 OP_GET_GLOBAL          23
-    0327    | OP_CONSTANT            39 '  "a"'
-    0330    | OP_INVOKE              26 'contains' (1 args)
-    0334    | OP_NOT              
-    0335    | OP_JUMP_IF_FALSE      335 -> 350
-    0338    | OP_POP              
-    0339    | OP_GET_GLOBAL          23
-    0342    | OP_CONSTANT            40 '  "b"'
-    0345    | OP_INVOKE              26 'contains' (1 args)
-    0349    | OP_NOT              
-    0350    | OP_JUMP_IF_FALSE      350 -> 361
-    0353    | OP_POP              
-    0354    | OP_CONSTANT            41 'json.stringify pretty indent'
-    0357    | OP_THROW            
-    0358    | OP_JUMP               358 -> 362
-    0361    | OP_POP              
-    0362   25 OP_CONSTANT            42 '<module_reference 0 96 1>'
-    0365    | OP_CONSTANT            43 'q'
-    0368    | OP_CONSTANT            44 'a"b\c'
-    0371    | OP_DEFINE_MAP           1
-    0374    | OP_CALL                 1
-    0376    | OP_DEFINE_GLOBAL       24
-    0379   26 OP_CONSTANT            45 '<module_reference 0 96 0>'
-    0382    | OP_GET_GLOBAL          24
-    0385    | OP_CALL                 1
-    0387    | OP_DEFINE_GLOBAL       25
-    0390   27 OP_GET_GLOBAL          25
-    0393    | OP_CONSTANT            43 'q'
-    0396    | OP_GET_INDEX        
-    0397    | OP_CONSTANT            44 'a"b\c'
-    0400    | OP_EQUAL            
-    0401    | OP_NOT              
-    0402    | OP_JUMP_IF_FALSE      402 -> 413
-    0405    | OP_POP              
-    0406    | OP_CONSTANT            46 'json escape roundtrip'
-    0409    | OP_THROW            
-    0410    | OP_JUMP               410 -> 414
-    0413    | OP_POP              
-    0414   29 OP_CONSTANT            47 '<module_reference 0 96 0>'
-    0417    | OP_CONSTANT            48 '{"letter":"\u0041"}'
-    0420    | OP_CALL                 1
-    0422    | OP_DEFINE_GLOBAL       26
-    0425   30 OP_GET_GLOBAL          26
-    0428    | OP_CONSTANT            49 'letter'
-    0431    | OP_GET_INDEX        
-    0432    | OP_CONSTANT            50 'A'
-    0435    | OP_EQUAL            
-    0436    | OP_NOT              
-    0437    | OP_JUMP_IF_FALSE      437 -> 448
-    0440    | OP_POP              
-    0441    | OP_CONSTANT            51 'json unicode'
-    0444    | OP_THROW            
-    0445    | OP_JUMP               445 -> 449
-    0448    | OP_POP              
-    0449   31 OP_NIL              
-    0450    | OP_RETURN           
+    0071    9 OP_CONSTANT            11 '<module_reference 0 112 1>'
+    0074    | OP_CONSTANT             8 '[0-9]+'
+    0077    | OP_CONSTANT            12 'no digits'
+    0080    | OP_CALL                 2
+    0082    | OP_JUMP_IF_FALSE       82 -> 93
+    0085    | OP_POP              
+    0086    | OP_CONSTANT            13 'regex.search false'
+    0089    | OP_THROW            
+    0090    | OP_JUMP                90 -> 94
+    0093    | OP_POP              
+    0094   11 OP_CONSTANT            14 '<module_reference 0 112 2>'
+    0097    | OP_CONSTANT             8 '[0-9]+'
+    0100    | OP_CONSTANT            15 '#'
+    0103    | OP_CONSTANT            16 'a1 b22 c333'
+    0106    | OP_CALL                 3
+    0108    | OP_DEFINE_GLOBAL       20
+    0111   12 OP_GET_GLOBAL          20
+    0114    | OP_CONSTANT            17 'a# b# c#'
+    0117    | OP_EQUAL            
+    0118    | OP_NOT              
+    0119    | OP_JUMP_IF_FALSE      119 -> 130
+    0122    | OP_POP              
+    0123    | OP_CONSTANT            18 'regex.replace'
+    0126    | OP_THROW            
+    0127    | OP_JUMP               127 -> 131
+    0130    | OP_POP              
+    0131   14 OP_CONSTANT            19 '<module_reference 0 112 3>'
+    0134    | OP_CONSTANT            20 '[a-z]+'
+    0137    | OP_CONSTANT            21 'ab 12 cd EF gh'
+    0140    | OP_CALL                 2
+    0142    | OP_DEFINE_GLOBAL       21
+    0145   15 OP_GET_GLOBAL          21
+    0148    | OP_FUNC_LEN         
+    0149    | OP_CONSTANT            22 '3'
+    0152    | OP_EQUAL            
+    0153    | OP_NOT              
+    0154    | OP_JUMP_IF_FALSE      154 -> 165
+    0157    | OP_POP              
+    0158    | OP_CONSTANT            23 'regex.findall len'
+    0161    | OP_THROW            
+    0162    | OP_JUMP               162 -> 166
+    0165    | OP_POP              
+    0166   16 OP_GET_GLOBAL          21
+    0169    | OP_CONSTANT            24 '0'
+    0172    | OP_GET_INDEX        
+    0173    | OP_CONSTANT            25 'ab'
+    0176    | OP_EQUAL            
+    0177    | OP_NOT              
+    0178    | OP_JUMP_IF_FALSE      178 -> 189
+    0181    | OP_POP              
+    0182    | OP_CONSTANT            26 'regex.findall 0'
+    0185    | OP_THROW            
+    0186    | OP_JUMP               186 -> 190
+    0189    | OP_POP              
+    0190   17 OP_GET_GLOBAL          21
+    0193    | OP_CONSTANT            27 '1'
+    0196    | OP_GET_INDEX        
+    0197    | OP_CONSTANT            28 'cd'
+    0200    | OP_EQUAL            
+    0201    | OP_NOT              
+    0202    | OP_JUMP_IF_FALSE      202 -> 213
+    0205    | OP_POP              
+    0206    | OP_CONSTANT            29 'regex.findall 1'
+    0209    | OP_THROW            
+    0210    | OP_JUMP               210 -> 214
+    0213    | OP_POP              
+    0214   18 OP_GET_GLOBAL          21
+    0217    | OP_CONSTANT            30 '2'
+    0220    | OP_GET_INDEX        
+    0221    | OP_CONSTANT            31 'gh'
+    0224    | OP_EQUAL            
+    0225    | OP_NOT              
+    0226    | OP_JUMP_IF_FALSE      226 -> 237
+    0229    | OP_POP              
+    0230    | OP_CONSTANT            32 'regex.findall 2'
+    0233    | OP_THROW            
+    0234    | OP_JUMP               234 -> 238
+    0237    | OP_POP              
+    0238   19 OP_NIL              
+    0239    | OP_RETURN           
 
 
 ========================================
