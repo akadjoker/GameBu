@@ -10,8 +10,8 @@ add_subdirectory(libbu/libbu)
 add_subdirectory(graphics)
 
 add_subdirectory(main)
-add_subdirectory(teste)
-add_subdirectory(testEngine)
+add_subdirectory(tests)
+
  
 
  

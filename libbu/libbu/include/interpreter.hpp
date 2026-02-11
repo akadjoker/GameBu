@@ -495,6 +495,7 @@ struct FiberResult
   {
     FIBER_YIELD,   // yield N
     PROCESS_FRAME, // frame(N)
+    CALL_RETURN,   // return to native C++ caller boundary
     FIBER_DONE,    // return/end
     ERROR
   };
@@ -507,6 +508,7 @@ struct FiberResult
 
 struct TryHandler
 {
+  static constexpr int MAX_PENDING_RETURNS = 16;
   uint8_t *catchIP;
   uint8_t *finallyIP;
   Value *stackRestore;
@@ -514,18 +516,17 @@ struct TryHandler
   bool hasPendingError;
   Value pendingError;
   bool catchConsumed;
-  Value pendingReturn;
+  Value pendingReturns[MAX_PENDING_RETURNS];
+  uint8_t pendingReturnCount;
   bool hasPendingReturn;
 
   TryHandler() : catchIP(nullptr), finallyIP(nullptr),
                  stackRestore(nullptr), inFinally(false),
-                 hasPendingError(false)
+                 hasPendingError(false), pendingReturnCount(0)
   {
     pendingError.as.byte = 0;
     pendingError.type = ValueType::NIL;
     catchConsumed = false;
-    pendingReturn.as.byte = 0;
-    pendingReturn.type = ValueType::NIL;
     hasPendingReturn = false;
   }
 };
@@ -704,6 +705,12 @@ class Interpreter
   Fiber *currentFiber;
   Process *currentProcess;
   Process *mainProcess;
+  // Internal boundary used by C++->script calls (callFunction/callMethod).
+  // When the target frame returns, run_fiber stops with CALL_RETURN instead
+  // of continuing to execute the caller frame.
+  bool stopOnCallReturn_{false};
+  Fiber *callReturnFiber_{nullptr};
+  int callReturnTargetFrameCount_{-1};
   bool hasFatalError_;
   bool debugMode_;
 

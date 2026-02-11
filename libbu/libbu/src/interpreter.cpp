@@ -584,9 +584,22 @@ bool Interpreter::setGlobal(const char *name, Value value)
 {
   String* str = createString(name);
   uint16 index = 0;
+
+  // Try native globals first
   if (!nativeGlobalIndices.get(str, &index))
   {
-    return false;
+    // Try script globals via globalIndexToName_
+    bool found = false;
+    for (size_t i = 0; i < globalIndexToName_.size(); i++)
+    {
+      if (globalIndexToName_[i] && strcmp(globalIndexToName_[i]->chars(), name) == 0)
+      {
+        index = (uint16)i;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
   }
 
   if (index >= globalsArray.size())
@@ -607,6 +620,62 @@ bool Interpreter::setGlobal(const char *name, Value value)
   }
   globalIndexToName_[index] = str;
   return true;
+}
+
+Value Interpreter::getGlobal(const char *name)
+{
+  String* str = createString(name);
+  uint16 index = 0;
+
+  // Try native globals first
+  if (nativeGlobalIndices.get(str, &index))
+  {
+    if (index < globalsArray.size()) return globalsArray[index];
+    return makeNil();
+  }
+
+  // Try script globals via globalIndexToName_
+  for (size_t i = 0; i < globalIndexToName_.size(); i++)
+  {
+    if (globalIndexToName_[i] && strcmp(globalIndexToName_[i]->chars(), name) == 0)
+    {
+      if (i < globalsArray.size()) return globalsArray[i];
+      return makeNil();
+    }
+  }
+
+  return makeNil();
+}
+
+Value Interpreter::getGlobal(uint32 index)
+{
+  if (index < globalsArray.size()) return globalsArray[index];
+  return makeNil();
+}
+
+bool Interpreter::tryGetGlobal(const char *name, Value *value)
+{
+  String* str = createString(name);
+  uint16 index = 0;
+
+  // Try native globals first
+  if (nativeGlobalIndices.get(str, &index))
+  {
+    if (index < globalsArray.size()) { *value = globalsArray[index]; return true; }
+    return false;
+  }
+
+  // Try script globals via globalIndexToName_
+  for (size_t i = 0; i < globalIndexToName_.size(); i++)
+  {
+    if (globalIndexToName_[i] && strcmp(globalIndexToName_[i]->chars(), name) == 0)
+    {
+      if (i < globalsArray.size()) { *value = globalsArray[i]; return true; }
+      return false;
+    }
+  }
+
+  return false;
 }
 
 void Interpreter::print(Value value) { printValue(value); }

@@ -58,6 +58,12 @@ void Compiler::mathUnary(bool canAssign)
     case TOKEN_TAN:
         emitByte(OP_TAN);
         break;
+    case TOKEN_ASIN:
+        emitByte(OP_ASIN);
+        break;
+    case TOKEN_ACOS:
+        emitByte(OP_ACOS);
+        break;
     case TOKEN_ATAN:
         emitByte(OP_ATAN);
         break;

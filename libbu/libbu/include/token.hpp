@@ -138,6 +138,8 @@ enum TokenType
     TOKEN_DEG,
     TOKEN_RAD,
     TOKEN_TAN,
+    TOKEN_ASIN,
+    TOKEN_ACOS,
     TOKEN_ATAN,
     TOKEN_ATAN2,
     TOKEN_POW,

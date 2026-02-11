@@ -136,6 +136,8 @@ void Compiler::initRules()
   rules[TOKEN_SIN] = {&Compiler::mathUnary, nullptr, PREC_NONE};
   rules[TOKEN_COS] = {&Compiler::mathUnary, nullptr, PREC_NONE};
   rules[TOKEN_TAN] = {&Compiler::mathUnary, nullptr, PREC_NONE};
+  rules[TOKEN_ASIN] = {&Compiler::mathUnary, nullptr, PREC_NONE};
+  rules[TOKEN_ACOS] = {&Compiler::mathUnary, nullptr, PREC_NONE};
   rules[TOKEN_ATAN] = {&Compiler::mathUnary, nullptr, PREC_NONE};
   rules[TOKEN_SQRT] = {&Compiler::mathUnary, nullptr, PREC_NONE};
   rules[TOKEN_ABS] = {&Compiler::mathUnary, nullptr, PREC_NONE};

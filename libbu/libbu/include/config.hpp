@@ -32,9 +32,8 @@
 #define LIKELY(x) (x)
 #endif
 
-// Use switch dispatch (comment out to use computed goto)
-#undef USE_COMPUTED_GOTO
-//#define USE_COMPUTED_GOTO 1
+// Use computed goto dispatch (comment out to use switch)
+#define USE_COMPUTED_GOTO 1
 
 #define BU_ENABLE_SOCKETS 1
 #define BU_ENABLE_FILE_IO 1

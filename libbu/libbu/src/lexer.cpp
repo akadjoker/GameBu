@@ -94,6 +94,8 @@ void Lexer::initKeywords()
 
         {"sin", TOKEN_SIN},
         {"cos", TOKEN_COS},
+        {"asin", TOKEN_ASIN},
+        {"acos", TOKEN_ACOS},
         {"atan", TOKEN_ATAN},
         {"atan2", TOKEN_ATAN2},
         {"sqrt", TOKEN_SQRT},

@@ -377,6 +377,21 @@ bool Interpreter::callFunction(Function *func, int argCount)
         return false;
     }
 
+    Process *proc = currentProcess ? currentProcess : mainProcess;
+    if (!proc)
+    {
+        runtimeError("No active process to call function");
+        return false;
+    }
+
+    int stackSize = static_cast<int>(currentFiber->stackTop - currentFiber->stack);
+    if (stackSize < (argCount + 1))
+    {
+        runtimeError("Function call '%s' is missing callee/arguments on stack",
+                     func->name->chars());
+        return false;
+    }
+
     // Verifica overflow de frames
     if (currentFiber->frameCount >= FRAMES_MAX)
     {
@@ -394,25 +409,48 @@ bool Interpreter::callFunction(Function *func, int argCount)
 
     CallFrame *frame = &currentFiber->frames[currentFiber->frameCount];
     frame->func = func;
+    frame->closure = nullptr;
     frame->ip = func->chunk->code;
+    frame->slots = currentFiber->stackTop - argCount - 1; // slot 0 = callee/self
 
-    frame->slots = currentFiber->stackTop - argCount;
-
+    int targetFrames = currentFiber->frameCount;
     currentFiber->frameCount++;
 
-    int targetFrames = currentFiber->frameCount - 1;
+    bool prevStop = stopOnCallReturn_;
+    Fiber *prevFiber = callReturnFiber_;
+    int prevTarget = callReturnTargetFrameCount_;
 
-    while (currentFiber->frameCount > targetFrames)
+    stopOnCallReturn_ = true;
+    callReturnFiber_ = currentFiber;
+    callReturnTargetFrameCount_ = targetFrames;
+
+    while (true)
     {
-        FiberResult result = run_fiber(currentFiber,currentProcess);
-
+        FiberResult result = run_fiber(currentFiber, proc);
         if (result.reason == FiberResult::ERROR)
         {
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            return false;
+        }
+        if (result.reason == FiberResult::CALL_RETURN)
+        {
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            return true;
+        }
+        if (result.reason == FiberResult::FIBER_DONE)
+        {
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            runtimeError("Function '%s' ended process before returning to caller",
+                         func->name->chars());
             return false;
         }
     }
-
-    return true;
 }
 
 bool Interpreter::callFunction(const char *name, int argCount)
@@ -429,6 +467,15 @@ bool Interpreter::callFunction(const char *name, int argCount)
     }
 
 
+    if (getTop() < argCount)
+    {
+        runtimeError("Not enough arguments on stack to call '%s'", name);
+        return false;
+    }
+
+    // callFunction expects stack layout: callee, arg1..argN
+    push(makeFunction(func->index));
+    rotate(getTop() - argCount - 1, 1); // move callee before args
     return callFunction(func, argCount);
 }
 
@@ -466,6 +513,15 @@ bool Interpreter::callFunctionAuto(const char *name, int argCount)
         return false;
     }
 
+    if (getTop() < argCount)
+    {
+        runtimeError("Not enough arguments on stack to call '%s'", name);
+        return false;
+    }
+
+    // callFunction expects stack layout: callee, arg1..argN
+    push(makeFunction(func->index));
+    rotate(getTop() - argCount - 1, 1); // move callee before args
     return callFunction(func, argCount);
 }
 
@@ -494,16 +550,28 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
         return false;
     }
 
-    Process *proc = mainProcess;
-    Fiber *fiber = &proc->fibers[0];
+    Process *proc = currentProcess ? currentProcess : mainProcess;
+    Fiber *fiber = currentFiber ? currentFiber : (proc ? &proc->fibers[0] : nullptr);
+    if (!proc || !fiber)
+    {
+        runtimeError("No active process/fiber to call method '%s'", methodName);
+        return false;
+    }
+
+    if (fiber->stackTop + argCount + 1 > fiber->stack + STACK_MAX)
+    {
+        runtimeError("Stack overflow calling method '%s'", methodName);
+        return false;
+    }
+
     int savedFrameCount = fiber->frameCount;
     Value *savedStackTop = fiber->stackTop;
 
     // Push self (slot 0) + args
-    push(instance);
+    *fiber->stackTop++ = instance;
     for (int i = 0; i < argCount; i++)
     {
-        push(args[i]);
+        *fiber->stackTop++ = args[i];
     }
 
     if (fiber->frameCount >= FRAMES_MAX)
@@ -519,20 +587,43 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
     frame->ip = method->chunk->code;
     frame->slots = fiber->stackTop - argCount - 1; // self is before args
 
+    bool prevStop = stopOnCallReturn_;
+    Fiber *prevFiber = callReturnFiber_;
+    int prevTarget = callReturnTargetFrameCount_;
+
+    stopOnCallReturn_ = true;
+    callReturnFiber_ = fiber;
+    callReturnTargetFrameCount_ = savedFrameCount;
+
     // Execute the method
-    while (fiber->frameCount > savedFrameCount)
+    while (true)
     {
         FiberResult result = run_fiber(fiber, proc);
-        if (result.reason == FiberResult::FIBER_DONE || result.reason == FiberResult::ERROR)
+        if (result.reason == FiberResult::ERROR)
         {
-            break;
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            fiber->stackTop = savedStackTop;
+            return false;
+        }
+        if (result.reason == FiberResult::CALL_RETURN)
+        {
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            return true;
+        }
+        if (result.reason == FiberResult::FIBER_DONE)
+        {
+            stopOnCallReturn_ = prevStop;
+            callReturnFiber_ = prevFiber;
+            callReturnTargetFrameCount_ = prevTarget;
+            fiber->stackTop = savedStackTop;
+            runtimeError("Method '%s' ended process before returning to caller", methodName);
+            return false;
         }
     }
-
-    // Restore stack
-    fiber->stackTop = savedStackTop;
-
-    return true;
 }
 
 Process *Interpreter::callProcess(ProcessDef *proc, int argCount)

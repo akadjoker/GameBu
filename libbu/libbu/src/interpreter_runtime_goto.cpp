@@ -1442,7 +1442,8 @@ op_return:
             if (handler.finallyIP != nullptr && !handler.inFinally)
             {
                 // Marca para executar finally
-                handler.pendingReturn = result;
+                handler.pendingReturns[0] = result;
+                handler.pendingReturnCount = 1;
                 handler.hasPendingReturn = true;
                 handler.inFinally = true;
                 fiber->tryDepth = depth + 1; // Ajusta depth
@@ -1460,6 +1461,18 @@ op_return:
     }
 
     fiber->frameCount--;
+
+    // Boundary for C++->script calls: stop exactly when the requested frame
+    // returns, without continuing execution of the caller frame.
+    if (stopOnCallReturn_ &&
+        fiber == callReturnFiber_ &&
+        fiber->frameCount == callReturnTargetFrameCount_)
+    {
+        CallFrame *finished = &fiber->frames[fiber->frameCount];
+        fiber->stackTop = finished->slots;
+        *fiber->stackTop++ = result;
+        return {FiberResult::CALL_RETURN, instructionsRun, 0, 0};
+    }
 
     if (fiber->frameCount == 0)
     {
@@ -4618,8 +4631,14 @@ op_exit_finally:
 
         if (handler.hasPendingReturn)
         {
-            Value returnValue = handler.pendingReturn;
+            Value pendingReturns[TryHandler::MAX_PENDING_RETURNS];
+            uint8_t returnCount = handler.pendingReturnCount;
+            for (int i = 0; i < returnCount; i++)
+            {
+                pendingReturns[i] = handler.pendingReturns[i];
+            }
             handler.hasPendingReturn = false;
+            handler.pendingReturnCount = 0;
             fiber->tryDepth--;
 
             // Procura próximo finally
@@ -4629,7 +4648,11 @@ op_exit_finally:
                 TryHandler &next = fiber->tryHandlers[depth];
                 if (next.finallyIP != nullptr && !next.inFinally)
                 {
-                    next.pendingReturn = returnValue;
+                    for (int i = 0; i < returnCount; i++)
+                    {
+                        next.pendingReturns[i] = pendingReturns[i];
+                    }
+                    next.pendingReturnCount = returnCount;
                     next.hasPendingReturn = true;
                     next.inFinally = true;
                     fiber->tryDepth = depth + 1;
@@ -4647,7 +4670,10 @@ op_exit_finally:
                 if (fiber->frameCount == 0)
                 {
                     fiber->stackTop = fiber->stack;
-                    *fiber->stackTop++ = returnValue;
+                    for (int i = 0; i < returnCount; i++)
+                    {
+                        *fiber->stackTop++ = pendingReturns[i];
+                    }
                     fiber->state = FiberState::DEAD;
 
                     if (fiber == &process->fibers[0])
@@ -4665,7 +4691,10 @@ op_exit_finally:
 
                 CallFrame *finished = &fiber->frames[fiber->frameCount];
                 fiber->stackTop = finished->slots;
-                *fiber->stackTop++ = returnValue;
+                for (int i = 0; i < returnCount; i++)
+                {
+                    *fiber->stackTop++ = pendingReturns[i];
+                }
 
                 LOAD_FRAME();
             }
@@ -5208,7 +5237,12 @@ op_closure:
                 runtimeError("Cannot capture upvalue without enclosing closure");
                 return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
             }
-            closurePtr->upvalues.push(frame->closure->upvalues[i]);
+            if (index >= frame->closure->upvalueCount)
+            {
+                runtimeError("Upvalue index %d out of bounds (count=%d)", index, frame->closure->upvalueCount);
+                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            }
+            closurePtr->upvalues.push(frame->closure->upvalues[index]);
         }
     }
 
@@ -5225,6 +5259,11 @@ op_get_upvalue:
         runtimeError("Upvalue access outside closure");
         return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
     }
+    if (slot >= frame->closure->upvalueCount)
+    {
+        runtimeError("Upvalue index %d out of bounds (count=%d)", slot, frame->closure->upvalueCount);
+        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+    }
 
     PUSH(*frame->closure->upvalues[slot]->location);
     DISPATCH();
@@ -5237,6 +5276,11 @@ op_set_upvalue:
     if (!frame->closure)
     {
         runtimeError("Upvalue access outside closure");
+        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+    }
+    if (slot >= frame->closure->upvalueCount)
+    {
+        runtimeError("Upvalue index %d out of bounds (count=%d)", slot, frame->closure->upvalueCount);
         return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
     }
 
@@ -5299,8 +5343,13 @@ op_return_n:
 
             if (handler.finallyIP != nullptr && !handler.inFinally)
             {
-                // For multi-return, just use first value in finally
-                handler.pendingReturn = results[0];
+                // Save all return values for multi-return through finally
+                int n = (count < TryHandler::MAX_PENDING_RETURNS) ? count : TryHandler::MAX_PENDING_RETURNS;
+                for (int i = 0; i < n; i++)
+                {
+                    handler.pendingReturns[i] = results[i];
+                }
+                handler.pendingReturnCount = (uint8_t)n;
                 handler.hasPendingReturn = true;
                 handler.inFinally = true;
                 fiber->tryDepth = depth + 1;
@@ -5318,6 +5367,20 @@ op_return_n:
     }
 
     fiber->frameCount--;
+
+    // Boundary for C++->script calls (multi-return variant).
+    if (stopOnCallReturn_ &&
+        fiber == callReturnFiber_ &&
+        fiber->frameCount == callReturnTargetFrameCount_)
+    {
+        CallFrame *finished = &fiber->frames[fiber->frameCount];
+        fiber->stackTop = finished->slots;
+        for (int i = 0; i < count; i++)
+        {
+            *fiber->stackTop++ = results[i];
+        }
+        return {FiberResult::CALL_RETURN, instructionsRun, 0, 0};
+    }
 
     if (fiber->frameCount == 0)
     {

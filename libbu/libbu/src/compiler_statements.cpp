@@ -1549,6 +1549,11 @@ void Compiler::funDeclaration()
     {
         declareVariable(); // Adiciona 'inner' como local de 'outer'
     }
+    else
+    {
+        // Register global name BEFORE compiling body so recursion works
+        declaredGlobals_.insert(nameToken.lexeme);
+    }
 
     // Compila função
     compileFunction(func, false); // false = não é process
@@ -1581,7 +1586,6 @@ void Compiler::funDeclaration()
     else
     {
         // OPTIMIZATION: Use global index instead of constant pool
-        declaredGlobals_.insert(nameToken.lexeme);
         uint16 globalIndex = getOrCreateGlobalIndex(nameToken.lexeme);
         defineVariable(globalIndex); // Global
     }
