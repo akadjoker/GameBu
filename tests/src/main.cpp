@@ -438,6 +438,28 @@ static int native_make_info(Interpreter *vm, int argCount, Value *args)
 }
 
 // ============================================================
+// Native process test hook: callable only from process context
+// native_proc_ping(x) -> x + 1
+// ============================================================
+static int native_proc_ping(Interpreter *vm, Process *proc, int argCount, Value *args)
+{
+    if (!proc)
+    {
+        vm->push(vm->makeInt(-999));
+        return 1;
+    }
+
+    if (argCount < 1 || !args[0].isNumber())
+    {
+        vm->push(vm->makeInt(-1));
+        return 1;
+    }
+
+    vm->push(vm->makeInt(args[0].asInt() + 1));
+    return 1;
+}
+
+// ============================================================
 // Register all test native bindings
 // ============================================================
 static void registerTestBindings(Interpreter &vm)
@@ -451,6 +473,7 @@ static void registerTestBindings(Interpreter &vm)
     vm.registerNative("native_set_global", native_set_global, 2);
     vm.registerNative("native_make_range", native_make_range, 2);
     vm.registerNative("native_make_info", native_make_info, 2);
+    vm.registerNativeProcess("native_proc_ping", native_proc_ping, 1);
 
     // --- Native Struct: Point ---
     auto *point = vm.registerNativeStruct("Point", sizeof(TestPoint), point_ctor);
