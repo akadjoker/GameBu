@@ -1023,6 +1023,8 @@ public:
  
 
   void dumpToFile(const char *filename);
+  bool saveBytecode(const char *filename);
+  bool compileToBytecode(const char *source, const char *filename, bool dump = false);
 
   void setDebugMode(bool enabled) { debugMode_ = enabled; }
   bool isDebugMode() const { return debugMode_; }
