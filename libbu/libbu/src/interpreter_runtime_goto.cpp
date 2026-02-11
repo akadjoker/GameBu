@@ -1064,6 +1064,25 @@ op_call:
     }
 
     // ========================================
+    // PATH 2.5: NATIVE PROCESS
+    // ========================================
+    else if (callee.isNativeProcess())
+    {
+        int index = callee.asNativeProcessId();
+        NativeProcessDef blueprint = nativeProcesses[index];
+
+        if (blueprint.arity != -1 && argCount != blueprint.arity)
+        {
+            runtimeError("Function process expected %d arguments but got %d",
+                         blueprint.arity, argCount);
+            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+        }
+
+        SAFE_CALL_NATIVE(fiber, argCount, blueprint.func(this, currentProcess, argCount, _args));
+        DISPATCH();
+    }
+
+    // ========================================
     // PATH 3: PROCESS
     // ========================================
     else if (callee.isProcess())

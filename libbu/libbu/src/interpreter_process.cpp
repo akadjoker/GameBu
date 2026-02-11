@@ -479,9 +479,53 @@ void Interpreter::run_process_step(Process *proc)
     Fiber *fiber = get_ready_fiber(proc);
     if (!fiber)
     {
+        // No ready fiber right now does NOT necessarily mean dead.
+        // It can mean all live fibers are suspended waiting for resumeTime.
+        bool hasLiveFiber = false;
+        bool hasSuspendedFiber = false;
+        double nextResumeTime = 0.0;
 
-        //   Warning("No ready fiber");
-        proc->state = FiberState::DEAD;
+        int totalFibers = proc->nextFiberIndex;
+        if (totalFibers <= 0 || totalFibers > proc->totalFibers)
+        {
+            totalFibers = proc->totalFibers;
+        }
+
+        for (int i = 0; i < totalFibers; i++)
+        {
+            Fiber *f = &proc->fibers[i];
+            if (f->state == FiberState::DEAD)
+            {
+                continue;
+            }
+
+            hasLiveFiber = true;
+
+            if (f->state == FiberState::SUSPENDED)
+            {
+                if (!hasSuspendedFiber || f->resumeTime < nextResumeTime)
+                {
+                    nextResumeTime = f->resumeTime;
+                }
+                hasSuspendedFiber = true;
+            }
+        }
+
+        if (!hasLiveFiber)
+        {
+            proc->state = FiberState::DEAD;
+            proc->initialized = false;
+        }
+        else if (hasSuspendedFiber)
+        {
+            proc->state = FiberState::SUSPENDED;
+            proc->resumeTime = nextResumeTime;
+        }
+        else
+        {
+            proc->state = FiberState::RUNNING;
+        }
+
         return;
     }
 
