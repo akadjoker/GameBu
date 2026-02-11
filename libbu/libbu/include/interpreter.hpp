@@ -1096,6 +1096,7 @@ public:
   void registerFile();
   void registerJSON();
   void registerRegex();
+  void registerZip();
   void registerSocket();
   void registerAll();
 

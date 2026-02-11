@@ -324,6 +324,10 @@ void Interpreter::registerAll()
   registerRegex();
 #endif
 
+#ifdef BU_ENABLE_ZIP
+  registerZip();
+#endif
+
 #ifdef BU_ENABLE_SOCKETS
   registerSocket();
 #endif

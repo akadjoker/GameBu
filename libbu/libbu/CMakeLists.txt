@@ -13,7 +13,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 # ============================================
 # Sources
 # ============================================
-file(GLOB SOURCES "src/*.cpp")
+file(GLOB SOURCES
+    "src/*.cpp"
+    "src/*.c"
+    "src/miniz/*.c"
+)
  
 # ============================================
 # Targets
@@ -23,7 +27,7 @@ add_library(libbu STATIC ${SOURCES})
 # Enable PIC so libbu can be linked into shared libraries (plugins)
 set_target_properties(libbu PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-target_include_directories(libbu PUBLIC include  src)
+target_include_directories(libbu PUBLIC include src src/miniz)
 
 # ============================================
 # Compiler Flags - DEBUG

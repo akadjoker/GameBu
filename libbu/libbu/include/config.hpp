@@ -43,6 +43,7 @@
 #define BU_ENABLE_OS 1
 #define BU_ENABLE_JSON 1
 #define BU_ENABLE_REGEX 1
+#define BU_ENABLE_ZIP 1
 #define BU_ENABLE_TIME 1
 
 typedef signed char int8;
