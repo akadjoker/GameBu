@@ -316,6 +316,10 @@ void Interpreter::registerAll()
   registerFile();
 #endif
 
+#ifdef BU_ENABLE_JSON
+  registerJSON();
+#endif
+
 #ifdef BU_ENABLE_SOCKETS
   registerSocket();
 #endif

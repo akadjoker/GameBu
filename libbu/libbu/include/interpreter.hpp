@@ -1094,6 +1094,7 @@ public:
   void registerFS();
   void registerTime();
   void registerFile();
+  void registerJSON();
   void registerSocket();
   void registerAll();
 
