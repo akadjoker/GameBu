@@ -11,6 +11,7 @@ add_subdirectory(graphics)
 
 add_subdirectory(main)
 add_subdirectory(tests)
+add_subdirectory(test)
 
  
 
