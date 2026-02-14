@@ -1311,7 +1311,19 @@ void Interpreter::addFiber(Process *proc, Function *func)
 
 void Interpreter::addFunctionsClasses(Function *fun)
 {
-  functionsClass.push(fun);
+  if (!fun)
+  {
+    return;
+  }
+
+  // Class methods must be part of the serialized function table.
+  if (fun->index >= 0)
+  {
+    return;
+  }
+
+  fun->index = (int)functions.size();
+  functions.push(fun);
 }
 
 bool Interpreter::findAndJumpToHandler(Value error, uint8 *&ip, Fiber *fiber)

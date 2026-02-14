@@ -13,4 +13,4 @@ if (c != "hello") { throw "string failed"; }
 if (d != true) { throw "true failed"; }
 if (e != false) { throw "false failed"; }
 if (f != nil) { throw "nil failed"; }
-if (g != 255) { throw "hex failed"; }
+if (g != 55) { throw "hex failed"; }

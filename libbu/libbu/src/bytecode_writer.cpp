@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <limits>
 
 namespace
@@ -133,6 +134,16 @@ bool writeString(Interpreter *vm, BytecodeWriter &writer, String *value)
     return true;
   }
   return writer.writeRaw(value->chars(), len);
+}
+
+bool writeRequiredString(Interpreter *vm, BytecodeWriter &writer, String *value, const char *context)
+{
+  if (!value)
+  {
+    vm->safetimeError("saveBytecode: missing required string in %s", context);
+    return false;
+  }
+  return writeString(vm, writer, value);
 }
 
 bool writeOptionalString(Interpreter *vm, BytecodeWriter &writer, String *value)
@@ -375,6 +386,8 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     return false;
   }
 
+  const char *procName = proc->name ? proc->name->chars() : "<anonymous process>";
+
   uint32 argsCount = 0;
   if (!checkedU32(vm, proc->argsNames.size(), "process args size", &argsCount))
   {
@@ -413,6 +426,12 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     return false;
   }
 
+  if (fiberCount > 0 && !proc->fibers)
+  {
+    vm->safetimeError("saveBytecode: process '%s' has null fibers buffer", procName);
+    return false;
+  }
+
   for (int i = 0; i < fiberCount; ++i)
   {
     Fiber &fiber = proc->fibers[i];
@@ -428,6 +447,13 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     }
 
     const int frameCount = fiber.frameCount < 0 ? 0 : fiber.frameCount;
+    if (frameCount > FRAMES_MAX)
+    {
+      vm->safetimeError("saveBytecode: process '%s' fiber %d has invalid frame count (%d)",
+                        procName, i, frameCount);
+      return false;
+    }
+
     if (!writer.writeI32((int32)frameCount))
     {
       return false;
@@ -452,13 +478,26 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     {
       CallFrame &frame = fiber.frames[frameIndex];
       int32 functionIndex = frame.func ? (int32)frame.func->index : -1;
+      const uint8 *frameIp = frame.ip;
+      if (frame.func && !frameIp && frame.func->chunk)
+      {
+        frameIp = frame.func->chunk->code;
+      }
 
       if (!writer.writeI32(functionIndex))
       {
         return false;
       }
 
-      if (!writer.writeU32(computeIpOffset(frame.func, frame.ip)))
+      uint32 frameIpOffset = computeIpOffset(frame.func, frameIp);
+      if (frame.func && frameIpOffset == 0xFFFFFFFFu)
+      {
+        vm->safetimeError("saveBytecode: process '%s' fiber %d frame %d has invalid instruction pointer",
+                          procName, i, frameIndex);
+        return false;
+      }
+
+      if (!writer.writeU32(frameIpOffset))
       {
         return false;
       }
@@ -476,7 +515,14 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     }
 
     Function *baseFunc = (frameCount > 0) ? fiber.frames[0].func : nullptr;
-    if (!writer.writeU32(computeIpOffset(baseFunc, fiber.ip)))
+    const uint8 *fiberIp = fiber.ip;
+    if (baseFunc && !fiberIp && baseFunc->chunk)
+    {
+      fiberIp = baseFunc->chunk->code;
+    }
+
+    uint32 fiberIpOffset = computeIpOffset(baseFunc, fiberIp);
+    if (!writer.writeU32(fiberIpOffset))
     {
       return false;
     }
@@ -539,7 +585,7 @@ bool writeStructRecord(Interpreter *vm, BytecodeWriter &writer, StructDef *def)
     String *name = def->names.entries[i].key;
     uint8 index = def->names.entries[i].value;
 
-    if (!writeString(vm, writer, name))
+    if (!writeRequiredString(vm, writer, name, "struct field name"))
     {
       return false;
     }
@@ -621,7 +667,7 @@ bool writeClassRecord(Interpreter *vm, BytecodeWriter &writer, ClassDef *klass)
     String *fieldName = klass->fieldNames.entries[i].key;
     uint8 fieldIndex = klass->fieldNames.entries[i].value;
 
-    if (!writeString(vm, writer, fieldName))
+    if (!writeRequiredString(vm, writer, fieldName, "class field name"))
     {
       return false;
     }
@@ -667,7 +713,7 @@ bool writeClassRecord(Interpreter *vm, BytecodeWriter &writer, ClassDef *klass)
     String *methodName = klass->methods.entries[i].key;
     Function *method = klass->methods.entries[i].value;
 
-    if (!writeString(vm, writer, methodName))
+    if (!writeRequiredString(vm, writer, methodName, "class method name"))
     {
       return false;
     }
@@ -698,6 +744,8 @@ bool writeModuleRecord(Interpreter *vm, BytecodeWriter &writer, ModuleDef *modul
     return false;
   }
 
+  const char *moduleName = module->getName() ? module->getName()->chars() : "<anonymous module>";
+
   uint32 functionsCount = 0;
   if (!checkedU32(vm, module->functions.size(), "module function count", &functionsCount))
   {
@@ -712,7 +760,11 @@ bool writeModuleRecord(Interpreter *vm, BytecodeWriter &writer, ModuleDef *modul
   for (uint32 i = 0; i < functionsCount; ++i)
   {
     String *name = nullptr;
-    module->getFunctionName((uint16)i, &name);
+    if (!module->getFunctionName((uint16)i, &name))
+    {
+      vm->safetimeError("saveBytecode: module '%s' has no name for function id %u", moduleName, i);
+      return false;
+    }
 
     if (!writeOptionalString(vm, writer, name))
     {
@@ -745,10 +797,12 @@ bool Interpreter::saveBytecode(const char *filename)
     return false;
   }
 
-  FILE *file = fopen(filename, "wb");
+  std::string tempPath = std::string(filename) + ".tmp";
+
+  FILE *file = fopen(tempPath.c_str(), "wb");
   if (!file)
   {
-    safetimeError("saveBytecode: failed to open '%s' for writing", filename);
+    safetimeError("saveBytecode: failed to open temporary file '%s' for writing", tempPath.c_str());
     return false;
   }
 
@@ -775,6 +829,7 @@ bool Interpreter::saveBytecode(const char *filename)
   if (!ok)
   {
     fclose(file);
+    std::remove(tempPath.c_str());
     return false;
   }
 
@@ -801,6 +856,7 @@ bool Interpreter::saveBytecode(const char *filename)
   {
     safetimeError("saveBytecode: failed while writing file header");
     fclose(file);
+    std::remove(tempPath.c_str());
     return false;
   }
 
@@ -895,6 +951,7 @@ bool Interpreter::saveBytecode(const char *filename)
   {
     safetimeError("saveBytecode: failed to serialize '%s'", filename);
     fclose(file);
+    std::remove(tempPath.c_str());
     return false;
   }
 
@@ -902,10 +959,31 @@ bool Interpreter::saveBytecode(const char *filename)
   {
     safetimeError("saveBytecode: failed to flush '%s'", filename);
     fclose(file);
+    std::remove(tempPath.c_str());
     return false;
   }
 
-  fclose(file);
+  if (fclose(file) != 0)
+  {
+    safetimeError("saveBytecode: failed to close '%s'", filename);
+    std::remove(tempPath.c_str());
+    return false;
+  }
+
+  if (std::rename(tempPath.c_str(), filename) != 0)
+  {
+#ifdef OS_WINDOWS
+    std::remove(filename);
+    if (std::rename(tempPath.c_str(), filename) == 0)
+    {
+      return true;
+    }
+#endif
+    safetimeError("saveBytecode: failed to replace '%s' with temporary file", filename);
+    std::remove(tempPath.c_str());
+    return false;
+  }
+
   return true;
 }
 
