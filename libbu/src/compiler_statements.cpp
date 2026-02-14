@@ -2314,11 +2314,18 @@ void Compiler::dot(bool canAssign)
     //  METHOD CALL
     if (match(TOKEN_LPAREN))
     {
-
         uint8_t argCount = argumentList();
-        emitByte(OP_INVOKE);
-        emitShort(nameIdx);
-        emitByte(argCount);
+        if (propName.lexeme == "push" && argCount == 1)
+        {
+            emitByte(OP_ARRAY_PUSH);
+            emitByte(argCount);
+        }
+        else
+        {
+            emitByte(OP_INVOKE);
+            emitShort(nameIdx);
+            emitByte(argCount);
+        }
     }
     // SIMPLE ASSIGNMENT
     else if (canAssign && match(TOKEN_EQUAL))
