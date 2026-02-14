@@ -92,19 +92,17 @@ static const char* getValueTypeName(const Value &v)
     }
 }
 
-FiberResult Interpreter::run_process(Process *process)
+ProcessResult Interpreter::run_process(Process *process)
 {
     ProcessExec *fiber = process;
-
-    currentFiber = process;
+    currentProcess = process;
 
     CallFrame *frame;
     Value *stackStart;
     uint8 *ip;
     Function *func;
 
-    int instructionsRun = 0;
-
+    
 #define DROP() (fiber->stackTop--)
 #define PEEK() (*(fiber->stackTop - 1))
 #define PEEK2() (*(fiber->stackTop - 2))
@@ -126,11 +124,34 @@ FiberResult Interpreter::run_process(Process *process)
 #define LOAD_FRAME()                                   \
     do                                                 \
     {                                                  \
-        assert(currentFiber->frameCount > 0);          \
+        assert(fiber->frameCount > 0);                 \
         frame = &fiber->frames[fiber->frameCount - 1]; \
         stackStart = frame->slots;                     \
         ip = frame->ip;                                \
         func = frame->func;                            \
+    } while (false)
+
+#define PUSH_CALL_FRAME(_targetFunc, _closure, _argc, _overflowMsg) \
+    do                                                               \
+    {                                                                \
+        if (fiber->frameCount >= FRAMES_MAX)                        \
+        {                                                            \
+            runtimeError(_overflowMsg);                              \
+            return {ProcessResult::PROCESS_DONE, 0};                 \
+        }                                                            \
+        CallFrame *newFrame = &fiber->frames[fiber->frameCount++];  \
+        newFrame->func = (_targetFunc);                              \
+        newFrame->closure = (_closure);                              \
+        newFrame->ip = (_targetFunc)->chunk->code;                   \
+        newFrame->slots = fiber->stackTop - (_argc) - 1;             \
+    } while (false)
+
+#define PUSH_CALL_FRAME_STORE_LOAD(_targetFunc, _closure, _argc, _overflowMsg) \
+    do                                                                          \
+    {                                                                           \
+        STORE_FRAME();                                                          \
+        PUSH_CALL_FRAME(_targetFunc, _closure, _argc, _overflowMsg);            \
+        LOAD_FRAME();                                                           \
     } while (false)
 
 #define THROW_RUNTIME_ERROR(fmt, ...)                                \
@@ -150,7 +171,7 @@ FiberResult Interpreter::run_process(Process *process)
         else                                                         \
         {                                                            \
             runtimeError("%s", msgBuffer);                           \
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0}; \
+            return {ProcessResult::PROCESS_DONE, 0}; \
         }                                                            \
     } while (0)
 
@@ -237,7 +258,7 @@ FiberResult Interpreter::run_process(Process *process)
         //     }
 
         //     runtimeError("Unknown opcode %d", instruction);
-        //     return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+        //     return {ProcessResult::PROCESS_DONE, 0};
         // }
 
         switch (instruction)
@@ -270,7 +291,7 @@ FiberResult Interpreter::run_process(Process *process)
 
         case OP_HALT:
         {
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
         }
             // ========== STACK MANIPULATION ==========
 
@@ -557,7 +578,7 @@ FiberResult Interpreter::run_process(Process *process)
         else                                                         \
         {                                                            \
             runtimeError("Division by zero");                        \
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0}; \
+            return {ProcessResult::PROCESS_DONE, 0}; \
         }                                                            \
     } while (0)
 
@@ -635,7 +656,7 @@ FiberResult Interpreter::run_process(Process *process)
         else                                                         \
         {                                                            \
             runtimeError("Modulo by zero");                          \
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0}; \
+            return {ProcessResult::PROCESS_DONE, 0}; \
         }                                                            \
     } while (0)
 
@@ -868,7 +889,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!func)
                 {
                     runtimeError("Invalid function");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 // Debug::dumpFunction(func);
@@ -881,20 +902,10 @@ FiberResult Interpreter::run_process(Process *process)
                         printValue(NPEEK(i));
                         printf(" ");
                     }
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
-                if (fiber->frameCount >= FRAMES_MAX)
-                {
-                    runtimeError("Stack overflow");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-                }
-
-                CallFrame *newFrame = &fiber->frames[fiber->frameCount++];
-                newFrame->func = func;
-                newFrame->closure = nullptr;
-                newFrame->ip = func->chunk->code;
-                newFrame->slots = fiber->stackTop - argCount - 1; // Argumentos começam aqui
+                PUSH_CALL_FRAME(func, nullptr, argCount, "Stack overflow");
             }
             else if (callee.isNative())
             {
@@ -905,7 +916,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("Function %s expected %d arguments but got %d",
                                  nativeFunc.name->chars(), nativeFunc.arity, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 SAFE_CALL_NATIVE(fiber, argCount, nativeFunc.func(this, argCount, _args));
@@ -924,7 +935,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!blueprint)
                 {
                     runtimeError("Invalid process");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 Function *processFunc = blueprint->frames[0].func;
@@ -934,7 +945,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("Process expected %d arguments but got %d",
                                  processFunc->arity, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 // SPAWN - clona blueprint
@@ -995,7 +1006,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (argCount > def->argCount)
                 {
                     runtimeError("Struct '%s' expects at most %zu arguments, got %d", def->name->chars(), def->argCount, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 Value value = makeStructInstance();
@@ -1066,25 +1077,10 @@ FiberResult Interpreter::run_process(Process *process)
                     if (argCount != klass->constructor->arity)
                     {
                         runtimeError("init() expects %d arguments, got %d", klass->constructor->arity, argCount);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
-                    if (currentFiber->frameCount >= FRAMES_MAX)
-                    {
-                        runtimeError("Stack overflow");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-                    }
-
-                    CallFrame *newFrame = &currentFiber->frames[currentFiber->frameCount];
-                    newFrame->func = klass->constructor;
-                    newFrame->closure = nullptr;
-                    newFrame->ip = klass->constructor->chunk->code;
-                    newFrame->slots = currentFiber->stackTop - argCount - 1;
-
-                    currentFiber->frameCount++;
-
-                    STORE_FRAME();
-                    LOAD_FRAME();
+                    PUSH_CALL_FRAME_STORE_LOAD(klass->constructor, nullptr, argCount, "Stack overflow");
                 }
                 else
                 {
@@ -1102,7 +1098,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (argCount != klass->argCount)
                 {
                     runtimeError("Native class expects %d args, got %d", klass->argCount, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 Value *args = fiber->stackTop - argCount;
@@ -1111,7 +1107,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!userData)
                 {
                     runtimeError("Failed to create native '%s' instance", klass->name->chars());
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 Value literal = makeNativeClassInstance(klass->persistent);
                 // Cria instance wrapper
@@ -1162,14 +1158,14 @@ FiberResult Interpreter::run_process(Process *process)
                 if (moduleId >= modules.size())
                 {
                     runtimeError("Invalid module ID: %d", moduleId);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 ModuleDef *mod = modules[moduleId];
                 if (funcId >= mod->functions.size())
                 {
                     runtimeError("Invalid function ID %d in module '%s'", funcId, mod->name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 NativeFunctionDef &func = mod->functions[funcId];
@@ -1180,7 +1176,7 @@ FiberResult Interpreter::run_process(Process *process)
                     mod->getFunctionName(funcId, &funcName);
                     runtimeError("Module '%s' expects %d args on function '%s' got %d",
                                  mod->name->chars(), func.arity, funcName->chars(), argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 SAFE_CALL_NATIVE(fiber, argCount, func.ptr(this, argCount, _args));
@@ -1198,29 +1194,17 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!targetFunc)
                 {
                     runtimeError("Invalid closure");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 if (argCount != targetFunc->arity)
                 {
                     runtimeError("Closure expected %d arguments but got %d",
                                  targetFunc->arity, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
-                if (fiber->frameCount >= FRAMES_MAX)
-                {
-                    runtimeError("Stack overflow");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-                }
-
-                CallFrame *newFrame = &fiber->frames[fiber->frameCount++];
-                newFrame->func = targetFunc;
-                newFrame->closure = closure;
-                newFrame->ip = targetFunc->chunk->code;
-                newFrame->slots = fiber->stackTop - argCount - 1;
-
-                LOAD_FRAME();
+                PUSH_CALL_FRAME(targetFunc, closure, argCount, "Stack overflow");
             } else if (callee.isNativeProcess())
             {
                 int index = callee.asNativeProcessId();
@@ -1230,7 +1214,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("Function process expected %d arguments but got %d",
                                  blueprint.arity, argCount);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                               
                 SAFE_CALL_NATIVE(fiber, argCount, blueprint.func(this, currentProcess, argCount, _args));
@@ -1242,7 +1226,7 @@ FiberResult Interpreter::run_process(Process *process)
                 printf("> ");
                 printValue(callee);
                 printf("\n");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             LOAD_FRAME();
@@ -1257,7 +1241,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (hasFatalError_)
             {
                 STORE_FRAME();
-                return {FiberResult::ERROR, instructionsRun, 0, 0};
+                return {ProcessResult::ERROR, 0};
             }
 
             if (fiber->frameCount > 0)
@@ -1307,13 +1291,13 @@ FiberResult Interpreter::run_process(Process *process)
             // Boundary for C++->script calls: stop exactly when the requested
             // frame returns, without continuing execution of the caller frame.
             if (stopOnCallReturn_ &&
-                fiber == callReturnFiber_ &&
+                fiber == static_cast<ProcessExec *>(callReturnProcess_) &&
                 fiber->frameCount == callReturnTargetFrameCount_)
             {
                 CallFrame *finished = &fiber->frames[fiber->frameCount];
                 fiber->stackTop = finished->slots;
                 *fiber->stackTop++ = result;
-                return {FiberResult::CALL_RETURN, instructionsRun, 0, 0};
+                return {ProcessResult::CALL_RETURN, 0};
             }
 
             if (fiber->frameCount == 0)
@@ -1329,7 +1313,7 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 STORE_FRAME();
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             //  Função nested - retorna para onde estava a chamada
@@ -1355,7 +1339,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (hasFatalError_)
             {
                 STORE_FRAME();
-                return {FiberResult::ERROR, instructionsRun, 0, 0};
+                return {ProcessResult::ERROR, 0};
             }
 
             // Close upvalues for this frame
@@ -1407,7 +1391,7 @@ FiberResult Interpreter::run_process(Process *process)
 
             // Boundary for C++->script calls (multi-return variant).
             if (stopOnCallReturn_ &&
-                fiber == callReturnFiber_ &&
+                fiber == static_cast<ProcessExec *>(callReturnProcess_) &&
                 fiber->frameCount == callReturnTargetFrameCount_)
             {
                 CallFrame *finished = &fiber->frames[fiber->frameCount];
@@ -1416,7 +1400,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     *fiber->stackTop++ = results[i];
                 }
-                return {FiberResult::CALL_RETURN, instructionsRun, 0, 0};
+                return {ProcessResult::CALL_RETURN, 0};
             }
 
             if (fiber->frameCount == 0)
@@ -1436,7 +1420,7 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 STORE_FRAME();
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             CallFrame *finished = &fiber->frames[fiber->frameCount];
@@ -1454,12 +1438,34 @@ FiberResult Interpreter::run_process(Process *process)
 
             // ========== PROCESS/FIBER CONTROL ==========
 
-        case OP_RESERVED_40:
+        case OP_ARRAY_PUSH:
+        {
+            uint8_t argCount = READ_BYTE();
+            if (argCount != 1)
+            {
+                runtimeError("push() expects 1 argument");
+                return {ProcessResult::ERROR, 0};
+            }
+
+            Value item = PEEK();
+            Value receiver = NPEEK(argCount);
+            if (!receiver.isArray())
+            {
+                runtimeError("push() fast opcode expects array receiver");
+                return {ProcessResult::ERROR, 0};
+            }
+
+            receiver.asArray()->values.push(item);
+            fiber->stackTop -= (argCount + 1);
+            PUSH(receiver);
+            break;
+        }
+
         case OP_RESERVED_41:
         {
             runtimeError("Legacy fiber opcode is disabled in single-fiber mode");
             STORE_FRAME();
-            return {FiberResult::ERROR, instructionsRun, 0, 0};
+            return {ProcessResult::ERROR, 0};
         }
 
         case OP_FRAME:
@@ -1468,7 +1474,7 @@ FiberResult Interpreter::run_process(Process *process)
             int percent = value.isInt() ? value.asInt() : (int)value.asDouble();
      
             STORE_FRAME();
-            return {FiberResult::PROCESS_FRAME, instructionsRun, 0, percent};
+            return {ProcessResult::PROCESS_FRAME, percent};
         }
 
         case OP_EXIT:
@@ -1493,7 +1499,7 @@ FiberResult Interpreter::run_process(Process *process)
             *fiber->stackTop++ = exitCode;
 
             STORE_FRAME();
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
         }
             // ========== DEBUG ==========
 
@@ -1541,7 +1547,7 @@ FiberResult Interpreter::run_process(Process *process)
             {
                 runtimeError("len() expects (string , array , map)");
 
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             break;
         }
@@ -1562,17 +1568,18 @@ FiberResult Interpreter::run_process(Process *process)
             if (!nameValue.isString())
             {
                 runtimeError("Property name must be string");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             const char *name = nameValue.asStringChars();
+            String *nameString = nameValue.asString();
 
             // === STRING METHODS ===
 
             if (object.isString())
             {
 
-                if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LENGTH]))
+                if (nameString == staticNames[(int)StaticNames::LENGTH])
                 {
 
                     DROP();
@@ -1582,7 +1589,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
 
                     runtimeError("String has no property '%s'", name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
             }
             else
@@ -1609,7 +1616,7 @@ FiberResult Interpreter::run_process(Process *process)
                      else
                     {
                         runtimeError("Process does not support '%s' property access", name);
-                        return {FiberResult::ERROR, instructionsRun, 0, 0};
+                        return {ProcessResult::ERROR, 0};
                     }
 
                     break;
@@ -1622,7 +1629,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!inst)
                     {
                         runtimeError("Struct is null");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     uint8 value = 0;
                     if (inst->def->names.get(nameValue.asString(), &value))
@@ -1635,7 +1642,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Struct '%s' has no field '%s'", inst->def->name->chars(), name);
                         PUSH(makeNil());
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     break;
                 }
@@ -1666,7 +1673,7 @@ FiberResult Interpreter::run_process(Process *process)
 
                     runtimeError("Undefined property '%s'", name);
                     PUSH(makeNil());
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 else if (object.isNativeClassInstance())
                 {
@@ -1687,7 +1694,7 @@ FiberResult Interpreter::run_process(Process *process)
                     runtimeError("Undefined property '%s' on native class '%s", nameValue.asStringChars(), klass->name->chars());
                     DROP();
                     PUSH(makeNil());
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 else if (object.isNativeStructInstance())
                 {
@@ -1703,7 +1710,7 @@ FiberResult Interpreter::run_process(Process *process)
                         runtimeError("Undefined field '%s' on native struct '%s", nameValue.asStringChars(), def->name->chars());
                         DROP();
                         PUSH(makeNil());
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     char *base = (char *)inst->data;
                     char *ptr = base + field.offset;
@@ -1768,7 +1775,7 @@ FiberResult Interpreter::run_process(Process *process)
                         THROW_RUNTIME_ERROR("Key '%s' not found in map", key->chars());
                         DROP();
                         PUSH(makeNil());
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                 }
 
@@ -1782,7 +1789,7 @@ FiberResult Interpreter::run_process(Process *process)
             printf("']\n");
 
             PUSH(makeNil());
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
         }
         case OP_SET_PROPERTY:
         {
@@ -1802,7 +1809,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!nameValue.isString())
             {
                 runtimeError("Property name must be string");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             String *propName = nameValue.asString();
@@ -1812,7 +1819,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (object.isString())
             {
                 runtimeError("Cannot set property on string (immutable)");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             // === PROCESS PRIVATES (external write) ===
@@ -1838,7 +1845,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if ((privateIdx == (int)PrivateIndex::ID) || (privateIdx == (int)PrivateIndex::FATHER))
                     {
                         runtimeError("Property '%s' is readonly", name);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     proc->privates[privateIdx] = value;
                     DROP();      // Remove value
@@ -1848,7 +1855,7 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 runtimeError("Process has no property '%s'", name);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }     else if (object.isStructInstance())
             {
 
@@ -1856,7 +1863,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!inst)
                 {
                     runtimeError("Struct is null ");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 uint8 valueIndex = 0;
@@ -1867,7 +1874,7 @@ FiberResult Interpreter::run_process(Process *process)
                 else
                 {
                     runtimeError("Struct '%s' has no field '%s'", inst->def->name->chars(), name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 // Stack: [obj, value] -> queremos [value]
@@ -1900,7 +1907,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Property '%s' is read-only", name);
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     // Chama setter nativo
                     nativeProp.setter(this, instance->nativeUserData, value);
@@ -1913,7 +1920,7 @@ FiberResult Interpreter::run_process(Process *process)
                 runtimeError("Undefined property '%s'", name);
                 DROP(); // object
 
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             else if (object.isNativeClassInstance())
             {
@@ -1927,7 +1934,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Property '%s' from class '%s' is read-only", nameValue.asStringChars(), klass->name->chars());
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     // Chama setter
@@ -1949,7 +1956,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("Undefined field '%s' in struct '%s", nameValue.asStringChars(), def->name->chars());
                     DROP();
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 // Read-only check
@@ -1957,7 +1964,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("Field '%s' is read-only in struct '%s", nameValue.asStringChars(), def->name->chars());
                     DROP();
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 char *base = (char *)inst->data;
                 char *ptr = base + field.offset;
@@ -1969,7 +1976,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects byte");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(uint8 *)ptr = (uint8)value.asByte();
                     break;
@@ -1980,7 +1987,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects int");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(int *)ptr = value.asInt();
                     break;
@@ -1989,7 +1996,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects uint");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(uint32 *)ptr = value.asUInt();
                     break;
@@ -1999,7 +2006,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects float");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(float *)ptr =(float) value.asNumber();
                     break;
@@ -2009,7 +2016,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects double");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(double *)ptr = value.asDouble();
                     break;
@@ -2019,7 +2026,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects bool");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(bool *)ptr = value.asBool();
                     break;
@@ -2029,7 +2036,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects pointer");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     *(void **)ptr = value.asPointer();
                     break;
@@ -2040,7 +2047,7 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Field expects string");
                         DROP();
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     String **fieldPtr = (String **)ptr;
                     *fieldPtr = value.asString();
@@ -2063,7 +2070,7 @@ FiberResult Interpreter::run_process(Process *process)
 
             printf("']\n");
 
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
 
             break;
         }
@@ -2075,10 +2082,11 @@ FiberResult Interpreter::run_process(Process *process)
             if (!nameValue.isString())
             {
                 runtimeError("Method name must be string");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             const char *name = nameValue.asStringChars();
+            String *nameString = nameValue.asString();
             Value receiver = NPEEK(argCount);
 
 #define ARGS_CLEANUP() fiber->stackTop -= (argCount + 1)
@@ -2088,47 +2096,47 @@ FiberResult Interpreter::run_process(Process *process)
             {
                 String *str = receiver.asString();
 
-                if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LENGTH]))
+                if (nameString == staticNames[(int)StaticNames::LENGTH])
                 {
                     int len = str->length();
                     ARGS_CLEANUP();
                     PUSH(makeInt(len));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::UPPER]))
+                else if (nameString == staticNames[(int)StaticNames::UPPER])
                 {
                     ARGS_CLEANUP();
                     PUSH(makeString(stringPool.upper(str)));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LOWER]))
+                else if (nameString == staticNames[(int)StaticNames::LOWER])
                 {
                     ARGS_CLEANUP();
                     PUSH(makeString(stringPool.lower(str)));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CONCAT]))
+                else if (nameString == staticNames[(int)StaticNames::CONCAT])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("concat() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value arg = PEEK();
                     if (!arg.isString())
                     {
                         runtimeError("concat() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     String *result = stringPool.concat(str, arg.asString());
                     ARGS_CLEANUP();
                     PUSH(makeString(result));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SUB]))
+                else if (nameString == staticNames[(int)StaticNames::SUB])
                 {
                     if (argCount != 2)
                     {
                         runtimeError("sub() expects 2 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value start = PEEK2();
@@ -2137,7 +2145,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!start.isNumber() || !end.isNumber())
                     {
                         runtimeError("sub() expects 2 number arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     String *result = stringPool.substring(
@@ -2147,12 +2155,12 @@ FiberResult Interpreter::run_process(Process *process)
                     ARGS_CLEANUP();
                     PUSH(makeString(result));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REPLACE]))
+                else if (nameString == staticNames[(int)StaticNames::REPLACE])
                 {
                     if (argCount != 2)
                     {
                         runtimeError("replace() expects 2 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value oldStr = PEEK2();
@@ -2161,7 +2169,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!oldStr.isString() || !newStr.isString())
                     {
                         runtimeError("replace() expects 2 string arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     String *result = stringPool.replace(
@@ -2171,19 +2179,19 @@ FiberResult Interpreter::run_process(Process *process)
                     ARGS_CLEANUP();
                     PUSH(makeString(result));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::AT]))
+                else if (nameString == staticNames[(int)StaticNames::AT])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("at() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value index = PEEK();
                     if (!index.isNumber())
                     {
                         runtimeError("at() expects number argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     String *result = stringPool.at(str, (int)index.asNumber());
@@ -2191,19 +2199,19 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeString(result));
                 }
 
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CONTAINS]))
+                else if (nameString == staticNames[(int)StaticNames::CONTAINS])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("contains() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value substr = PEEK();
                     if (!substr.isString())
                     {
                         runtimeError("contains() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     bool result = stringPool.contains(str, substr.asString());
@@ -2211,26 +2219,26 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeBool(result));
                 }
 
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::TRIM]))
+                else if (nameString == staticNames[(int)StaticNames::TRIM])
                 {
                     String *result = stringPool.trim(str);
                     ARGS_CLEANUP();
                     PUSH(makeString(result));
                 }
 
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::STARTWITH]))
+                else if (nameString == staticNames[(int)StaticNames::STARTWITH])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("startsWith() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value prefix = PEEK();
                     if (!prefix.isString())
                     {
                         runtimeError("startsWith() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     bool result = stringPool.startsWith(str, prefix.asString());
@@ -2238,19 +2246,19 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeBool(result));
                 }
 
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::ENDWITH]))
+                else if (nameString == staticNames[(int)StaticNames::ENDWITH])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("endsWith() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value suffix = PEEK();
                     if (!suffix.isString())
                     {
                         runtimeError("endsWith() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     bool result = stringPool.endsWith(str, suffix.asString());
@@ -2258,12 +2266,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeBool(result));
                 }
 
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::INDEXOF]))
+                else if (nameString == staticNames[(int)StaticNames::INDEXOF])
                 {
                     if (argCount < 1 || argCount > 2)
                     {
                         runtimeError("indexOf() expects 1 or 2 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value substr;
@@ -2283,7 +2291,7 @@ FiberResult Interpreter::run_process(Process *process)
                         if (!startVal.isNumber())
                         {
                             runtimeError("indexOf() startIndex must be number");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         startIndex = (int)startVal.asNumber();
@@ -2292,7 +2300,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!substr.isString())
                     {
                         runtimeError("indexOf() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     int result = stringPool.indexOf(
@@ -2302,37 +2310,37 @@ FiberResult Interpreter::run_process(Process *process)
                     ARGS_CLEANUP();
                     PUSH(makeInt(result));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REPEAT]))
+                else if (nameString == staticNames[(int)StaticNames::REPEAT])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("repeat() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value count = PEEK();
                     if (!count.isNumber())
                     {
                         runtimeError("repeat() expects number argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     String *result = stringPool.repeat(str, (int)count.asNumber());
                     ARGS_CLEANUP();
                     PUSH(makeString(result));
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SPLIT]))
+                else if (nameString == staticNames[(int)StaticNames::SPLIT])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("split() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value delim = PEEK();
                     if (!delim.isString())
                     {
                         runtimeError("split() expects string argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value result = makeArray();
@@ -2391,7 +2399,7 @@ FiberResult Interpreter::run_process(Process *process)
                 else
                 {
                     runtimeError("String has no method '%s'", name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 break;
             }
@@ -2401,12 +2409,12 @@ FiberResult Interpreter::run_process(Process *process)
             {
                 ArrayInstance *arr = receiver.asArray();
                 uint32 size = arr->values.size();
-                if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::PUSH]))
+                if (nameString == staticNames[(int)StaticNames::PUSH])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("push() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value item = PEEK();
                     arr->values.push(item);
@@ -2416,12 +2424,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(receiver);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::POP]))
+                else if (nameString == staticNames[(int)StaticNames::POP])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("pop() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (size == 0)
@@ -2440,12 +2448,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::BACK]))
+                else if (nameString == staticNames[(int)StaticNames::BACK])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("back() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (size == 0)
@@ -2463,43 +2471,43 @@ FiberResult Interpreter::run_process(Process *process)
                     }
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LENGTH]))
+                else if (nameString == staticNames[(int)StaticNames::LENGTH])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("lenght() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     ARGS_CLEANUP();
                     PUSH(makeInt(size));
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CLEAR]))
+                else if (nameString == staticNames[(int)StaticNames::CLEAR])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("clear() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     arr->values.clear();
                     ARGS_CLEANUP();
                     PUSH(receiver);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REMOVE]))
+                else if (nameString == staticNames[(int)StaticNames::REMOVE])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("remove() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value index = PEEK();
                     if (!index.isNumber())
                     {
                         runtimeError("remove() expects number argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     arr->values.remove((int)index.asNumber());
@@ -2507,24 +2515,24 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(receiver);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::INSERT]))
+                else if (nameString == staticNames[(int)StaticNames::INSERT])
                 {
                     if (argCount != 2)
                     {
                         runtimeError("insert() expects 2 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value index = NPEEK(1);
                     if (!index.isNumber())
                     {
                         runtimeError("insert() expects number argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     int valueindex = (int)index.asNumber();
                     if (valueindex < 0 || valueindex > arr->values.size())
                     {
                         runtimeError("insert() index out of range");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value item = NPEEK(0);
                     arr->values.insert(valueindex, item);
@@ -2532,12 +2540,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(receiver);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::FIND]))
+                else if (nameString == staticNames[(int)StaticNames::FIND])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("find() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value value = NPEEK(0);
                     int foundIndex = -1;
@@ -2554,12 +2562,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeInt(foundIndex));
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CONTAINS]))
+                else if (nameString == staticNames[(int)StaticNames::CONTAINS])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("contains() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value value = NPEEK(0);
                     bool found = false;
@@ -2575,12 +2583,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeBool(found));
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REVERSE]))
+                else if (nameString == staticNames[(int)StaticNames::REVERSE])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("reverse() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     arr->values.reverse();
@@ -2589,12 +2597,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(receiver);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SLICE]))
+                else if (nameString == staticNames[(int)StaticNames::SLICE])
                 {
                     if (argCount < 1 || argCount > 2)
                     {
                         runtimeError("slice() expects (start, size)");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value startVal = NPEEK(argCount - 1);
@@ -2603,7 +2611,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!startVal.isNumber() || !endVal.isNumber())
                     {
                         runtimeError("slice() expects numbers arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     int start = (int)startVal.asNumber();
@@ -2632,19 +2640,19 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(newArray);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CONCAT]))
+                else if (nameString == staticNames[(int)StaticNames::CONCAT])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("concat() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     Value value = NPEEK(0);
 
                     if (!value.isArray())
                     {
                         runtimeError("concat() expects array argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     ArrayInstance *other = value.asArray();
@@ -2663,12 +2671,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(newArray);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::FIRST]))
+                else if (nameString == staticNames[(int)StaticNames::FIRST])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("first() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (size == 0)
@@ -2683,12 +2691,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LAST]))
+                else if (nameString == staticNames[(int)StaticNames::LAST])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("last() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (size == 0)
@@ -2703,12 +2711,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::FILL]))
+                else if (nameString == staticNames[(int)StaticNames::FILL])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("fill() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value fillValue = PEEK();
@@ -2725,7 +2733,7 @@ FiberResult Interpreter::run_process(Process *process)
                 else
                 {
                     runtimeError("Array has no method '%s'", name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
             }
 
@@ -2734,12 +2742,12 @@ FiberResult Interpreter::run_process(Process *process)
             {
                 MapInstance *map = receiver.asMap();
 
-                if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::HAS]))
+                if (nameString == staticNames[(int)StaticNames::HAS])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("has() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value key = PEEK();
@@ -2757,12 +2765,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeBool(exists));
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REMOVE]))
+                else if (nameString == staticNames[(int)StaticNames::REMOVE])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("remove() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value key = PEEK();
@@ -2770,7 +2778,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!key.isString())
                     {
                         runtimeError("Map key must be string");
-                      return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                      return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                   
@@ -2779,12 +2787,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeNil());
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CLEAR]))
+                else if (nameString == staticNames[(int)StaticNames::CLEAR])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("clear() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     map->table.destroy();
@@ -2792,23 +2800,23 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(makeNil());
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LENGTH]))
+                else if (nameString == staticNames[(int)StaticNames::LENGTH])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("lenght() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     ARGS_CLEANUP();
                     PUSH(makeInt(map->table.count));
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::KEYS]))
+                else if (nameString == staticNames[(int)StaticNames::KEYS])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("keys() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     // Retorna array de keys
@@ -2822,12 +2830,12 @@ FiberResult Interpreter::run_process(Process *process)
                     PUSH(keys);
                     break;
                 }
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::VALUES]))
+                else if (nameString == staticNames[(int)StaticNames::VALUES])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("values() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     // Retorna array de values
@@ -2856,29 +2864,13 @@ FiberResult Interpreter::run_process(Process *process)
                     if (argCount != method->arity)
                     {
                         runtimeError("Method '%s' expects %d arguments, got %d", name, method->arity, argCount);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     //  Debug::dumpFunction(method);
                     fiber->stackTop[-argCount - 1] = receiver;
 
-                    // Setup call frame
-                    if (currentFiber->frameCount >= FRAMES_MAX)
-                    {
-                        runtimeError("Stack overflow in method!");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-                    }
-
-                    CallFrame *newFrame = &currentFiber->frames[currentFiber->frameCount];
-                    newFrame->func = method;
-                    newFrame->ip = method->chunk->code;
-                    newFrame->slots = currentFiber->stackTop - argCount - 1;
-                    newFrame->closure = nullptr;
-
-                    currentFiber->frameCount++;
-
-                    STORE_FRAME();
-                    LOAD_FRAME();
+                    PUSH_CALL_FRAME_STORE_LOAD(method, nullptr, argCount, "Stack overflow in method!");
 
                     break;
                 }
@@ -2909,7 +2901,7 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 runtimeError("Instance '%s' has no method '%s'", instance->klass->name->chars(), name);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             if (receiver.isNativeClassInstance())
@@ -2924,7 +2916,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance->klass->methods.get(nameValue.asString(), &method))
                 {
                     runtimeError("Native class '%s' has no method '%s'", klass->name->chars(), name);
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
 
                 size_t calleeSlot = (fiber->stackTop - fiber->stack) - argCount - 1;
@@ -2957,12 +2949,12 @@ FiberResult Interpreter::run_process(Process *process)
 
                 // buf.fill(value)
 
-                if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::FILL]))
+                if (nameString == staticNames[(int)StaticNames::FILL])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("fill() expects 1 argument");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value fillValue = PEEK();
@@ -3113,12 +3105,12 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 //   copy(dstOffset, srcBuffer, srcOffset, count)
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::COPY]))
+                else if (nameString == staticNames[(int)StaticNames::COPY])
                 {
                     if (argCount != 4)
                     {
                         runtimeError("copy() expects 4 arguments (dstOffset, srcBuffer, srcOffset, count)");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value dstOffsetVal = NPEEK(3);
@@ -3130,19 +3122,19 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!dstOffsetVal.isInt())
                     {
                         runtimeError("copy() first argument (dstOffset) must be int");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (!srcBufferVal.isBuffer())
                     {
                         runtimeError("copy() second argument must be a buffer");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (!srcOffsetVal.isInt() || !countVal.isInt())
                     {
                         runtimeError("copy() srcOffset and count must be int");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     BufferInstance *srcBuf = srcBufferVal.asBuffer();
@@ -3155,28 +3147,28 @@ FiberResult Interpreter::run_process(Process *process)
                     {
                         runtimeError("Buffers must have compatible element sizes (dst:%zu, src:%zu)",
                                      buf->elementSize, srcBuf->elementSize);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     // Validações de range
                     if (dstOffset < 0 || srcOffset < 0 || count < 0)
                     {
                         runtimeError("Offsets and count must be non-negative");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (srcOffset + count > srcBuf->count)
                     {
                         runtimeError("Source range [%d:%d] out of bounds (buffer size: %d)",
                                      srcOffset, srcOffset + count, srcBuf->count);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     if (dstOffset + count > buf->count)
                     {
                         runtimeError("Destination range [%d:%d] out of bounds (buffer size: %d)",
                                      dstOffset, dstOffset + count, buf->count);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     size_t copySize = count * buf->elementSize;
@@ -3190,12 +3182,12 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 // buf.slice(start, end)
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SLICE]))
+                else if (nameString == staticNames[(int)StaticNames::SLICE])
                 {
                     if (argCount != 2)
                     {
                         runtimeError("slice() expects 2 arguments (start, end)");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value startVal = PEEK2();
@@ -3204,7 +3196,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!startVal.isInt() || !endVal.isInt())
                     {
                         runtimeError("slice() expects int arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     int start = startVal.asInt();
@@ -3229,7 +3221,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (start >= end)
                     {
                         runtimeError("Invalid slice range: start must be < end");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     int newCount = end - start;
@@ -3248,12 +3240,12 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 // buf.clear()
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::CLEAR]))
+                else if (nameString == staticNames[(int)StaticNames::CLEAR])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("clear() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     memset(buf->data, 0, buf->count * buf->elementSize);
@@ -3264,31 +3256,31 @@ FiberResult Interpreter::run_process(Process *process)
                 }
 
                 // buf.length()
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::LENGTH]))
+                else if (nameString == staticNames[(int)StaticNames::LENGTH])
                 {
                     if (argCount != 0)
                     {
                         runtimeError("length() expects 0 arguments");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     ARGS_CLEANUP();
                     PUSH(makeInt(buf->count));
                     break;
                 } // buf.save(filename) - Salva dados RAW
-                else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SAVE]))
+                else if (nameString == staticNames[(int)StaticNames::SAVE])
                 {
                     if (argCount != 1)
                     {
                         runtimeError("save() expects 1 argument (filename)");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     Value filenameVal = PEEK();
                     if (!filenameVal.isString())
                     {
                         runtimeError("save() expects string filename");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     const char *filename = filenameVal.asStringChars();
@@ -3300,7 +3292,7 @@ FiberResult Interpreter::run_process(Process *process)
                     if (written < 0 || (size_t)written != dataSize)
                     {
                         runtimeError("Failed to save buffer to '%s'", filename);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
 
                     ARGS_CLEANUP();
@@ -3314,18 +3306,18 @@ FiberResult Interpreter::run_process(Process *process)
                     // ========================================
 
                     // buf.writeByte(value)
-                    if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_BYTE]))
+                    if (nameString == staticNames[(int)StaticNames::WRITE_BYTE])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeByte() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 1 > (int)totalSize)
                         {
                             runtimeError("writeByte() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         buf->data[buf->cursor] = PEEK().asByte();
@@ -3337,18 +3329,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeShort(value) - int16
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_SHORT]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_SHORT])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeShort() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 2 > (int)totalSize)
                         {
                             runtimeError("writeShort() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int16_t value = (int16_t)PEEK().asInt();
@@ -3361,18 +3353,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeUShort(value) - uint16
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_USHORT]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_USHORT])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeUShort() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 2 > (int)totalSize)
                         {
                             runtimeError("writeUShort() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         uint16_t value = (uint16_t)PEEK().asInt();
@@ -3385,18 +3377,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeInt(value) - int32
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_INT]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_INT])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeInt() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("writeInt() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int32_t value = PEEK().asInt();
@@ -3409,18 +3401,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeUInt(value) - uint32 (aceita double para valores > 2^31)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_UINT]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_UINT])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeUInt() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("writeUInt() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         Value val = PEEK();
@@ -3434,18 +3426,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeFloat(value)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_FLOAT]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_FLOAT])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeFloat() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("writeFloat() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         float value = PEEK().asFloat();
@@ -3458,18 +3450,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeDouble(value)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_DOUBLE]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_DOUBLE])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeDouble() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 8 > (int)totalSize)
                         {
                             runtimeError("writeDouble() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         double value = PEEK().asDouble();
@@ -3482,19 +3474,19 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.writeString(str) - Escreve bytes da string (UTF-8)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::WRITE_STRING]))
+                    else if (nameString == staticNames[(int)StaticNames::WRITE_STRING])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("writeString() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         Value strVal = PEEK();
                         if (!strVal.isString())
                         {
                             runtimeError("writeString() expects string");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         String *str = strVal.asString();
@@ -3503,7 +3495,7 @@ FiberResult Interpreter::run_process(Process *process)
                         if (buf->cursor < 0 || buf->cursor + length > (int)totalSize)
                         {
                             runtimeError("writeString() not enough space (need %d bytes)", length);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         memcpy(buf->data + buf->cursor, str->chars(), length);
@@ -3519,18 +3511,18 @@ FiberResult Interpreter::run_process(Process *process)
                     // ========================================
 
                     // buf.readByte()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_BYTE]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_BYTE])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readByte() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 1 > (int)totalSize)
                         {
                             runtimeError("readByte() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         uint8_t value = buf->data[buf->cursor];
@@ -3542,18 +3534,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readShort()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_SHORT]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_SHORT])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readShort() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 2 > (int)totalSize)
                         {
                             runtimeError("readShort() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int16_t value;
@@ -3566,18 +3558,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readUShort()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_USHORT]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_USHORT])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readUShort() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 2 > (int)totalSize)
                         {
                             runtimeError("readUShort() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         uint16_t value;
@@ -3590,18 +3582,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readInt()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_INT]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_INT])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readInt() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("readInt() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int32_t value;
@@ -3614,18 +3606,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readUInt() - Retorna como double (para valores > 2^31)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_UINT]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_UINT])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readUInt() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("readUInt() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         uint32_t value;
@@ -3638,18 +3630,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readFloat()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_FLOAT]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_FLOAT])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readFloat() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 4 > (int)totalSize)
                         {
                             runtimeError("readFloat() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         float value;
@@ -3662,18 +3654,18 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readDouble()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_DOUBLE]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_DOUBLE])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("readDouble() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + 8 > (int)totalSize)
                         {
                             runtimeError("readDouble() cursor %d out of bounds", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         double value;
@@ -3686,19 +3678,19 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.readString(length)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::READ_STRING]))
+                    else if (nameString == staticNames[(int)StaticNames::READ_STRING])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("readString() expects 1 argument (length)");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         Value lengthVal = PEEK();
                         if (!lengthVal.isInt())
                         {
                             runtimeError("readString() length must be int");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int length = lengthVal.asInt();
@@ -3706,13 +3698,13 @@ FiberResult Interpreter::run_process(Process *process)
                         if (length < 0)
                         {
                             runtimeError("readString() length cannot be negative");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         if (buf->cursor < 0 || buf->cursor + length > (int)totalSize)
                         {
                             runtimeError("readString() not enough data (need %d bytes)", length);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         String *str = createString((const char *)(buf->data + buf->cursor),
@@ -3730,19 +3722,19 @@ FiberResult Interpreter::run_process(Process *process)
                     // ========================================
 
                     // buf.seek(position)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SEEK]))
+                    else if (nameString == staticNames[(int)StaticNames::SEEK])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("seek() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         Value posVal = PEEK();
                         if (!posVal.isInt())
                         {
                             runtimeError("seek() position must be int");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int position = posVal.asInt();
@@ -3750,7 +3742,7 @@ FiberResult Interpreter::run_process(Process *process)
                         if (position < 0 || position > (int)totalSize)
                         {
                             runtimeError("seek() position %d out of bounds (size=%zu)", position, totalSize);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         buf->cursor = position;
@@ -3761,12 +3753,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.tell()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::TELL]))
+                    else if (nameString == staticNames[(int)StaticNames::TELL])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("tell() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         ARGS_CLEANUP();
@@ -3775,12 +3767,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.rewind()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REWIND]))
+                    else if (nameString == staticNames[(int)StaticNames::REWIND])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("rewind() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         buf->cursor = 0;
@@ -3791,19 +3783,19 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.skip(bytes)
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::SKIP]))
+                    else if (nameString == staticNames[(int)StaticNames::SKIP])
                     {
                         if (argCount != 1)
                         {
                             runtimeError("skip() expects 1 argument");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         Value bytesVal = PEEK();
                         if (!bytesVal.isInt())
                         {
                             runtimeError("skip() bytes must be int");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int bytes = bytesVal.asInt();
@@ -3812,7 +3804,7 @@ FiberResult Interpreter::run_process(Process *process)
                         if (buf->cursor < 0 || buf->cursor > (int)totalSize)
                         {
                             runtimeError("skip() moved cursor out of bounds (%d)", buf->cursor);
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         ARGS_CLEANUP();
@@ -3821,12 +3813,12 @@ FiberResult Interpreter::run_process(Process *process)
                     }
 
                     // buf.remaining()
-                    else if (compare_strings(nameValue.asString(), staticNames[(int)StaticNames::REMAINING]))
+                    else if (nameString == staticNames[(int)StaticNames::REMAINING])
                     {
                         if (argCount != 0)
                         {
                             runtimeError("remaining() expects 0 arguments");
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         int remaining = totalSize - buf->cursor;
@@ -3839,13 +3831,13 @@ FiberResult Interpreter::run_process(Process *process)
                     else
                     {
                         runtimeError("Buffer has no method '%s'", name);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
             }
 
             STORE_FRAME();
             runtimeError("Cannot call method '%s' on %s", name, getValueTypeName(receiver));
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
         }
 
         case OP_SUPER_INVOKE:
@@ -3861,7 +3853,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!self.isClassInstance())
             {
                 runtimeError("'super' requires an instance");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             ClassInstance *instance = self.asClassInstance();
@@ -3875,7 +3867,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!ownerClass->superclass)
             {
                 runtimeError("Class has no superclass");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             Function *method;
@@ -3886,7 +3878,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!method)
                 {
                     runtimeError("Superclass has no init()");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
             }
             else
@@ -3906,7 +3898,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!method)
                 {
                     runtimeError("Undefined method '%s'", methodName->chars());
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
             }
 
@@ -3914,24 +3906,10 @@ FiberResult Interpreter::run_process(Process *process)
             {
                 runtimeError("Method expects %d arguments, got %d",
                              method->arity, argCount);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
-            if (fiber->frameCount >= FRAMES_MAX)
-            {
-                runtimeError("Stack overflow");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-            }
-
-            CallFrame *newFrame = &fiber->frames[fiber->frameCount];
-            newFrame->func = method;
-            newFrame->ip = method->chunk->code;
-            newFrame->closure = nullptr;
-            newFrame->slots = fiber->stackTop - argCount - 1;
-            fiber->frameCount++;
-
-            STORE_FRAME();
-            LOAD_FRAME();
+            PUSH_CALL_FRAME_STORE_LOAD(method, nullptr, argCount, "Stack overflow");
             break;
         }
 
@@ -3952,7 +3930,7 @@ FiberResult Interpreter::run_process(Process *process)
                 ip = fiber->gosubStack[--fiber->gosubTop];
                 break;
             }
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
         }
         case OP_DEFINE_ARRAY:
         {
@@ -3983,7 +3961,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!key.isString())
                 {
                     runtimeError("Map key must be string");
-                   return {FiberResult::ERROR, instructionsRun, 0, 0};
+                   return {ProcessResult::ERROR, 0};
                 }
 
                 inst->table.set(key.asString(), value);
@@ -4011,7 +3989,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
 
                     runtimeError("Array index must be an number");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                     
                 }
 
@@ -4026,7 +4004,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (i < 0 || i >= size)
                 {
                     runtimeError("Array index %d out of bounds (size=%d)", i, size);
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
                 else
                 {
@@ -4043,7 +4021,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!index.isString())
                 {
                     runtimeError("Map key must be string");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 MapInstance *map = container.asMap();
@@ -4059,7 +4037,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!index.isInt())
                 {
                     runtimeError("Buffer index must be integer");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 BufferInstance *buffer = container.asBuffer();
@@ -4068,7 +4046,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (idx < 0 || idx >= buffer->count)
                 {
                     runtimeError("Buffer index %d out of bounds (size=%d)", idx, buffer->count);
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 size_t offset = idx * get_type_size(buffer->type);
@@ -4119,7 +4097,7 @@ FiberResult Interpreter::run_process(Process *process)
                     *ptr = (uint8_t)num; // Escreve primeiro byte
                     runtimeError("Invalid buffer type");
 
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 }
 
@@ -4138,7 +4116,7 @@ FiberResult Interpreter::run_process(Process *process)
 
             runtimeError("Cannot 'set' index assign this type");
             PUSH(value);
-            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+            return {ProcessResult::PROCESS_DONE, 0};
             break;
         }
         case OP_GET_INDEX:
@@ -4157,7 +4135,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!index.isNumber())
                 {
                     runtimeError("Array index must be a number");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 ArrayInstance *arr = container.asArray();
@@ -4171,7 +4149,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (i < 0 || i >= size)
                 {
                     runtimeError("Array index %d out of bounds (size=%d)", i, size);
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
                 else
                 {
@@ -4187,7 +4165,7 @@ FiberResult Interpreter::run_process(Process *process)
                 {
                     runtimeError("String index must be integer");
                         
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 String *str = container.asString();
@@ -4202,7 +4180,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!index.isString())
                 {
                     runtimeError("Map key must be string");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 MapInstance *map = container.asMap();
@@ -4226,7 +4204,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!index.isInt())
                 {
                     runtimeError("Buffer index must be integer");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 BufferInstance *buffer = container.asBuffer();
@@ -4235,7 +4213,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (idx < 0 || idx >= buffer->count)
                 {
                     runtimeError("Buffer index %d out of bounds (size=%d)", idx, buffer->count);
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
 
                 size_t offset = idx * get_type_size(buffer->type);
@@ -4283,7 +4261,7 @@ FiberResult Interpreter::run_process(Process *process)
                 default:
                 {
                     runtimeError("Invalid buffer type");
-                    return {FiberResult::ERROR, instructionsRun, 0, 0};
+                    return {ProcessResult::ERROR, 0};
                 }
                 }
 
@@ -4291,7 +4269,7 @@ FiberResult Interpreter::run_process(Process *process)
             }
 
             runtimeError("Cannot index this type");
-            return {FiberResult::ERROR, instructionsRun, 0, 0};
+            return {ProcessResult::ERROR, 0};
         }
         case OP_ITER_NEXT:
         {
@@ -4302,7 +4280,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!seq.isArray())
             {
                 runtimeError(" Iterator next Type is not iterable");
-                return {FiberResult::ERROR, instructionsRun, 0, 0};
+                return {ProcessResult::ERROR, 0};
             }
 
             ArrayInstance *array = seq.as.array;
@@ -4332,7 +4310,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!seq.isArray())
             {
                 runtimeError("Iterator Type is not iterable");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             ArrayInstance *array = seq.as.array;
@@ -4341,7 +4319,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (index < 0 || index >= (int)array->values.size())
             {
                 runtimeError("Iterator out of bounds");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             PUSH(array->values[index]);
@@ -4386,7 +4364,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (fiber->tryDepth >= TRY_MAX)
             {
                 runtimeError("Try-catch nesting too deep");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             TryHandler &handler = fiber->tryHandlers[fiber->tryDepth];
@@ -4480,7 +4458,7 @@ FiberResult Interpreter::run_process(Process *process)
                 valueToBuffer(error, buffer, sizeof(buffer));
                 runtimeError("Uncaught exception: %s", buffer);
 
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             break;
@@ -4546,7 +4524,7 @@ FiberResult Interpreter::run_process(Process *process)
                             }
 
                             STORE_FRAME();
-                            return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                            return {ProcessResult::PROCESS_DONE, 0};
                         }
 
                         CallFrame *finished = &fiber->frames[fiber->frameCount];
@@ -4610,7 +4588,7 @@ FiberResult Interpreter::run_process(Process *process)
                         char buffer[256];
                         valueToBuffer(error, buffer, sizeof(buffer));
                         runtimeError("Uncaught exception: %s", buffer);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                 }
                 else
@@ -4631,7 +4609,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("sin() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::sin(val)));
@@ -4643,7 +4621,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("cos() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::cos(val)));
@@ -4655,7 +4633,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("asin() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::asin(val)));
@@ -4667,7 +4645,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("acos() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::acos(val)));
@@ -4679,7 +4657,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("tan() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::tan(val)));
@@ -4691,13 +4669,13 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("sqrt() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             if (val < 0)
             {
                 runtimeError("sqrt() of negative number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             PUSH(makeDouble(std::sqrt(val)));
             break;
@@ -4716,7 +4694,7 @@ FiberResult Interpreter::run_process(Process *process)
             else
             {
                 runtimeError("abs() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             break;
         }
@@ -4726,7 +4704,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("floor() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeInt((int)std::floor(val))); // Retorna Int
@@ -4738,7 +4716,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("ceil() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeInt((int)std::ceil(val))); // Retorna Int
@@ -4750,13 +4728,13 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("log() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             if (val <= 0)
             {
                 runtimeError("log() domain error");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             PUSH(makeDouble(std::log(val)));
             break;
@@ -4769,7 +4747,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("deg() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(val * 57.29577951308232));
@@ -4781,7 +4759,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("rad() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(val * 0.017453292519943295));
@@ -4793,7 +4771,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("atan() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
             PUSH(makeDouble(std::atan(val)));
@@ -4805,7 +4783,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!v.isNumber())
             {
                 runtimeError("exp() expects a number");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double val = v.isInt() ? (double)v.asInt() : v.asDouble();
 
@@ -4822,7 +4800,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!vx.isNumber() || !vy.isNumber())
             {
                 runtimeError("atan2(y, x) operands must be numbers");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double x = vx.isInt() ? (double)vx.asInt() : vx.asDouble();
             double y = vy.isInt() ? (double)vy.asInt() : vy.asDouble();
@@ -4836,7 +4814,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!vexp.isNumber() || !vbase.isNumber())
             {
                 runtimeError("pow(base, exp) operands must be numbers");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             double exp = vexp.isInt() ? (double)vexp.asInt() : vexp.asDouble();
             double base = vbase.isInt() ? (double)vbase.asInt() : vbase.asDouble();
@@ -4943,7 +4921,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Struct is null");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 // Info("Free  Struct address: %p", (void*)instance);
                 instance->marked = 1;
@@ -4955,7 +4933,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Class instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 instance->marked = 1;
                 freed = true;
@@ -4966,7 +4944,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Native class instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 instance->marked = 1;
                 freed = true;
@@ -4977,7 +4955,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Native struct instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 // Info("Free  Native Struct address: %p", (void*)instance);
                 instance->marked = 1;
@@ -4989,7 +4967,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Buffer instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 instance->marked = 1;
                 freed = true;
@@ -5001,7 +4979,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Map instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 instance->marked = 1;
                 freed = true;
@@ -5012,7 +4990,7 @@ FiberResult Interpreter::run_process(Process *process)
                 if (!instance)
                 {
                     runtimeError("Array instance is nil");
-                    return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                    return {ProcessResult::PROCESS_DONE, 0};
                 }
                 instance->marked = 1;
                 freed = true;
@@ -5079,12 +5057,12 @@ FiberResult Interpreter::run_process(Process *process)
                     if (!frame->closure)
                     {
                         runtimeError("Cannot capture upvalue without enclosing closure");
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     if (index >= frame->closure->upvalueCount)
                     {
                         runtimeError("Upvalue capture index %d out of range (max %d)", index, frame->closure->upvalueCount);
-                        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                        return {ProcessResult::PROCESS_DONE, 0};
                     }
                     closurePtr->upvalues.push(frame->closure->upvalues[index]);
                 }
@@ -5101,13 +5079,13 @@ FiberResult Interpreter::run_process(Process *process)
             if (!frame->closure)
             {
                 runtimeError("Upvalue access outside closure");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             if (slot >= frame->closure->upvalueCount)
             {
                 runtimeError("Upvalue index %d out of range (max %d)", slot, frame->closure->upvalueCount);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             PUSH(*frame->closure->upvalues[slot]->location);
@@ -5121,13 +5099,13 @@ FiberResult Interpreter::run_process(Process *process)
             if (!frame->closure)
             {
                 runtimeError("Upvalue access outside closure");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             if (slot >= frame->closure->upvalueCount)
             {
                 runtimeError("Upvalue index %d out of range (max %d)", slot, frame->closure->upvalueCount);
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
 
             *frame->closure->upvalues[slot]->location = PEEK();
@@ -5156,7 +5134,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!processesMap.get(name, &procDef))
             {
                 runtimeError("Unknown process type: %s", name->chars());
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             PUSH(makeInt(procDef->index));
             break;
@@ -5168,7 +5146,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (!idVal.isNumber())
             {
                 runtimeError("proc expects a number (process id)");
-                return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
+                return {ProcessResult::PROCESS_DONE, 0};
             }
             uint32 id = (uint32)idVal.asNumber();
             Process *target = findProcessById(id);
@@ -5212,7 +5190,7 @@ FiberResult Interpreter::run_process(Process *process)
             if (debugMode_)
                 Debug::dumpFunction(func);
             runtimeError("Unknown opcode %d", instruction);
-            return {FiberResult::ERROR, instructionsRun, 0, 0};
+            return {ProcessResult::ERROR, 0};
         }
         }
     }

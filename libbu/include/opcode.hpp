@@ -58,8 +58,9 @@ enum Opcode : uint8
     // Functions (38-43)
     OP_CALL = 38,
     OP_RETURN = 39,
-    // Reserved legacy opcodes (single-fiber mode disables fiber/yield bytecode)
-    OP_RESERVED_40 = 40,
+    // Fast-path opcode for array.push(value)
+    OP_ARRAY_PUSH = 40,
+    // Reserved legacy opcode (single-fiber mode disables fiber/yield bytecode)
     OP_RESERVED_41 = 41,
     OP_FRAME = 42,
     OP_EXIT = 43,
