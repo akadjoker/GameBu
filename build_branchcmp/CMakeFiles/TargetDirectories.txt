@@ -1,0 +1,14 @@
+/tmp/BuGame-dev/build_branchcmp/CMakeFiles/edit_cache.dir
+/tmp/BuGame-dev/build_branchcmp/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-dev/build_branchcmp/libbu/libbu/CMakeFiles/libbu.dir
+/tmp/BuGame-dev/build_branchcmp/libbu/libbu/CMakeFiles/edit_cache.dir
+/tmp/BuGame-dev/build_branchcmp/libbu/libbu/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-dev/build_branchcmp/graphics/CMakeFiles/graphics.dir
+/tmp/BuGame-dev/build_branchcmp/graphics/CMakeFiles/edit_cache.dir
+/tmp/BuGame-dev/build_branchcmp/graphics/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-dev/build_branchcmp/main/CMakeFiles/main.dir
+/tmp/BuGame-dev/build_branchcmp/main/CMakeFiles/edit_cache.dir
+/tmp/BuGame-dev/build_branchcmp/main/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-dev/build_branchcmp/tests/CMakeFiles/tests.dir
+/tmp/BuGame-dev/build_branchcmp/tests/CMakeFiles/edit_cache.dir
+/tmp/BuGame-dev/build_branchcmp/tests/CMakeFiles/rebuild_cache.dir

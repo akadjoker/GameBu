@@ -7,310 +7,99 @@ GLOBAL FUNCTIONS
 ========================================
 
 
+>>> Function: worker
+    Arity: 1
+    Has return: yes
+    Index: 1
+
+  Constants (4):
+    [0] = "i"
+    [1] = 0
+    [2] = 1
+    [3] = 100
+
+  Bytecode:
+    0000    4 OP_CONSTANT             1 '0'
+    0003    7 OP_GET_LOCAL            1
+    0005    | OP_CONSTANT             2 '1'
+    0008    | OP_ADD              
+    0009    | OP_SET_LOCAL            1
+    0011    | OP_POP              
+    0012    8 OP_GET_LOCAL            1
+    0014    | OP_GET_LOCAL            0
+    0016    | OP_LESS             
+    0017    | OP_NOT              
+    0018    | OP_JUMP_IF_FALSE       18 -> 28
+    0021    | OP_POP              
+    0022   10 OP_JUMP                22 -> 36
+    0025   11 OP_JUMP                25 -> 29
+    0028    | OP_POP              
+    0029   12 OP_CONSTANT             3 '100'
+    0032    | OP_FRAME            
+    0033   13 OP_LOOP                33 -> 3
+    0036   14 OP_POP              
+    0037    | OP_POP              
+    0038    | OP_NIL              
+    0039    | OP_RETURN           
+
+
 >>> Function: __main__
     Arity: 0
     Has return: no
     Index: 0
 
-  Constants (43):
-    [0] = "zip_a.txt"
-    [1] = "zip_b.txt"
-    [2] = "zip_test_bundle.zip"
-    [3] = "zip_out_dir"
-    [4] = <module_reference 0 64 1>
-    [5] = "alpha"
-    [6] = "zip test write A"
-    [7] = <module_reference 0 64 1>
-    [8] = "beta"
-    [9] = "zip test write B"
-    [10] = <module_reference 0 128 4>
-    [11] = "zip.create"
-    [12] = <module_reference 0 128 0>
-    [13] = "zip.list nil"
-    [14] = 2
-    [15] = "zip.list len"
-    [16] = "zip.list names"
-    [17] = <module_reference 0 128 1>
-    [18] = "zip.read"
-    [19] = <module_reference 0 128 2>
-    [20] = "zip.read_buffer nil"
-    [21] = "length"
-    [22] = 4
-    [23] = "zip.read_buffer len"
-    [24] = "seek"
-    [25] = 0
-    [26] = "readByte"
-    [27] = 98
-    [28] = "zip.read_buffer b0"
-    [29] = 101
-    [30] = "zip.read_buffer b1"
-    [31] = 116
-    [32] = "zip.read_buffer b2"
-    [33] = 97
-    [34] = "zip.read_buffer b3"
-    [35] = <module_reference 0 128 3>
-    [36] = "zip.extract"
-    [37] = <module_reference 0 64 0>
-    [38] = "/zip_a.txt"
-    [39] = <module_reference 0 64 0>
-    [40] = "/zip_b.txt"
-    [41] = "zip.extract read A"
-    [42] = "zip.extract read B"
+  Constants (7):
+    [0] = <value type 25>
+    [1] = 0
+    [2] = 50000
+    [3] = 2
+    [4] = 1
+    [5] = 300
+    [6] = 100
 
   Bytecode:
-    0000    6 OP_CONSTANT             0 'zip_a.txt'
-    0003    | OP_DEFINE_GLOBAL       20
-    0006    7 OP_CONSTANT             1 'zip_b.txt'
-    0009    | OP_DEFINE_GLOBAL       21
-    0012    8 OP_CONSTANT             2 'zip_test_bundle.zip'
-    0015    | OP_DEFINE_GLOBAL       22
-    0018    9 OP_CONSTANT             3 'zip_out_dir'
-    0021    | OP_DEFINE_GLOBAL       23
-    0024   11 OP_CONSTANT             4 '<module_reference 0 64 1>'
-    0027    | OP_GET_GLOBAL          20
-    0030    | OP_CONSTANT             5 'alpha'
-    0033    | OP_CALL                 2
-    0035    | OP_NOT              
-    0036    | OP_JUMP_IF_FALSE       36 -> 47
-    0039    | OP_POP              
-    0040    | OP_CONSTANT             6 'zip test write A'
-    0043    | OP_THROW            
-    0044    | OP_JUMP                44 -> 48
-    0047    | OP_POP              
-    0048   12 OP_CONSTANT             7 '<module_reference 0 64 1>'
-    0051    | OP_GET_GLOBAL          21
-    0054    | OP_CONSTANT             8 'beta'
-    0057    | OP_CALL                 2
-    0059    | OP_NOT              
-    0060    | OP_JUMP_IF_FALSE       60 -> 71
+    0000   14 OP_CONSTANT             0 '<process>'
+    0003    | OP_DEFINE_GLOBAL       21
+    0006   16 OP_CONSTANT             1 '0'
+    0009    | OP_DEFINE_GLOBAL       22
+    0012   17 OP_GET_GLOBAL          22
+    0015    | OP_CONSTANT             2 '50000'
+    0018    | OP_LESS             
+    0019    | OP_JUMP_IF_FALSE       19 -> 46
+    0022    | OP_POP              
+    0023   19 OP_GET_GLOBAL          21
+    0026    | OP_CONSTANT             3 '2'
+    0029    | OP_CALL                 1
+    0031    | OP_POP              
+    0032   20 OP_GET_GLOBAL          22
+    0035    | OP_CONSTANT             4 '1'
+    0038    | OP_ADD              
+    0039    | OP_SET_GLOBAL          22
+    0042    | OP_POP              
+    0043   21 OP_LOOP                43 -> 12
+    0046    | OP_POP              
+    0047   23 OP_CONSTANT             1 '0'
+    0050    | OP_DEFINE_GLOBAL        4
+    0053   26 OP_GET_GLOBAL           4
+    0056    | OP_CONSTANT             4 '1'
+    0059    | OP_ADD              
+    0060    | OP_SET_GLOBAL           4
     0063    | OP_POP              
-    0064    | OP_CONSTANT             9 'zip test write B'
-    0067    | OP_THROW            
-    0068    | OP_JUMP                68 -> 72
-    0071    | OP_POP              
-    0072   14 OP_CONSTANT            10 '<module_reference 0 128 4>'
-    0075    | OP_GET_GLOBAL          22
-    0078    | OP_GET_GLOBAL          20
-    0081    | OP_GET_GLOBAL          21
-    0084    | OP_DEFINE_ARRAY         2
-    0087    | OP_CALL                 2
-    0089    | OP_NOT              
-    0090    | OP_JUMP_IF_FALSE       90 -> 101
-    0093    | OP_POP              
-    0094    | OP_CONSTANT            11 'zip.create'
-    0097    | OP_THROW            
-    0098    | OP_JUMP                98 -> 102
-    0101    | OP_POP              
-    0102   16 OP_CONSTANT            12 '<module_reference 0 128 0>'
-    0105    | OP_GET_GLOBAL          22
-    0108    | OP_CALL                 1
-    0110    | OP_DEFINE_GLOBAL       24
-    0113   17 OP_GET_GLOBAL          24
-    0116    | OP_NIL              
-    0117    | OP_EQUAL            
-    0118    | OP_JUMP_IF_FALSE      118 -> 129
-    0121    | OP_POP              
-    0122    | OP_CONSTANT            13 'zip.list nil'
-    0125    | OP_THROW            
-    0126    | OP_JUMP               126 -> 130
-    0129    | OP_POP              
-    0130   18 OP_GET_GLOBAL          24
-    0133    | OP_FUNC_LEN         
-    0134    | OP_CONSTANT            14 '2'
-    0137    | OP_EQUAL            
-    0138    | OP_NOT              
-    0139    | OP_JUMP_IF_FALSE      139 -> 150
-    0142    | OP_POP              
-    0143    | OP_CONSTANT            15 'zip.list len'
-    0146    | OP_THROW            
-    0147    | OP_JUMP               147 -> 151
-    0150    | OP_POP              
-    0151   20 OP_FALSE            
-    0152    | OP_DEFINE_GLOBAL       25
-    0155   21 OP_FALSE            
-    0156    | OP_DEFINE_GLOBAL       26
-    0159   22 OP_GET_GLOBAL          24
-    0162    | OP_NIL              
-    0163    | OP_COPY2            
-    0164    | OP_ITER_NEXT        
-    0165    | OP_JUMP_IF_FALSE      165 -> 215
-    0168    | OP_POP              
-    0169    | OP_SWAP             
-    0170    | OP_POP              
-    0171    | OP_COPY2            
-    0172    | OP_ITER_VALUE       
-    0173   23 OP_GET_LOCAL            2
-    0175    | OP_CONSTANT             0 'zip_a.txt'
-    0178    | OP_EQUAL            
-    0179    | OP_JUMP_IF_FALSE      179 -> 191
-    0182    | OP_POP              
-    0183    | OP_TRUE             
-    0184    | OP_SET_GLOBAL          25
-    0187    | OP_POP              
-    0188    | OP_JUMP               188 -> 192
-    0191    | OP_POP              
-    0192   24 OP_GET_LOCAL            2
-    0194    | OP_CONSTANT             1 'zip_b.txt'
-    0197    | OP_EQUAL            
-    0198    | OP_JUMP_IF_FALSE      198 -> 210
-    0201    | OP_POP              
-    0202    | OP_TRUE             
-    0203    | OP_SET_GLOBAL          26
-    0206    | OP_POP              
-    0207    | OP_JUMP               207 -> 211
-    0210    | OP_POP              
-    0211   25 OP_POP              
-    0212    | OP_LOOP               212 -> 163
-    0215    | OP_DISCARD              4
-    0217   26 OP_GET_GLOBAL          25
-    0220    | OP_NOT              
-    0221    | OP_JUMP_IF_FALSE      221 -> 227
-    0224    | OP_JUMP               224 -> 232
-    0227    | OP_POP              
-    0228    | OP_GET_GLOBAL          26
-    0231    | OP_NOT              
-    0232    | OP_JUMP_IF_FALSE      232 -> 243
-    0235    | OP_POP              
-    0236    | OP_CONSTANT            16 'zip.list names'
-    0239    | OP_THROW            
-    0240    | OP_JUMP               240 -> 244
-    0243    | OP_POP              
-    0244   28 OP_CONSTANT            17 '<module_reference 0 128 1>'
-    0247    | OP_GET_GLOBAL          22
-    0250    | OP_CONSTANT             1 'zip_b.txt'
-    0253    | OP_CALL                 2
-    0255    | OP_DEFINE_GLOBAL       27
-    0258   29 OP_GET_GLOBAL          27
-    0261    | OP_CONSTANT             8 'beta'
-    0264    | OP_EQUAL            
-    0265    | OP_NOT              
-    0266    | OP_JUMP_IF_FALSE      266 -> 277
-    0269    | OP_POP              
-    0270    | OP_CONSTANT            18 'zip.read'
-    0273    | OP_THROW            
-    0274    | OP_JUMP               274 -> 278
-    0277    | OP_POP              
-    0278   31 OP_CONSTANT            19 '<module_reference 0 128 2>'
-    0281    | OP_GET_GLOBAL          22
-    0284    | OP_CONSTANT             1 'zip_b.txt'
-    0287    | OP_CALL                 2
-    0289    | OP_DEFINE_GLOBAL       28
-    0292   32 OP_GET_GLOBAL          28
-    0295    | OP_NIL              
-    0296    | OP_EQUAL            
-    0297    | OP_JUMP_IF_FALSE      297 -> 308
-    0300    | OP_POP              
-    0301    | OP_CONSTANT            20 'zip.read_buffer nil'
-    0304    | OP_THROW            
-    0305    | OP_JUMP               305 -> 309
-    0308    | OP_POP              
-    0309   33 OP_GET_GLOBAL          28
-    0312    | OP_INVOKE              21 'length' (0 args)
-    0316    | OP_CONSTANT            22 '4'
-    0319    | OP_EQUAL            
-    0320    | OP_NOT              
-    0321    | OP_JUMP_IF_FALSE      321 -> 332
-    0324    | OP_POP              
-    0325    | OP_CONSTANT            23 'zip.read_buffer len'
-    0328    | OP_THROW            
-    0329    | OP_JUMP               329 -> 333
-    0332    | OP_POP              
-    0333   34 OP_GET_GLOBAL          28
-    0336    | OP_CONSTANT            25 '0'
-    0339    | OP_INVOKE              24 'seek' (1 args)
-    0343    | OP_POP              
-    0344   35 OP_GET_GLOBAL          28
-    0347    | OP_INVOKE              26 'readByte' (0 args)
-    0351    | OP_CONSTANT            27 '98'
-    0354    | OP_EQUAL            
-    0355    | OP_NOT              
-    0356    | OP_JUMP_IF_FALSE      356 -> 367
-    0359    | OP_POP              
-    0360    | OP_CONSTANT            28 'zip.read_buffer b0'
-    0363    | OP_THROW            
-    0364    | OP_JUMP               364 -> 368
-    0367    | OP_POP              
-    0368   36 OP_GET_GLOBAL          28
-    0371    | OP_INVOKE              26 'readByte' (0 args)
-    0375    | OP_CONSTANT            29 '101'
-    0378    | OP_EQUAL            
-    0379    | OP_NOT              
-    0380    | OP_JUMP_IF_FALSE      380 -> 391
-    0383    | OP_POP              
-    0384    | OP_CONSTANT            30 'zip.read_buffer b1'
-    0387    | OP_THROW            
-    0388    | OP_JUMP               388 -> 392
-    0391    | OP_POP              
-    0392   37 OP_GET_GLOBAL          28
-    0395    | OP_INVOKE              26 'readByte' (0 args)
-    0399    | OP_CONSTANT            31 '116'
-    0402    | OP_EQUAL            
-    0403    | OP_NOT              
-    0404    | OP_JUMP_IF_FALSE      404 -> 415
-    0407    | OP_POP              
-    0408    | OP_CONSTANT            32 'zip.read_buffer b2'
-    0411    | OP_THROW            
-    0412    | OP_JUMP               412 -> 416
-    0415    | OP_POP              
-    0416   38 OP_GET_GLOBAL          28
-    0419    | OP_INVOKE              26 'readByte' (0 args)
-    0423    | OP_CONSTANT            33 '97'
-    0426    | OP_EQUAL            
-    0427    | OP_NOT              
-    0428    | OP_JUMP_IF_FALSE      428 -> 439
-    0431    | OP_POP              
-    0432    | OP_CONSTANT            34 'zip.read_buffer b3'
-    0435    | OP_THROW            
-    0436    | OP_JUMP               436 -> 440
-    0439    | OP_POP              
-    0440   39 OP_GET_GLOBAL          28
-    0443    | OP_FREE             
-    0444    | OP_POP              
-    0445   41 OP_CONSTANT            35 '<module_reference 0 128 3>'
-    0448    | OP_GET_GLOBAL          22
-    0451    | OP_GET_GLOBAL          23
-    0454    | OP_CALL                 2
-    0456    | OP_NOT              
-    0457    | OP_JUMP_IF_FALSE      457 -> 468
-    0460    | OP_POP              
-    0461    | OP_CONSTANT            36 'zip.extract'
-    0464    | OP_THROW            
-    0465    | OP_JUMP               465 -> 469
-    0468    | OP_POP              
-    0469   43 OP_CONSTANT            37 '<module_reference 0 64 0>'
-    0472    | OP_GET_GLOBAL          23
-    0475    | OP_CONSTANT            38 '/zip_a.txt'
-    0478    | OP_ADD              
-    0479    | OP_CALL                 1
-    0481    | OP_DEFINE_GLOBAL       29
-    0484   44 OP_CONSTANT            39 '<module_reference 0 64 0>'
-    0487    | OP_GET_GLOBAL          23
-    0490    | OP_CONSTANT            40 '/zip_b.txt'
-    0493    | OP_ADD              
-    0494    | OP_CALL                 1
-    0496    | OP_DEFINE_GLOBAL       30
-    0499   45 OP_GET_GLOBAL          29
-    0502    | OP_CONSTANT             5 'alpha'
-    0505    | OP_EQUAL            
-    0506    | OP_NOT              
-    0507    | OP_JUMP_IF_FALSE      507 -> 518
-    0510    | OP_POP              
-    0511    | OP_CONSTANT            41 'zip.extract read A'
-    0514    | OP_THROW            
-    0515    | OP_JUMP               515 -> 519
-    0518    | OP_POP              
-    0519   46 OP_GET_GLOBAL          30
-    0522    | OP_CONSTANT             8 'beta'
-    0525    | OP_EQUAL            
-    0526    | OP_NOT              
-    0527    | OP_JUMP_IF_FALSE      527 -> 538
-    0530    | OP_POP              
-    0531    | OP_CONSTANT            42 'zip.extract read B'
-    0534    | OP_THROW            
-    0535    | OP_JUMP               535 -> 539
-    0538    | OP_POP              
-    0539   47 OP_NIL              
-    0540    | OP_RETURN           
+    0064   27 OP_GET_GLOBAL           4
+    0067    | OP_CONSTANT             5 '300'
+    0070    | OP_GREATER          
+    0071    | OP_JUMP_IF_FALSE       71 -> 81
+    0074    | OP_POP              
+    0075   29 OP_JUMP                75 -> 89
+    0078   30 OP_JUMP                78 -> 82
+    0081    | OP_POP              
+    0082   31 OP_CONSTANT             6 '100'
+    0085    | OP_FRAME            
+    0086   32 OP_LOOP                86 -> 53
+    0089   34 OP_CONSTANT             4 '1'
+    0092    | OP_DEFINE_GLOBAL       23
+    0095   35 OP_NIL              
+    0096    | OP_RETURN           
 
 
 ========================================

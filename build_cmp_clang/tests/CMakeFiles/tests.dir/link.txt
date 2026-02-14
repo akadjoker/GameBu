@@ -1,0 +1,1 @@
+/usr/bin/clang++ -O3 -DNDEBUG CMakeFiles/tests.dir/src/main.cpp.o -o /tmp/BuGame-dev/bin/tests  ../libbu/libbu/liblibbu.a -lm -lpthread 
