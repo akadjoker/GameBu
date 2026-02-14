@@ -243,8 +243,8 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
         // Functions (38-43)
         &&op_call,
         &&op_return,
-        &&op_spawn,
-        &&op_yield,
+        &&op_legacy_fiber_opcode,
+        &&op_legacy_fiber_opcode,
         &&op_frame,
         &&op_exit,
 
@@ -1522,15 +1522,11 @@ op_return:
 
     // ========== PROCESS/FIBER CONTROL ==========
 
-op_yield:
+op_legacy_fiber_opcode:
 {
-    Value value = POP();
-    float ms = value.isInt()
-                   ? (float)value.asInt()
-                   : (float)value.asDouble();
-
+    runtimeError("Legacy fiber opcode is disabled in single-fiber mode");
     STORE_FRAME();
-    return {FiberResult::FIBER_YIELD, instructionsRun, ms, 0};
+    return {FiberResult::ERROR, instructionsRun, 0, 0};
 }
 
 op_frame:
@@ -1569,67 +1565,6 @@ op_exit:
 
     STORE_FRAME();
     return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-}
-
-op_spawn:
-{
-    uint8 argCount = READ_BYTE();
-    Value callee = NPEEK(argCount);
-
-    if (!process)
-    {
-        runtimeError("No current process for spawn");
-        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-    }
-    if (process->nextFiberIndex >= process->totalFibers)
-    {
-        runtimeError("Too many fibers in process (max %d)", process->totalFibers);
-        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-    }
-    if (!callee.isFunction())
-    {
-        runtimeError("fiber expects a function");
-        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-    }
-
-    int funcIndex = callee.asFunctionId();
-    Function *func = functions[funcIndex];
-    if (!func)
-    {
-        runtimeError("Invalid function");
-        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-    }
-    if (argCount != func->arity)
-    {
-        runtimeError("Expected %d arguments but got %d", func->arity, argCount);
-        return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
-    }
-
-    int fiberIdx = process->nextFiberIndex++;
-    Fiber *newFiber = &process->fibers[fiberIdx];
-
-    newFiber->state = FiberState::RUNNING;
-    newFiber->resumeTime = 0;
-    newFiber->stackTop = newFiber->stack;
-    newFiber->frameCount = 0;
-
-    newFiber->stack[0] = callee; // Slot 0 = Função
-
-    for (int i = 0; i < argCount; i++)
-    {
-        newFiber->stack[i + 1] = fiber->stackTop[-(argCount - i)];
-    }
-    newFiber->stackTop = newFiber->stack + argCount + 1;
-
-    CallFrame *frame = &newFiber->frames[newFiber->frameCount++];
-    frame->func = func;
-    frame->closure = nullptr;
-    frame->ip = func->chunk->code;
-    frame->slots = newFiber->stack;
-
-    fiber->stackTop -= (argCount + 1);
-    PUSH(makeInt(fiberIdx));
-    DISPATCH();
 }
 
     // ========== DEBUG ==========

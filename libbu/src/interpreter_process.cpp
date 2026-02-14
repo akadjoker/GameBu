@@ -187,7 +187,8 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func, int totalF
     proc->privates[24] = makeInt(0);    // xold
     proc->privates[25] = makeInt(0);    // yold
 
-    proc->totalFibers = totalFibers;
+    (void)totalFibers;
+    proc->totalFibers = 1;
 
     proc->fibers = (Fiber *)calloc(proc->totalFibers, sizeof(Fiber));
 
@@ -236,13 +237,14 @@ Process *Interpreter::spawnProcess(ProcessDef *blueprint)
     instance->exitCode = 0;
   
 
-    if (instance->fibers == nullptr || instance->totalFibers != blueprint->totalFibers)
+    const int runtimeFiberCount = 1;
+    if (instance->fibers == nullptr || instance->totalFibers != runtimeFiberCount)
     {
         if (instance->fibers) 
         {
             free(instance->fibers);
         }
-        instance->totalFibers = blueprint->totalFibers;
+        instance->totalFibers = runtimeFiberCount;
         instance->fibers = (Fiber*)calloc(instance->totalFibers, sizeof(Fiber));        
         if (!instance->fibers)
         {
@@ -263,7 +265,15 @@ Process *Interpreter::spawnProcess(ProcessDef *blueprint)
         instance->privates[i] = blueprint->privates[i];
     }
 
-    for (int i = 0; i < blueprint->totalFibers; i++)
+    const int sourceFiberCount = (blueprint->fibers && blueprint->totalFibers > 0) ? 1 : 0;
+    if (sourceFiberCount == 0)
+    {
+        runtimeError("Process blueprint has no executable fiber");
+        ProcessPool::instance().recycle(instance);
+        return nullptr;
+    }
+
+    for (int i = 0; i < sourceFiberCount; i++)
     {
         Fiber *srcFiber = &blueprint->fibers[i];
         Fiber *dstFiber = &instance->fibers[i];

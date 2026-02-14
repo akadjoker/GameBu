@@ -2315,61 +2315,36 @@ void Compiler::parseRequire()
 
 void Compiler::yieldStatement()
 {
-
     if (match(TOKEN_LPAREN))
     {
-        expression(); // Percentagem vai para stack
-        consume(TOKEN_RPAREN, "Expect ')' after percentage");
-    }
-    else
-    {
-
-        emitConstant(vm_->makeDouble(1.0));
+        expression();
+        consume(TOKEN_RPAREN, "Expect ')' after yield argument");
     }
 
-    consume(TOKEN_SEMICOLON, "Expect ';' after yild");
-    emitByte(OP_YIELD);
+    consume(TOKEN_SEMICOLON, "Expect ';' after yield");
+    error("'yield' is disabled in single-fiber mode. Use 'frame;' to schedule the next process tick.");
 }
 
 void Compiler::fiberStatement()
 {
-    // Fibers não podem ser criados dentro de loops
-    // São para state machines e animações, não para spawning dinâmico
-    if (loopDepth_ > 0)
-    {
-        error("Cannot spawn fiber inside a loop. Fibers are for state machines, not dynamic spawning.");
-        return;
-    }
-
     consume(TOKEN_IDENTIFIER, "Expect function name after 'fiber'.");
     Token nameToken = previous;
 
-    namedVariable(nameToken, false); // empilha callee
+    namedVariable(nameToken, false);
 
     consume(TOKEN_LPAREN, "Expect '(' after fiber function name.");
-
-    uint8 argCount = 0;
 
     if (!check(TOKEN_RPAREN))
     {
         do
         {
             expression();
-
-            if (argCount == 255)
-            {
-                error("Can't have more than 255 arguments");
-            }
-            argCount++;
         } while (match(TOKEN_COMMA));
     }
 
     consume(TOKEN_RPAREN, "Expect ')' after arguments");
     consume(TOKEN_SEMICOLON, "Expect ';' after fiber call.");
-
-    emitByte(OP_SPAWN);
-    emitByte(argCount);
-    numFibers_ += 1;
+    error("'fiber' is disabled in single-fiber mode. Split this logic into a process instead.");
 }
 
 void Compiler::dot(bool canAssign)
