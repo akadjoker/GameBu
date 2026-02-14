@@ -527,7 +527,27 @@ static int runScript(const char *path)
     configureTestInterpreter(vm, ctx);
 
     bool ok = vm.run(code.c_str(), false);
-    return ok ? 0 : 1;
+    if (!ok)
+        return 1;
+
+    // Headless game loop: process/frame/fiber execution advances on update().
+    static constexpr float kFixedDeltaSeconds = 1.0f / 60.0f;
+    static constexpr int kMaxUpdateSteps = 120000; // Safety cap
+
+    int steps = 0;
+    while (vm.getTotalAliveProcesses() > 0 && steps < kMaxUpdateSteps)
+    {
+        vm.update(kFixedDeltaSeconds);
+        steps++;
+    }
+
+    if (vm.getTotalAliveProcesses() > 0)
+    {
+        fprintf(stderr, "  script exceeded max update steps (%d): %s\n", kMaxUpdateSteps, path);
+        return 1;
+    }
+
+    return 0;
 }
 
 static bool runLoadedMainProcess(Interpreter &vm, int maxSteps)
