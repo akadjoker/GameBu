@@ -539,13 +539,13 @@ static bool runLoadedMainProcess(Interpreter &vm, int maxSteps)
         return false;
     }
 
-    if (!proc->fibers || proc->totalFibers <= 0)
+    if (proc->frameCount <= 0)
     {
-        fprintf(stderr, "  bytecode roundtrip: process has no fibers\n");
+        fprintf(stderr, "  bytecode roundtrip: process has no execution context\n");
         return false;
     }
 
-    Fiber *fiber = &proc->fibers[0];
+    ProcessExec *fiber = proc;
     vm.setCurrentProcess(proc);
     vm.setCurrentFiber(fiber);
 

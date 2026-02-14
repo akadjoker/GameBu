@@ -27,7 +27,7 @@
 
 struct Function;
 struct CallFrame;
-struct Fiber;
+struct ProcessExec;
 struct Process;
 class Interpreter;
 class Compiler;
@@ -531,11 +531,11 @@ struct TryHandler
   }
 };
 
-struct Fiber
+struct ProcessExec
 {
 
-  FiberState state; // Estado da FIBER (yield)
-  float resumeTime; // Quando acorda (yield)
+  ProcessState state; // Estado de execução do processo
+  float resumeTime;   // Quando acorda (yield/frame)
 
   uint8 *ip;
   Value stack[STACK_MAX];
@@ -547,8 +547,8 @@ struct Fiber
   TryHandler tryHandlers[TRY_MAX];
   int tryDepth;
 
-  Fiber()
-      : state(FiberState::DEAD), resumeTime(0), ip(nullptr), stackTop(stack),
+  ProcessExec()
+      : state(ProcessState::DEAD), resumeTime(0), ip(nullptr), stackTop(stack),
         frameCount(0), gosubTop(0), tryDepth(0) {}
 };
 enum class PrivateIndex : uint8
@@ -583,32 +583,24 @@ enum class PrivateIndex : uint8
 
 };
 
-struct ProcessDef
+struct ProcessDef : public ProcessExec
 {
   int index;
   Vector<uint8> argsNames;
   String *name{nullptr};
-  Fiber *fibers{nullptr};
   Value privates[MAX_PRIVATES];
-  int totalFibers;
-  int nextFiberIndex;
   void finalize();
   void release();
 };
 
-struct Process
+struct Process : public ProcessExec
 {
 
   String *name{nullptr};
   uint32 id{0};
   int blueprint{-1}; // Índice do ProcessDef que é a "blueprint" desse processo
-  FiberState state;        //  Estado do PROCESSO (frame)
-  float resumeTime = 0.0f; // Quando acorda (frame)
-  Fiber *fibers{nullptr};
-  int totalFibers{0};
-  int nextFiberIndex{0};
-  int currentFiberIndex{0};
-  Fiber *current{nullptr};
+  // Estado do processo usa o mesmo contexto de execução herdado (ProcessExec::state/resumeTime).
+  ProcessExec *current{nullptr};
   void *userData{nullptr}; 
   Value privates[MAX_PRIVATES];
 
@@ -702,14 +694,14 @@ class Interpreter
   float accumulator = 0.0f;
   const float FIXED_DT = 1.0f / 60.0f;
 
-  Fiber *currentFiber;
+  ProcessExec *currentFiber;
   Process *currentProcess;
   Process *mainProcess;
   // Internal boundary used by C++->script calls (callFunction/callMethod).
   // When the target frame returns, run_fiber stops with CALL_RETURN instead
   // of continuing to execute the caller frame.
   bool stopOnCallReturn_{false};
-  Fiber *callReturnFiber_{nullptr};
+  ProcessExec *callReturnFiber_{nullptr};
   int callReturnTargetFrameCount_{-1};
   bool hasFatalError_;
   bool debugMode_;
@@ -729,14 +721,13 @@ class Interpreter
   void blackenObject(GCObject *obj);
   void traceReferences();
 
-  Fiber *get_ready_fiber(Process *proc);
   void resetFiber();
-  void initFiber(Fiber *fiber, Function *func);
+  void initFiber(ProcessExec *fiber, Function *func);
   void setPrivateTable();
   void checkType(int index, ValueType expected, const char *funcName);
 
   void addFunctionsClasses(Function *fun);
-  bool findAndJumpToHandler(Value error, uint8 *&ip, Fiber *fiber);
+  bool findAndJumpToHandler(Value error, uint8 *&ip, ProcessExec *fiber);
 
   friend class Compiler;
   friend class ModuleBuilder;
@@ -1051,7 +1042,7 @@ public:
   void addStructField(NativeStructDef *def, const char *fieldName,
                       size_t offset, FieldType type, bool readOnly = false);
 
-  ProcessDef *addProcess(const char *name, Function *func, int totalFibers);
+  ProcessDef *addProcess(const char *name, Function *func);
   void destroyProcess(Process *proc);
   Process *spawnProcess(ProcessDef *proc);
 
@@ -1082,7 +1073,6 @@ public:
   const Vector<Process *>& getAliveProcesses() const { return aliveProcesses; }
 
   void destroyFunction(Function *func);
-  void addFiber(Process *proc, Function *func);
 
   int registerNative(const char *name, NativeFunction func, int arity);
   int registerNativeProcess(const char *name, NativeFunctionProcess func, int arity);
@@ -1109,7 +1099,7 @@ public:
   int registerFunction(const char *name, Function *func);
 
   void run_process_step(Process *proc);
-  FiberResult run_fiber(Fiber *fiber, Process *proc);
+  FiberResult run_fiber(ProcessExec *fiber, Process *proc);
 
   float getCurrentTime() const;
 
@@ -1154,9 +1144,9 @@ public:
 
   void killAliveProcess();
 
-  // Fiber/Process context (for callbacks from external libraries like GTK)
-  Fiber* getCurrentFiber() { return currentFiber; }
-  void setCurrentFiber(Fiber* fiber) { currentFiber = fiber; }
+  // ProcessExec/Process context (for callbacks from external libraries like GTK)
+  ProcessExec* getCurrentFiber() { return currentFiber; }
+  void setCurrentFiber(ProcessExec* fiber) { currentFiber = fiber; }
   Process* getCurrentProcess() { return currentProcess; }
   void setCurrentProcess(Process* process) { currentProcess = process; }
 

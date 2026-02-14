@@ -18,7 +18,7 @@ struct Value;
 class Compiler;
 struct Function;
 struct CallFrame;
-struct Fiber;
+struct ProcessExec;
 struct Process;
 struct String;
 struct ProcessDef;
@@ -223,7 +223,6 @@ private:
 
   LoopContext loopContexts_[MAX_LOOP_DEPTH];
   bool isProcess_;
-  int numFibers_;
 
   struct EnclosingContext
   {
@@ -359,8 +358,6 @@ private:
   void foreachStatement();
   void returnStatement();
   void block();
-  void yieldStatement();
-  void fiberStatement();
 
   void tryStatement();
   void throwStatement();

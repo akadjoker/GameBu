@@ -95,8 +95,6 @@ enum TokenType
     TOKEN_TYPE,
     TOKEN_FRAME,
     TOKEN_EXIT,
-    TOKEN_FIBER,
-    TOKEN_YIELD,
     TOKEN_LEN,
     TOKEN_FREE,
     TOKEN_PROC,

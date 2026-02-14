@@ -76,14 +76,6 @@ void Compiler::statement()
     {
         frameStatement();
     }
-    else if (match(TOKEN_YIELD))
-    {
-        yieldStatement();
-    }
-    else if (match(TOKEN_FIBER))
-    {
-        fiberStatement();
-    }
     else if (match(TOKEN_EXIT))
     {
         exitStatement();
@@ -1615,11 +1607,10 @@ void Compiler::processDeclaration()
     }
 
     // Compila processo
-    numFibers_ = 1;
     compileFunction(func, true); // true = É PROCESS!
 
     // Cria blueprint (process não vai para globals como callable)
-    ProcessDef *proc = vm_->addProcess(nameToken.lexeme.c_str(), func, numFibers_);
+    ProcessDef *proc = vm_->addProcess(nameToken.lexeme.c_str(), func);
     currentProcess = proc;
 
     for (uint32 i = 0; i < argNames.size(); i++)
@@ -2311,40 +2302,6 @@ void Compiler::parseRequire()
     }
 
     consume(TOKEN_SEMICOLON, "Expect ';' after require");
-}
-
-void Compiler::yieldStatement()
-{
-    if (match(TOKEN_LPAREN))
-    {
-        expression();
-        consume(TOKEN_RPAREN, "Expect ')' after yield argument");
-    }
-
-    consume(TOKEN_SEMICOLON, "Expect ';' after yield");
-    error("'yield' is disabled in single-fiber mode. Use 'frame;' to schedule the next process tick.");
-}
-
-void Compiler::fiberStatement()
-{
-    consume(TOKEN_IDENTIFIER, "Expect function name after 'fiber'.");
-    Token nameToken = previous;
-
-    namedVariable(nameToken, false);
-
-    consume(TOKEN_LPAREN, "Expect '(' after fiber function name.");
-
-    if (!check(TOKEN_RPAREN))
-    {
-        do
-        {
-            expression();
-        } while (match(TOKEN_COMMA));
-    }
-
-    consume(TOKEN_RPAREN, "Expect ')' after arguments");
-    consume(TOKEN_SEMICOLON, "Expect ';' after fiber call.");
-    error("'fiber' is disabled in single-fiber mode. Split this logic into a process instead.");
 }
 
 void Compiler::dot(bool canAssign)

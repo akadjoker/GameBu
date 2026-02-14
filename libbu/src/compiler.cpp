@@ -334,14 +334,13 @@ ProcessDef *Compiler::compile(const std::string &source)
   currentClass = nullptr;
 
   advance();
-  numFibers_ = 1;
 
   while (!match(TOKEN_EOF) && !hadError)
   {
     declaration();
   }
 
-  currentProcess = vm_->addProcess("__main_process__", function, numFibers_);
+  currentProcess = vm_->addProcess("__main_process__", function);
 
   if (!currentProcess)
   {
@@ -376,7 +375,6 @@ ProcessDef *Compiler::compile(const std::string &source)
 
 ProcessDef *Compiler::compileExpression(const std::string &source)
 {
-  numFibers_ = 1;
   delete lexer;
   stats.maxExpressionDepth = 0;
   stats.maxScopeDepth = 0;
@@ -393,7 +391,7 @@ ProcessDef *Compiler::compileExpression(const std::string &source)
   function = vm_->addFunction("__expr__", 0);
   currentChunk = function->chunk;
 
-  currentProcess = vm_->addProcess("__main__", function, 1);
+  currentProcess = vm_->addProcess("__main__", function);
   currentFunctionType = FunctionType::TYPE_SCRIPT;
   currentClass = nullptr;
   enclosingStack_.clear();
@@ -650,8 +648,6 @@ bool Compiler::isKeywordToken(TokenType type)
   case TOKEN_GET_ID:
   case TOKEN_FRAME:
   case TOKEN_EXIT:
-  case TOKEN_FIBER:
-  case TOKEN_YIELD:
   case TOKEN_LEN:
   case TOKEN_FREE:
   // OOP
@@ -802,8 +798,6 @@ void Compiler::synchronize()
 
     //  SPECIAL STATEMENTS
     case TOKEN_PRINT:
-    case TOKEN_YIELD:
-    case TOKEN_FIBER:
     case TOKEN_FRAME:
     case TOKEN_EXIT:
       return;

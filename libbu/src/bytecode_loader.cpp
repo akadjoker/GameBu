@@ -707,9 +707,6 @@ bool readProcessRecord(Interpreter *vm,
   ProcessDef *proc = new ProcessDef();
   proc->index = -1;
   proc->name = nullptr;
-  proc->fibers = nullptr;
-  proc->totalFibers = 0;
-  proc->nextFiberIndex = 0;
 
   int32 index = 0;
   if (!reader.readI32(&index))
@@ -814,224 +811,192 @@ bool readProcessRecord(Interpreter *vm,
     return false;
   }
 
-  if (fiberCount > (uint32)std::numeric_limits<int>::max())
+  if (fiberCount != 1)
   {
-    vm->safetimeError("loadBytecode: fiber count is too large for process slot %u (%u)", slotIndex, fiberCount);
+    vm->safetimeError("loadBytecode: process slot %u has unsupported fiber count (%u), expected 1",
+                      slotIndex, fiberCount);
     delete proc;
     return false;
   }
 
-  proc->totalFibers = (int)fiberCount;
-  if (nextFiberIndexRaw < 0)
+  if (nextFiberIndexRaw < 0 || nextFiberIndexRaw > 1)
   {
-    proc->nextFiberIndex = 0;
+    vm->safetimeError("loadBytecode: invalid next fiber index for process slot %u (%d)",
+                      slotIndex, nextFiberIndexRaw);
+    delete proc;
+    return false;
+  }
+
+  ProcessExec &fiber = *proc;
+  fiber.state = ProcessState::DEAD;
+  fiber.resumeTime = 0.0f;
+  fiber.ip = nullptr;
+  fiber.stackTop = fiber.stack;
+  fiber.frameCount = 0;
+  fiber.gosubTop = 0;
+  fiber.tryDepth = 0;
+
+  const int i = 0;
+  uint8 rawState = 0;
+  if (!reader.readU8(&rawState))
+  {
+    vm->safetimeError("loadBytecode: failed to read fiber state for process slot %u fiber %d", slotIndex, i);
+    delete proc;
+    return false;
+  }
+
+  if (rawState > (uint8)ProcessState::DEAD)
+  {
+    vm->safetimeError("loadBytecode: invalid fiber state %u for process slot %u fiber %d",
+                      (unsigned)rawState, slotIndex, i);
+    delete proc;
+    return false;
+  }
+  fiber.state = (ProcessState)rawState;
+
+  if (!reader.readF32(&fiber.resumeTime))
+  {
+    vm->safetimeError("loadBytecode: failed to read fiber resume time for process slot %u fiber %d",
+                      slotIndex, i);
+    delete proc;
+    return false;
+  }
+
+  int32 frameCount = 0;
+  int32 gosubTop = 0;
+  int32 tryDepth = 0;
+  uint32 serializedFrameCount = 0;
+
+  if (!reader.readI32(&frameCount) ||
+      !reader.readI32(&gosubTop) ||
+      !reader.readI32(&tryDepth) ||
+      !reader.readU32(&serializedFrameCount))
+  {
+    vm->safetimeError("loadBytecode: failed to read fiber frame metadata for process slot %u fiber %d",
+                      slotIndex, i);
+    delete proc;
+    return false;
+  }
+
+  if (frameCount < 0 || frameCount > FRAMES_MAX || (uint32)frameCount != serializedFrameCount)
+  {
+    vm->safetimeError("loadBytecode: invalid frame count for process slot %u fiber %d (%d / %u)",
+                      slotIndex, i, frameCount, serializedFrameCount);
+    delete proc;
+    return false;
+  }
+  fiber.frameCount = frameCount;
+
+  fiber.gosubTop = std::max(0, std::min((int)GOSUB_MAX, (int)gosubTop));
+  fiber.tryDepth = std::max(0, std::min((int)TRY_MAX, (int)tryDepth));
+
+  for (int frameIndex = 0; frameIndex < frameCount; ++frameIndex)
+  {
+    CallFrame &frame = fiber.frames[frameIndex];
+    frame.func = nullptr;
+    frame.ip = nullptr;
+    frame.slots = fiber.stack;
+    frame.closure = nullptr;
+
+    int32 functionIndex = 0;
+    uint32 ipOffset = 0;
+    int32 slotOffset = 0;
+    if (!reader.readI32(&functionIndex) ||
+        !reader.readU32(&ipOffset) ||
+        !reader.readI32(&slotOffset))
+    {
+      vm->safetimeError("loadBytecode: failed to read frame %d for process slot %u fiber %d",
+                        frameIndex, slotIndex, i);
+      delete proc;
+      return false;
+    }
+
+    if (functionIndex >= 0)
+    {
+      if (!resolveFunctionByIndex(vm, functions, functionIndex, "process frame", &frame.func))
+      {
+        delete proc;
+        return false;
+      }
+    }
+    else if (ipOffset != kInvalidIpOffset)
+    {
+      vm->safetimeError("loadBytecode: frame %d in process slot %u fiber %d has ip offset without function",
+                        frameIndex, slotIndex, i);
+      delete proc;
+      return false;
+    }
+
+    if (frame.func && ipOffset != kInvalidIpOffset)
+    {
+      if (ipOffset > frame.func->chunk->count)
+      {
+        vm->safetimeError("loadBytecode: invalid ip offset %u for frame %d in process slot %u fiber %d",
+                          ipOffset, frameIndex, slotIndex, i);
+        delete proc;
+        return false;
+      }
+      frame.ip = frame.func->chunk->code + ipOffset;
+    }
+
+    if (slotOffset == -1)
+    {
+      frame.slots = fiber.stack;
+    }
+    else if (slotOffset >= 0 && slotOffset <= STACK_MAX)
+    {
+      frame.slots = fiber.stack + slotOffset;
+    }
+    else
+    {
+      vm->safetimeError("loadBytecode: invalid slot offset %d for frame %d in process slot %u fiber %d",
+                        slotOffset, frameIndex, slotIndex, i);
+      delete proc;
+      return false;
+    }
+  }
+
+  uint32 fiberIpOffset = 0;
+  int32 stackSize = 0;
+  if (!reader.readU32(&fiberIpOffset) || !reader.readI32(&stackSize))
+  {
+    vm->safetimeError("loadBytecode: failed to read fiber tail metadata for process slot %u fiber %d",
+                      slotIndex, i);
+    delete proc;
+    return false;
+  }
+
+  if (stackSize == -1)
+  {
+    fiber.stackTop = fiber.stack;
+  }
+  else if (stackSize >= 0 && stackSize <= STACK_MAX)
+  {
+    fiber.stackTop = fiber.stack + stackSize;
   }
   else
   {
-    proc->nextFiberIndex = std::min((int)fiberCount, (int)nextFiberIndexRaw);
+    vm->safetimeError("loadBytecode: invalid stack size %d for process slot %u fiber %d",
+                      stackSize, slotIndex, i);
+    delete proc;
+    return false;
   }
 
-  if (proc->totalFibers > 0)
+  Function *baseFunc = frameCount > 0 ? fiber.frames[0].func : nullptr;
+  if (baseFunc && fiberIpOffset != kInvalidIpOffset)
   {
-    proc->fibers = (Fiber *)std::calloc((size_t)proc->totalFibers, sizeof(Fiber));
-    if (!proc->fibers)
+    if (fiberIpOffset > baseFunc->chunk->count)
     {
-      vm->safetimeError("loadBytecode: failed to allocate fibers for process slot %u", slotIndex);
+      vm->safetimeError("loadBytecode: invalid fiber ip offset %u for process slot %u fiber %d",
+                        fiberIpOffset, slotIndex, i);
       delete proc;
       return false;
     }
+    fiber.ip = baseFunc->chunk->code + fiberIpOffset;
   }
-
-  for (int i = 0; i < proc->totalFibers; ++i)
+  else
   {
-    Fiber &fiber = proc->fibers[i];
-    fiber.state = FiberState::DEAD;
-    fiber.resumeTime = 0.0f;
     fiber.ip = nullptr;
-    fiber.stackTop = fiber.stack;
-    fiber.frameCount = 0;
-    fiber.gosubTop = 0;
-    fiber.tryDepth = 0;
-  }
-
-  for (int i = 0; i < proc->totalFibers; ++i)
-  {
-    Fiber &fiber = proc->fibers[i];
-
-    uint8 rawState = 0;
-    if (!reader.readU8(&rawState))
-    {
-      vm->safetimeError("loadBytecode: failed to read fiber state for process slot %u fiber %d", slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-
-    if (rawState > (uint8)FiberState::DEAD)
-    {
-      vm->safetimeError("loadBytecode: invalid fiber state %u for process slot %u fiber %d",
-                        (unsigned)rawState, slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-    fiber.state = (FiberState)rawState;
-
-    if (!reader.readF32(&fiber.resumeTime))
-    {
-      vm->safetimeError("loadBytecode: failed to read fiber resume time for process slot %u fiber %d",
-                        slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-
-    int32 frameCount = 0;
-    int32 gosubTop = 0;
-    int32 tryDepth = 0;
-    uint32 serializedFrameCount = 0;
-
-    if (!reader.readI32(&frameCount) ||
-        !reader.readI32(&gosubTop) ||
-        !reader.readI32(&tryDepth) ||
-        !reader.readU32(&serializedFrameCount))
-    {
-      vm->safetimeError("loadBytecode: failed to read fiber frame metadata for process slot %u fiber %d",
-                        slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-
-    if (frameCount < 0 || frameCount > FRAMES_MAX || (uint32)frameCount != serializedFrameCount)
-    {
-      vm->safetimeError("loadBytecode: invalid frame count for process slot %u fiber %d (%d / %u)",
-                        slotIndex, i, frameCount, serializedFrameCount);
-      proc->release();
-      delete proc;
-      return false;
-    }
-    fiber.frameCount = frameCount;
-
-    fiber.gosubTop = std::max(0, std::min((int)GOSUB_MAX, (int)gosubTop));
-    fiber.tryDepth = std::max(0, std::min((int)TRY_MAX, (int)tryDepth));
-
-    for (int frameIndex = 0; frameIndex < frameCount; ++frameIndex)
-    {
-      CallFrame &frame = fiber.frames[frameIndex];
-      frame.func = nullptr;
-      frame.ip = nullptr;
-      frame.slots = fiber.stack;
-      frame.closure = nullptr;
-
-      int32 functionIndex = 0;
-      uint32 ipOffset = 0;
-      int32 slotOffset = 0;
-      if (!reader.readI32(&functionIndex) ||
-          !reader.readU32(&ipOffset) ||
-          !reader.readI32(&slotOffset))
-      {
-        vm->safetimeError("loadBytecode: failed to read frame %d for process slot %u fiber %d",
-                          frameIndex, slotIndex, i);
-        proc->release();
-        delete proc;
-        return false;
-      }
-
-      if (functionIndex >= 0)
-      {
-        if (!resolveFunctionByIndex(vm, functions, functionIndex, "process frame", &frame.func))
-        {
-          proc->release();
-          delete proc;
-          return false;
-        }
-      }
-      else if (ipOffset != kInvalidIpOffset)
-      {
-        vm->safetimeError("loadBytecode: frame %d in process slot %u fiber %d has ip offset without function",
-                          frameIndex, slotIndex, i);
-        proc->release();
-        delete proc;
-        return false;
-      }
-
-      if (frame.func && ipOffset != kInvalidIpOffset)
-      {
-        if (ipOffset > frame.func->chunk->count)
-        {
-          vm->safetimeError("loadBytecode: invalid ip offset %u for frame %d in process slot %u fiber %d",
-                            ipOffset, frameIndex, slotIndex, i);
-          proc->release();
-          delete proc;
-          return false;
-        }
-        frame.ip = frame.func->chunk->code + ipOffset;
-      }
-
-      if (slotOffset == -1)
-      {
-        frame.slots = fiber.stack;
-      }
-      else if (slotOffset >= 0 && slotOffset <= STACK_MAX)
-      {
-        frame.slots = fiber.stack + slotOffset;
-      }
-      else
-      {
-        vm->safetimeError("loadBytecode: invalid slot offset %d for frame %d in process slot %u fiber %d",
-                          slotOffset, frameIndex, slotIndex, i);
-        proc->release();
-        delete proc;
-        return false;
-      }
-    }
-
-    uint32 fiberIpOffset = 0;
-    int32 stackSize = 0;
-    if (!reader.readU32(&fiberIpOffset) || !reader.readI32(&stackSize))
-    {
-      vm->safetimeError("loadBytecode: failed to read fiber tail metadata for process slot %u fiber %d",
-                        slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-
-    if (stackSize == -1)
-    {
-      fiber.stackTop = fiber.stack;
-    }
-    else if (stackSize >= 0 && stackSize <= STACK_MAX)
-    {
-      fiber.stackTop = fiber.stack + stackSize;
-    }
-    else
-    {
-      vm->safetimeError("loadBytecode: invalid stack size %d for process slot %u fiber %d",
-                        stackSize, slotIndex, i);
-      proc->release();
-      delete proc;
-      return false;
-    }
-
-    Function *baseFunc = frameCount > 0 ? fiber.frames[0].func : nullptr;
-    if (baseFunc && fiberIpOffset != kInvalidIpOffset)
-    {
-      if (fiberIpOffset > baseFunc->chunk->count)
-      {
-        vm->safetimeError("loadBytecode: invalid fiber ip offset %u for process slot %u fiber %d",
-                          fiberIpOffset, slotIndex, i);
-        proc->release();
-        delete proc;
-        return false;
-      }
-      fiber.ip = baseFunc->chunk->code + fiberIpOffset;
-    }
-    else
-    {
-      fiber.ip = nullptr;
-    }
   }
 
   proc->finalize();

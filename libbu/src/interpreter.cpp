@@ -431,7 +431,7 @@ void Interpreter::printStack()
   if (currentFiber)
   {
 
-    Fiber *fiber = currentFiber;
+    ProcessExec *fiber = currentFiber;
     if (fiber->stackTop == fiber->stack)
       printf("  (empty)\n");
     else
@@ -502,9 +502,9 @@ void Interpreter::disassemble()
     printf("Process #%zu: %s \n", i, proc->name->chars());
     printf("----------------------------------------\n");
 
-    if (proc->fibers[0].frameCount > 0)
+    if (proc->frameCount > 0)
     {
-      Function *func = proc->fibers[0].frames[0].func;
+      Function *func = proc->frames[0].func;
 
       printf("  Function: %s\n", func->name->chars());
       printf("  Arity: %d\n", func->arity);
@@ -680,62 +680,6 @@ bool Interpreter::tryGetGlobal(const char *name, Value *value)
 
 void Interpreter::print(Value value) { printValue(value); }
 
-Fiber *Interpreter::get_ready_fiber(Process *proc)
-{
-  if (!proc || !proc->fibers)
-    return nullptr;
-
-  int checked = 0;
-  int totalFibers = proc->nextFiberIndex;
-
-  if (totalFibers == 0)
-    return nullptr;
-
-  // printf("[get_ready_fiber] Checking %d fibers, time=%.3f\n", totalFibers,
-  // currentTime);
-
-  while (checked < totalFibers)
-  {
-    int idx = proc->currentFiberIndex;
-    proc->currentFiberIndex = (proc->currentFiberIndex + 1) % totalFibers;
-
-    Fiber *f = &proc->fibers[idx];
-
-    // printf("  Fiber %d: state=%d, resumeTime=%.3f\n", idx, (int)f->state,
-    // f->resumeTime);
-
-    checked++;
-
-    if (f->state == FiberState::DEAD)
-    {
-      //  printf("  -> DEAD, skip\n");
-      continue;
-    }
-
-    if (f->state == FiberState::SUSPENDED)
-    {
-      if (currentTime >= f->resumeTime)
-      {
-        // printf("  -> RESUMING (%.3f >= %.3f)\n", currentTime, f->resumeTime);
-        f->state = FiberState::RUNNING;
-        return f;
-      }
-      // printf("  -> Still suspended (wait %.3fms)\n", (f->resumeTime -
-      // currentTime) * 1000);
-      continue;
-    }
-
-    if (f->state == FiberState::RUNNING)
-    {
-      //  printf("  -> RUNNING, execute\n");
-      return f;
-    }
-  }
-
-  //  printf("  -> No ready fiber\n");
-  return nullptr;
-}
-
 float Interpreter::getCurrentTime() const { return currentTime; }
 
 static void OsVPrintf(const char *fmt, va_list args)
@@ -802,7 +746,7 @@ void Interpreter::runtimeError(const char *format, ...)
 }
 bool Interpreter::throwException(Value error)
 {
-  Fiber *fiber = currentFiber;
+  ProcessExec *fiber = currentFiber;
 
   while (fiber->tryDepth > 0)
   {
@@ -857,7 +801,7 @@ void Interpreter::resetFiber()
   {
     currentFiber->stackTop = currentFiber->stack;
     currentFiber->frameCount = 0;
-    currentFiber->state = FiberState::DEAD;
+    currentFiber->state = ProcessState::DEAD;
   }
   hasFatalError_ = false;
 }
@@ -881,7 +825,7 @@ Function *Interpreter::compile(const char *source)
     globalsArray.resize(globalIndexToName_.size());
   }
   
-  Function *mainFunc = proc->fibers[0].frames[0].func;
+  Function *mainFunc = proc->frames[0].func;
   return mainFunc;
 }
 
@@ -904,7 +848,7 @@ Function *Interpreter::compileExpression(const char *source)
     globalsArray.resize(globalIndexToName_.size());
   }
   
-  Function *mainFunc = proc->fibers[0].frames[0].func;
+  Function *mainFunc = proc->frames[0].func;
   return mainFunc;
 }
 
@@ -936,14 +880,14 @@ bool Interpreter::run(const char *source, bool _dump)
   if (_dump)
   {
     disassemble();
-    // Function *mainFunc = proc->fibers[0].frames[0].func;
+    // Function *mainFunc = proc->frames[0].func;
     //   Debug::dumpFunction(mainFunc);
   }
 
   mainProcess = spawnProcess(proc);
   currentProcess = mainProcess;
 
-  Fiber *fiber = &mainProcess->fibers[0];
+  ProcessExec *fiber = mainProcess;
 
   //  Debug::disassembleChunk(*fiber->frames[0].func->chunk,"#main");
 
@@ -979,7 +923,7 @@ bool Interpreter::compile(const char *source, bool dump)
   if (dump)
   {
     disassemble();
-    // Function *mainFunc = proc->fibers[0].frames[0].func;
+    // Function *mainFunc = proc->frames[0].func;
     //   Debug::dumpFunction(mainFunc);
   }
 
@@ -988,9 +932,9 @@ bool Interpreter::compile(const char *source, bool dump)
 
 void Interpreter::setHooks(const VMHooks &h) { hooks = h; }
 
-void Interpreter::initFiber(Fiber *fiber, Function *func)
+void Interpreter::initFiber(ProcessExec *fiber, Function *func)
 {
-  fiber->state = FiberState::RUNNING;
+  fiber->state = ProcessState::RUNNING;
   fiber->resumeTime = 0.0f;
 
   fiber->stackTop = fiber->stack;
@@ -1190,7 +1134,7 @@ Value Interpreter::createClassInstance(ClassDef *klass, int argCount, Value *arg
 
     // Guarda estado actual da fiber
     Process *proc = mainProcess;
-    Fiber *fiber = &proc->fibers[0];
+    ProcessExec *fiber = proc;
     int savedFrameCount = fiber->frameCount;
     Value *savedStackTop = fiber->stackTop;
 
@@ -1297,18 +1241,6 @@ Value Interpreter::createClassInstanceRaw(ClassDef *klass)
   return value;
 }
 
-void Interpreter::addFiber(Process *proc, Function *func)
-{
-  if (proc->nextFiberIndex >= proc->totalFibers)
-  {
-    runtimeError("Too many fibers in process");
-    return;
-  }
-
-  int index = proc->nextFiberIndex++;
-  initFiber(&proc->fibers[index], func);
-}
-
 void Interpreter::addFunctionsClasses(Function *fun)
 {
   if (!fun)
@@ -1326,7 +1258,7 @@ void Interpreter::addFunctionsClasses(Function *fun)
   functions.push(fun);
 }
 
-bool Interpreter::findAndJumpToHandler(Value error, uint8 *&ip, Fiber *fiber)
+bool Interpreter::findAndJumpToHandler(Value error, uint8 *&ip, ProcessExec *fiber)
 {
 
   while (fiber->tryDepth > 0)

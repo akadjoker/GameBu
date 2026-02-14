@@ -73,8 +73,6 @@ void Lexer::initKeywords()
         {"free", TOKEN_FREE},
         {"proc", TOKEN_PROC},
         {"get_id", TOKEN_GET_ID},
-        {"fiber", TOKEN_FIBER},
-        {"yield", TOKEN_YIELD},
         {"exit", TOKEN_EXIT},
         {"label", TOKEN_LABEL},
         {"goto", TOKEN_GOTO},

@@ -376,12 +376,13 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     return false;
   }
 
-  if (!writer.writeI32((int32)proc->totalFibers))
+  static constexpr int32 kSerializedFiberCount = 1;
+  if (!writer.writeI32(kSerializedFiberCount))
   {
     return false;
   }
 
-  if (!writer.writeI32((int32)proc->nextFiberIndex))
+  if (!writer.writeI32(kSerializedFiberCount))
   {
     return false;
   }
@@ -420,21 +421,15 @@ bool writeProcessRecord(Interpreter *vm, BytecodeWriter &writer, ProcessDef *pro
     }
   }
 
-  const int fiberCount = proc->totalFibers < 0 ? 0 : proc->totalFibers;
+  const int fiberCount = 1;
   if (!writer.writeU32((uint32)fiberCount))
   {
     return false;
   }
 
-  if (fiberCount > 0 && !proc->fibers)
-  {
-    vm->safetimeError("saveBytecode: process '%s' has null fibers buffer", procName);
-    return false;
-  }
-
   for (int i = 0; i < fiberCount; ++i)
   {
-    Fiber &fiber = proc->fibers[i];
+    ProcessExec &fiber = *proc;
 
     if (!writer.writeU8((uint8)fiber.state))
     {

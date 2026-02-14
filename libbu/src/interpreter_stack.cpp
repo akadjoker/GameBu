@@ -417,7 +417,7 @@ bool Interpreter::callFunction(Function *func, int argCount)
     currentFiber->frameCount++;
 
     bool prevStop = stopOnCallReturn_;
-    Fiber *prevFiber = callReturnFiber_;
+    ProcessExec *prevFiber = callReturnFiber_;
     int prevTarget = callReturnTargetFrameCount_;
 
     stopOnCallReturn_ = true;
@@ -551,7 +551,7 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
     }
 
     Process *proc = currentProcess ? currentProcess : mainProcess;
-    Fiber *fiber = currentFiber ? currentFiber : (proc ? &proc->fibers[0] : nullptr);
+    ProcessExec *fiber = currentFiber ? currentFiber : (proc ? proc : nullptr);
     if (!proc || !fiber)
     {
         runtimeError("No active process/fiber to call method '%s'", methodName);
@@ -588,7 +588,7 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
     frame->slots = fiber->stackTop - argCount - 1; // self is before args
 
     bool prevStop = stopOnCallReturn_;
-    Fiber *prevFiber = callReturnFiber_;
+    ProcessExec *prevFiber = callReturnFiber_;
     int prevTarget = callReturnTargetFrameCount_;
 
     stopOnCallReturn_ = true;
@@ -634,7 +634,7 @@ Process *Interpreter::callProcess(ProcessDef *proc, int argCount)
         return nullptr;
     }
 
-    Function *processFunc = proc->fibers[0].frames[0].func;
+    Function *processFunc = proc->frames[0].func;
 
     // Verifica arity
     if (argCount != processFunc->arity)
@@ -656,7 +656,7 @@ Process *Interpreter::callProcess(ProcessDef *proc, int argCount)
     // Se tem argumentos, inicializa
     if (argCount > 0)
     {
-        Fiber *procFiber = &instance->fibers[0];
+        ProcessExec *procFiber = instance;
         int localSlot = 0;
 
         for (int i = 0; i < argCount; i++)

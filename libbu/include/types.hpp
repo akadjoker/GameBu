@@ -21,7 +21,7 @@ enum class InterpretResult : uint8
     RUNTIME_ERROR
 };
 
-enum class FiberState : uint8
+enum class ProcessState : uint8
 {
     RUNNING,
     SUSPENDED,

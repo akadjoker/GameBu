@@ -15,7 +15,7 @@
  * - Collection operations (arrays, maps, buffers)
  * - String manipulation methods
  * - Mathematical functions (trigonometric, logarithmic, etc.)
- * - Process/Fiber management and concurrency primitives
+ * - Process/ProcessExec management and concurrency primitives
  * - Native class/struct integration
  * - Module function calls
  *
@@ -126,7 +126,7 @@ static const char *getValueTypeName(const Value &v)
     }
 }
 
-FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
+FiberResult Interpreter::run_fiber(ProcessExec *fiber, Process *process)
 {
 
     currentFiber = fiber;
@@ -1096,7 +1096,7 @@ op_call:
             return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
         }
 
-        Function *processFunc = blueprint->fibers[0].frames[0].func;
+        Function *processFunc = blueprint->frames[0].func;
 
         if (argCount != processFunc->arity)
         {
@@ -1111,7 +1111,7 @@ op_call:
         // Se tem argumentos, inicializa locals da fiber
         if (argCount > 0)
         {
-            Fiber *procFiber = &instance->fibers[0];
+            ProcessExec *procFiber = instance;
             int localSlot = 0;
 
             for (int i = 0; i < argCount; i++)
@@ -1498,15 +1498,11 @@ op_return:
         fiber->stackTop = fiber->stack;
         *fiber->stackTop++ = result;
 
-        fiber->state = FiberState::DEAD;
+        fiber->state = ProcessState::DEAD;
 
-        if (fiber == &process->fibers[0])
+        if (fiber == process)
         {
-            for (int i = 0; i < process->nextFiberIndex; i++)
-            {
-                process->fibers[i].state = FiberState::DEAD;
-            }
-            process->state = FiberState::DEAD;
+            process->state = ProcessState::DEAD;
         }
 
         return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
@@ -1546,18 +1542,14 @@ op_exit:
     process->exitCode = exitCode.isInt() ? exitCode.asInt() : 0;
 
     // Mata o processo
-    process->state = FiberState::DEAD;
+    process->state = ProcessState::DEAD;
 
-    // Mata todas as fibers (incluindo a atual)
-
-    for (int i = 0; i < process->totalFibers; i++)
-    {
-        Fiber *f = &process->fibers[i];
-        f->state = FiberState::DEAD;
-        f->frameCount = 0;
-        f->ip = nullptr;
-        f->stackTop = f->stack; // stack limpa
-    }
+    // Mata o contexto de execução do processo
+    ProcessExec *f = process;
+    f->state = ProcessState::DEAD;
+    f->frameCount = 0;
+    f->ip = nullptr;
+    f->stackTop = f->stack;
 
     // (Opcional) deixa o exitCode no topo da fiber atual para debug
     fiber->stackTop = fiber->stack;
@@ -1660,7 +1652,7 @@ op_get_property:
         if (object.isProcessInstance())
         {
             Process *proc = object.asProcess();
-            if (!proc || proc->state == FiberState::DEAD)
+            if (!proc || proc->state == ProcessState::DEAD)
             {
                 if (debugMode_)
                     safetimeError("GET property '%s' on dead process (returning nil)", name);
@@ -1894,7 +1886,7 @@ op_set_property:
     {
         Process *proc = object.asProcess();
 
-        if (!proc || proc->state == FiberState::DEAD)
+        if (!proc || proc->state == ProcessState::DEAD)
         {
             if (debugMode_)
                 safetimeError("SET property '%s' on dead process (ignored)", name);
@@ -3799,12 +3791,8 @@ op_invoke:
                     return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
                 }
 
-                char *temp = (char *)malloc(length + 1);
-                memcpy(temp, buf->data + buf->cursor, length);
-                temp[length] = 0;
-
-                String *str = createString(temp);
-                free(temp);
+                String *str = createString((const char *)(buf->data + buf->cursor),
+                                           (uint32)length);
 
                 buf->cursor += length;
 
@@ -4628,15 +4616,11 @@ op_exit_finally:
                     {
                         *fiber->stackTop++ = pendingReturns[i];
                     }
-                    fiber->state = FiberState::DEAD;
+                    fiber->state = ProcessState::DEAD;
 
-                    if (fiber == &process->fibers[0])
+                    if (fiber == process)
                     {
-                        for (int i = 0; i < process->nextFiberIndex; i++)
-                        {
-                            process->fibers[i].state = FiberState::DEAD;
-                        }
-                        process->state = FiberState::DEAD;
+                        process->state = ProcessState::DEAD;
                     }
 
                     STORE_FRAME();
@@ -5345,15 +5329,11 @@ op_return_n:
             *fiber->stackTop++ = results[i];
         }
 
-        fiber->state = FiberState::DEAD;
+        fiber->state = ProcessState::DEAD;
 
-        if (fiber == &process->fibers[0])
+        if (fiber == process)
         {
-            for (int i = 0; i < process->nextFiberIndex; i++)
-            {
-                process->fibers[i].state = FiberState::DEAD;
-            }
-            process->state = FiberState::DEAD;
+            process->state = ProcessState::DEAD;
         }
 
         return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
@@ -5422,7 +5402,7 @@ op_get_id:
     for (size_t i = 0; i < aliveProcesses.size(); i++)
     {
         Process *p = aliveProcesses[i];
-        if (p && p->blueprint == targetBlueprint && p->state != FiberState::DEAD)
+        if (p && p->blueprint == targetBlueprint && p->state != ProcessState::DEAD)
         {
             PUSH(makeInt(p->id));
             found = true;

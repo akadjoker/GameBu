@@ -6,7 +6,7 @@
  *
  * Key Features:
  * - Stack-based architecture for value operations
- * - Fiber and process management for concurrent execution
+ * - ProcessExec and process management for concurrent execution
  * - Exception handling with try-catch-finally support
  * - Support for multiple data types: integers, doubles, strings, arrays, maps, buffers, etc.
  * - Object-oriented features: classes, structs, inheritance, methods
@@ -92,7 +92,7 @@ static const char* getValueTypeName(const Value &v)
     }
 }
 
-FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
+FiberResult Interpreter::run_fiber(ProcessExec *fiber, Process *process)
 {
 
     currentFiber = fiber;
@@ -926,7 +926,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                     return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
                 }
 
-                Function *processFunc = blueprint->fibers[0].frames[0].func;
+                Function *processFunc = blueprint->frames[0].func;
 
                 // Verifica arity
                 if (argCount != processFunc->arity)
@@ -942,7 +942,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 // Se tem argumentos, inicializa locals da fiber
                 if (argCount > 0)
                 {
-                    Fiber *procFiber = &instance->fibers[0];
+                    ProcessExec *procFiber = instance;
                     int localSlot = 0;
 
                     for (int i = 0; i < argCount; i++)
@@ -1320,15 +1320,11 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 fiber->stackTop = fiber->stack;
                 *fiber->stackTop++ = result;
 
-                fiber->state = FiberState::DEAD;
+                fiber->state = ProcessState::DEAD;
 
-                if (fiber == &process->fibers[0])
+                if (fiber == process)
                 {
-                    for (int i = 0; i < process->nextFiberIndex; i++)
-                    {
-                        process->fibers[i].state = FiberState::DEAD;
-                    }
-                    process->state = FiberState::DEAD;
+                    process->state = ProcessState::DEAD;
                 }
 
                 STORE_FRAME();
@@ -1431,15 +1427,11 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                     *fiber->stackTop++ = results[i];
                 }
 
-                fiber->state = FiberState::DEAD;
+                fiber->state = ProcessState::DEAD;
 
-                if (fiber == &process->fibers[0])
+                if (fiber == process)
                 {
-                    for (int i = 0; i < process->nextFiberIndex; i++)
-                    {
-                        process->fibers[i].state = FiberState::DEAD;
-                    }
-                    process->state = FiberState::DEAD;
+                    process->state = ProcessState::DEAD;
                 }
 
                 STORE_FRAME();
@@ -1486,17 +1478,14 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             process->exitCode = exitCode.isInt() ? exitCode.asInt() : 0;
 
             // Mata o processo
-            process->state = FiberState::DEAD;
+            process->state = ProcessState::DEAD;
 
-            // Mata todas as fibers (incluindo a atual)
-            for (int i = 0; i < process->totalFibers; i++)
-            {
-                Fiber *f = &process->fibers[i];
-                f->state = FiberState::DEAD;
-                f->frameCount = 0;
-                f->ip = nullptr;
-                f->stackTop = f->stack; // stack limpa
-            }
+            // Mata o contexto de execução do processo
+            ProcessExec *f = process;
+            f->state = ProcessState::DEAD;
+            f->frameCount = 0;
+            f->ip = nullptr;
+            f->stackTop = f->stack;
 
             // (Opcional) deixa o exitCode no topo da fiber atual para debug
             fiber->stackTop = fiber->stack;
@@ -1601,7 +1590,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                 if (object.isProcessInstance())
                 {
                     Process *proc = object.asProcess();
-                    if (!proc || proc->state == FiberState::DEAD)
+                    if (!proc || proc->state == ProcessState::DEAD)
                     {
                         // Process died between frames - return nil silently
                         if (debugMode_)
@@ -1830,7 +1819,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             {
                 Process *proc = object.asProcess();
 
-                if (!proc || proc->state == FiberState::DEAD)
+                if (!proc || proc->state == ProcessState::DEAD)
                 {
                     // Process died between frames - ignore write silently
                     if (debugMode_)
@@ -3725,12 +3714,8 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                             return {FiberResult::FIBER_DONE, instructionsRun, 0, 0};
                         }
 
-                        char *temp = (char *)malloc(length + 1);
-                        memcpy(temp, buf->data + buf->cursor, length);
-                        temp[length] = 0;
-
-                        String *str = createString(temp);
-                        free(temp);
+                        String *str = createString((const char *)(buf->data + buf->cursor),
+                                                   (uint32)length);
 
                         buf->cursor += length;
 
@@ -4552,15 +4537,11 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
                             {
                                 *fiber->stackTop++ = pendingReturns[i];
                             }
-                            fiber->state = FiberState::DEAD;
+                            fiber->state = ProcessState::DEAD;
 
-                            if (fiber == &process->fibers[0])
+                            if (fiber == process)
                             {
-                                for (int i = 0; i < process->nextFiberIndex; i++)
-                                {
-                                    process->fibers[i].state = FiberState::DEAD;
-                                }
-                                process->state = FiberState::DEAD;
+                                process->state = ProcessState::DEAD;
                             }
 
                             STORE_FRAME();
@@ -5214,7 +5195,7 @@ FiberResult Interpreter::run_fiber(Fiber *fiber, Process *process)
             for (size_t i = 0; i < aliveProcesses.size(); i++)
             {
                 Process *p = aliveProcesses[i];
-                if (p && p->blueprint == targetBlueprint && p->state != FiberState::DEAD)
+                if (p && p->blueprint == targetBlueprint && p->state != ProcessState::DEAD)
                 {
                     PUSH(makeInt(p->id));
                     found = true;
