@@ -6,7 +6,7 @@ project(BuGame)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
  
-add_subdirectory(libbu/libbu)
+add_subdirectory(libbu)
 add_subdirectory(graphics)
 
 add_subdirectory(main)
