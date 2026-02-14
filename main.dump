@@ -19,25 +19,25 @@ GLOBAL FUNCTIONS
     [3] = 100
 
   Bytecode:
-    0000    4 OP_CONSTANT             1 '0'
-    0003    7 OP_GET_LOCAL            1
+    0000    3 OP_CONSTANT             1 '0'
+    0003    6 OP_GET_LOCAL            1
     0005    | OP_CONSTANT             2 '1'
     0008    | OP_ADD              
     0009    | OP_SET_LOCAL            1
     0011    | OP_POP              
-    0012    8 OP_GET_LOCAL            1
+    0012    7 OP_GET_LOCAL            1
     0014    | OP_GET_LOCAL            0
     0016    | OP_LESS             
     0017    | OP_NOT              
     0018    | OP_JUMP_IF_FALSE       18 -> 28
     0021    | OP_POP              
-    0022   10 OP_JUMP                22 -> 36
-    0025   11 OP_JUMP                25 -> 29
+    0022    9 OP_JUMP                22 -> 36
+    0025   10 OP_JUMP                25 -> 29
     0028    | OP_POP              
-    0029   12 OP_CONSTANT             3 '100'
+    0029   11 OP_CONSTANT             3 '100'
     0032    | OP_FRAME            
-    0033   13 OP_LOOP                33 -> 3
-    0036   14 OP_POP              
+    0033   12 OP_LOOP                33 -> 3
+    0036   13 OP_POP              
     0037    | OP_POP              
     0038    | OP_NIL              
     0039    | OP_RETURN           
@@ -54,52 +54,43 @@ GLOBAL FUNCTIONS
     [2] = 50000
     [3] = 2
     [4] = 1
-    [5] = 300
-    [6] = 100
+    [5] = "bench=spawn50000 elapsed="
+    [6] = " n="
 
   Bytecode:
-    0000   14 OP_CONSTANT             0 '<process>'
-    0003    | OP_DEFINE_GLOBAL       21
-    0006   16 OP_CONSTANT             1 '0'
-    0009    | OP_DEFINE_GLOBAL       22
-    0012   17 OP_GET_GLOBAL          22
-    0015    | OP_CONSTANT             2 '50000'
-    0018    | OP_LESS             
-    0019    | OP_JUMP_IF_FALSE       19 -> 46
-    0022    | OP_POP              
-    0023   19 OP_GET_GLOBAL          21
-    0026    | OP_CONSTANT             3 '2'
-    0029    | OP_CALL                 1
-    0031    | OP_POP              
-    0032   20 OP_GET_GLOBAL          22
-    0035    | OP_CONSTANT             4 '1'
-    0038    | OP_ADD              
-    0039    | OP_SET_GLOBAL          22
-    0042    | OP_POP              
-    0043   21 OP_LOOP                43 -> 12
+    0000   13 OP_CONSTANT             0 '<process>'
+    0003    | OP_DEFINE_GLOBAL        9
+    0006   15 OP_CONSTANT             1 '0'
+    0009    | OP_DEFINE_GLOBAL       10
+    0012   16 OP_CLOCK            
+    0013    | OP_DEFINE_GLOBAL       11
+    0016   18 OP_GET_GLOBAL          10
+    0019    | OP_CONSTANT             2 '50000'
+    0022    | OP_LESS             
+    0023    | OP_JUMP_IF_FALSE       23 -> 50
+    0026    | OP_POP              
+    0027   20 OP_GET_GLOBAL           9
+    0030    | OP_CONSTANT             3 '2'
+    0033    | OP_CALL                 1
+    0035    | OP_POP              
+    0036   21 OP_GET_GLOBAL          10
+    0039    | OP_CONSTANT             4 '1'
+    0042    | OP_ADD              
+    0043    | OP_SET_GLOBAL          10
     0046    | OP_POP              
-    0047   23 OP_CONSTANT             1 '0'
-    0050    | OP_DEFINE_GLOBAL        4
-    0053   26 OP_GET_GLOBAL           4
-    0056    | OP_CONSTANT             4 '1'
-    0059    | OP_ADD              
-    0060    | OP_SET_GLOBAL           4
-    0063    | OP_POP              
-    0064   27 OP_GET_GLOBAL           4
-    0067    | OP_CONSTANT             5 '300'
-    0070    | OP_GREATER          
-    0071    | OP_JUMP_IF_FALSE       71 -> 81
-    0074    | OP_POP              
-    0075   29 OP_JUMP                75 -> 89
-    0078   30 OP_JUMP                78 -> 82
-    0081    | OP_POP              
-    0082   31 OP_CONSTANT             6 '100'
-    0085    | OP_FRAME            
-    0086   32 OP_LOOP                86 -> 53
-    0089   34 OP_CONSTANT             4 '1'
-    0092    | OP_DEFINE_GLOBAL       23
-    0095   35 OP_NIL              
-    0096    | OP_RETURN           
+    0047   22 OP_LOOP                47 -> 16
+    0050    | OP_POP              
+    0051   24 OP_CLOCK            
+    0052    | OP_GET_GLOBAL          11
+    0055    | OP_SUBTRACT         
+    0056    | OP_DEFINE_GLOBAL       12
+    0059   25 OP_CONSTANT             5 'bench=spawn50000 elapsed='
+    0062    | OP_GET_GLOBAL          12
+    0065    | OP_CONSTANT             6 ' n='
+    0068    | OP_GET_GLOBAL          10
+    0071    | OP_PRINT                4
+    0073   26 OP_NIL              
+    0074    | OP_RETURN           
 
 
 ========================================

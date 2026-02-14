@@ -833,19 +833,19 @@ namespace Bindings
         switch (signalType)
         {
         case 0: // S_KILL
-            proc->state = FiberState::DEAD;
+            proc->state = ProcessState::DEAD;
             break;
         case 1: // S_FREEZE
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 2: // S_HIDE - freeze + hide (same as freeze for now)
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 3: // S_SHOW - wakeup from frozen
-            if (proc->state == FiberState::FROZEN)
-                proc->state = FiberState::RUNNING;
+            if (proc->state == ProcessState::FROZEN)
+                proc->state = ProcessState::RUNNING;
             break;
         }
     }
@@ -867,7 +867,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            if (proc && proc->state != FiberState::DEAD)
+            if (proc && proc->state != ProcessState::DEAD)
                 applySignal(proc, signalType);
             return 0;
         }
@@ -913,7 +913,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            vm->pushBool(proc && proc->state != FiberState::DEAD);
+            vm->pushBool(proc && proc->state != ProcessState::DEAD);
             return 1;
         }
 
@@ -925,7 +925,7 @@ namespace Bindings
             for (size_t i = 0; i < alive.size(); i++)
             {
                 Process *proc = alive[i];
-                if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 {
                     vm->pushBool(true);
                     return 1;
@@ -963,7 +963,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 count++;
         }
 
@@ -987,7 +987,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 array->values.push(vm->makeProcessInstance(proc));
         }
 
@@ -1009,7 +1009,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
             {
                 vm->push(vm->makeProcessInstance(proc));
                 return 1;
