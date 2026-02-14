@@ -1,0 +1,14 @@
+/tmp/BuGame-fiber/build_rel_compare/CMakeFiles/edit_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/libbu/CMakeFiles/libbu.dir
+/tmp/BuGame-fiber/build_rel_compare/libbu/CMakeFiles/edit_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/libbu/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/graphics/CMakeFiles/graphics.dir
+/tmp/BuGame-fiber/build_rel_compare/graphics/CMakeFiles/edit_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/graphics/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/main/CMakeFiles/main.dir
+/tmp/BuGame-fiber/build_rel_compare/main/CMakeFiles/edit_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/main/CMakeFiles/rebuild_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/tests/CMakeFiles/tests.dir
+/tmp/BuGame-fiber/build_rel_compare/tests/CMakeFiles/edit_cache.dir
+/tmp/BuGame-fiber/build_rel_compare/tests/CMakeFiles/rebuild_cache.dir

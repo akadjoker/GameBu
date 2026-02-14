@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/tests.dir/src/main.cpp.o -o /tmp/BuGame-fiber/bin/tests  ../libbu/liblibbu.a -lm -lpthread 
