@@ -213,8 +213,8 @@ size_t Debug::disassembleInstruction(const Code &chunk, size_t offset)
     return byteInstruction("OP_SET_UPVALUE", chunk, offset);
   case OP_CLOSE_UPVALUE:
     return simpleInstruction("OP_CLOSE_UPVALUE", offset);
-  case OP_RESERVED_40:
-    return simpleInstruction("OP_RESERVED_40", offset);
+  case OP_ARRAY_PUSH:
+    return byteInstruction("OP_ARRAY_PUSH", chunk, offset);
   case OP_RESERVED_41:
     return simpleInstruction("OP_RESERVED_41", offset);
   case OP_FRAME:
