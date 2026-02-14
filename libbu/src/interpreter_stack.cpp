@@ -371,12 +371,6 @@ bool Interpreter::callFunction(Function *func, int argCount)
         return false;
     }
 
-    if (!currentFiber)
-    {
-        runtimeError("No active fiber to call function");
-        return false;
-    }
-
     Process *proc = currentProcess ? currentProcess : mainProcess;
     if (!proc)
     {
@@ -384,7 +378,14 @@ bool Interpreter::callFunction(Function *func, int argCount)
         return false;
     }
 
-    int stackSize = static_cast<int>(currentFiber->stackTop - currentFiber->stack);
+    ProcessExec *fiber = proc;
+    if (currentFiber && currentFiber != fiber)
+    {
+        runtimeError("Execution context mismatch while calling '%s'", func->name->chars());
+        return false;
+    }
+
+    int stackSize = static_cast<int>(fiber->stackTop - fiber->stack);
     if (stackSize < (argCount + 1))
     {
         runtimeError("Function call '%s' is missing callee/arguments on stack",
@@ -393,7 +394,7 @@ bool Interpreter::callFunction(Function *func, int argCount)
     }
 
     // Verifica overflow de frames
-    if (currentFiber->frameCount >= FRAMES_MAX)
+    if (fiber->frameCount >= FRAMES_MAX)
     {
         runtimeError("Stack overflow - too many nested calls");
         return false;
@@ -407,26 +408,26 @@ bool Interpreter::callFunction(Function *func, int argCount)
 
 //    Debug::disassembleChunk(*func->chunk, func->name->chars());
 
-    CallFrame *frame = &currentFiber->frames[currentFiber->frameCount];
+    CallFrame *frame = &fiber->frames[fiber->frameCount];
     frame->func = func;
     frame->closure = nullptr;
     frame->ip = func->chunk->code;
-    frame->slots = currentFiber->stackTop - argCount - 1; // slot 0 = callee/self
+    frame->slots = fiber->stackTop - argCount - 1; // slot 0 = callee/self
 
-    int targetFrames = currentFiber->frameCount;
-    currentFiber->frameCount++;
+    int targetFrames = fiber->frameCount;
+    fiber->frameCount++;
 
     bool prevStop = stopOnCallReturn_;
     ProcessExec *prevFiber = callReturnFiber_;
     int prevTarget = callReturnTargetFrameCount_;
 
     stopOnCallReturn_ = true;
-    callReturnFiber_ = currentFiber;
+    callReturnFiber_ = fiber;
     callReturnTargetFrameCount_ = targetFrames;
 
     while (true)
     {
-        FiberResult result = run_fiber(currentFiber, proc);
+        FiberResult result = run_process(proc);
         if (result.reason == FiberResult::ERROR)
         {
             stopOnCallReturn_ = prevStop;
@@ -551,10 +552,15 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
     }
 
     Process *proc = currentProcess ? currentProcess : mainProcess;
-    ProcessExec *fiber = currentFiber ? currentFiber : (proc ? proc : nullptr);
-    if (!proc || !fiber)
+    if (!proc)
     {
-        runtimeError("No active process/fiber to call method '%s'", methodName);
+        runtimeError("No active process to call method '%s'", methodName);
+        return false;
+    }
+    ProcessExec *fiber = proc;
+    if (currentFiber && currentFiber != fiber)
+    {
+        runtimeError("Execution context mismatch while calling method '%s'", methodName);
         return false;
     }
 
@@ -598,7 +604,7 @@ bool Interpreter::callMethod(Value instance, const char *methodName, int argCoun
     // Execute the method
     while (true)
     {
-        FiberResult result = run_fiber(fiber, proc);
+        FiberResult result = run_process(proc);
         if (result.reason == FiberResult::ERROR)
         {
             stopOnCallReturn_ = prevStop;

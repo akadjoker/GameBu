@@ -24,7 +24,7 @@
  * as a labeled block that reads operands, performs the operation, and
  * dispatches to the next instruction.
  *
- * @note Compiled only when USE_COMPUTED_GOTO is defined
+ * @note Compiled only when USE_COMPUTED_GOTO is 1
  * @note Uses macro-based stack manipulation for performance
  * @note Manages call frames for nested function invocations
  * @note Handles both user-defined and native functions/classes
@@ -42,7 +42,7 @@
 #include <new>
 #include <ctime>
 
-#ifdef USE_COMPUTED_GOTO
+#if USE_COMPUTED_GOTO
 
 extern size_t get_type_size(BufferType type);
 
@@ -126,10 +126,11 @@ static const char *getValueTypeName(const Value &v)
     }
 }
 
-FiberResult Interpreter::run_fiber(ProcessExec *fiber, Process *process)
+FiberResult Interpreter::run_process(Process *process)
 {
+    ProcessExec *fiber = process;
 
-    currentFiber = fiber;
+    currentFiber = process;
 
     CallFrame *frame;
     Value *stackStart;

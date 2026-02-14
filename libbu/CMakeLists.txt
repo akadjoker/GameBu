@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(BU_USE_COMPUTED_GOTO "Use computed-goto opcode dispatch in VM" ON)
+
 # ============================================
 # Output Directory
 # ============================================
@@ -23,6 +25,14 @@ file(GLOB SOURCES
 # Targets
 # ============================================
 add_library(libbu STATIC ${SOURCES})
+
+if(BU_USE_COMPUTED_GOTO)
+    target_compile_definitions(libbu PUBLIC USE_COMPUTED_GOTO=1)
+    message(STATUS "VM dispatch: computed goto")
+else()
+    target_compile_definitions(libbu PUBLIC USE_COMPUTED_GOTO=0)
+    message(STATUS "VM dispatch: switch")
+endif()
 
 # Enable PIC so libbu can be linked into shared libraries (plugins)
 set_target_properties(libbu PROPERTIES POSITION_INDEPENDENT_CODE ON)

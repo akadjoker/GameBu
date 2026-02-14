@@ -887,11 +887,8 @@ bool Interpreter::run(const char *source, bool _dump)
   mainProcess = spawnProcess(proc);
   currentProcess = mainProcess;
 
-  ProcessExec *fiber = mainProcess;
-
-  //  Debug::disassembleChunk(*fiber->frames[0].func->chunk,"#main");
-
-  run_fiber(fiber, mainProcess);
+  //  Debug::disassembleChunk(*mainProcess->frames[0].func->chunk,"#main");
+  run_process(mainProcess);
 
   return !hasFatalError_;
 }
@@ -1161,7 +1158,7 @@ Value Interpreter::createClassInstance(ClassDef *klass, int argCount, Value *arg
     // Executa o constructor
     while (fiber->frameCount > savedFrameCount)
     {
-      FiberResult result = run_fiber(fiber, proc);
+      FiberResult result = run_process(proc);
       if (result.reason == FiberResult::FIBER_DONE || result.reason == FiberResult::ERROR)
       {
         break;

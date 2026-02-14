@@ -599,8 +599,6 @@ struct Process : public ProcessExec
   String *name{nullptr};
   uint32 id{0};
   int blueprint{-1}; // Índice do ProcessDef que é a "blueprint" desse processo
-  // Estado do processo usa o mesmo contexto de execução herdado (ProcessExec::state/resumeTime).
-  ProcessExec *current{nullptr};
   void *userData{nullptr}; 
   Value privates[MAX_PRIVATES];
 
@@ -698,7 +696,7 @@ class Interpreter
   Process *currentProcess;
   Process *mainProcess;
   // Internal boundary used by C++->script calls (callFunction/callMethod).
-  // When the target frame returns, run_fiber stops with CALL_RETURN instead
+  // When the target frame returns, run_process stops with CALL_RETURN instead
   // of continuing to execute the caller frame.
   bool stopOnCallReturn_{false};
   ProcessExec *callReturnFiber_{nullptr};
@@ -1099,7 +1097,7 @@ public:
   int registerFunction(const char *name, Function *func);
 
   void run_process_step(Process *proc);
-  FiberResult run_fiber(ProcessExec *fiber, Process *proc);
+  FiberResult run_process(Process *process);
 
   float getCurrentTime() const;
 

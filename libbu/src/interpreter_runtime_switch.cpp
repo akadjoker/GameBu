@@ -37,7 +37,7 @@
 #include <new>
 #include <ctime>
 
-#ifndef USE_COMPUTED_GOTO
+#if !USE_COMPUTED_GOTO
 extern size_t get_type_size(BufferType type);
 
 #define DEBUG_TRACE_EXECUTION 0 // 1 = ativa, 0 = desativa
@@ -92,10 +92,11 @@ static const char* getValueTypeName(const Value &v)
     }
 }
 
-FiberResult Interpreter::run_fiber(ProcessExec *fiber, Process *process)
+FiberResult Interpreter::run_process(Process *process)
 {
+    ProcessExec *fiber = process;
 
-    currentFiber = fiber;
+    currentFiber = process;
 
     CallFrame *frame;
     Value *stackStart;
@@ -156,7 +157,7 @@ FiberResult Interpreter::run_fiber(ProcessExec *fiber, Process *process)
 #define READ_CONSTANT() (func->chunk->constants[READ_SHORT()])
     LOAD_FRAME();
 
-    // printf("[DEBUG] Starting run_fiber: ip=%p, func=%s, offset=%ld\n",
+    // printf("[DEBUG] Starting run_process: ip=%p, func=%s, offset=%ld\n",
     //        (void*)ip, func->name->chars(), ip - func->chunk->code);
 
 #define SAFE_CALL_NATIVE(fiber, argCount, callFunc)                                    \

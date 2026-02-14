@@ -1,4 +1,4 @@
-project(teste)
+project(test)
 cmake_policy(SET CMP0072 NEW)
 
 
@@ -45,7 +45,7 @@ add_compile_options(
  
 
 file(GLOB SOURCES "src/*.cpp")
-add_executable(teste   ${SOURCES})
+add_executable(test   ${SOURCES})
 
 
 target_include_directories(libbu PUBLIC  include src)
@@ -55,20 +55,20 @@ target_include_directories(libbu PUBLIC  include src)
 if(CMAKE_BUILD_TYPE MATCHES Debug)
 
 if (UNIX)
-target_compile_options(teste PRIVATE -fsanitize=address -fsanitize=undefined -fsanitize=leak -g  -D_DEBUG -DVERBOSE)
-target_link_options(teste PRIVATE -fsanitize=address -fsanitize=undefined -fsanitize=leak -g  -D_DEBUG) 
+target_compile_options(test PRIVATE -fsanitize=address -fsanitize=undefined -fsanitize=leak -g  -D_DEBUG -DVERBOSE)
+target_link_options(test PRIVATE -fsanitize=address -fsanitize=undefined -fsanitize=leak -g  -D_DEBUG) 
 endif()
  
    
 endif()
 
-target_link_libraries(teste raylib libbu)
+target_link_libraries(test   libbu)
 
 if (WIN32)
-    target_link_libraries(teste Winmm.lib)
+    target_link_libraries(test Winmm.lib)
 endif()
 
 
 if (UNIX)
-    target_link_libraries(teste  m )
+    target_link_libraries(test  m )
 endif()

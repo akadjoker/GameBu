@@ -44,7 +44,6 @@ void Process::reset()
     resumeTime = 0.0f;        // Quando acorda (frame)
     gosubTop = 0;
     tryDepth = 0;
-    current = nullptr;
 }
 
 int Interpreter::getProcessPrivateIndex(const char *name)
@@ -190,7 +189,6 @@ Process *Interpreter::spawnProcess(ProcessDef *blueprint)
     instance->id = PROCESS_IDS++;
     instance->state = ProcessState::RUNNING;
     instance->resumeTime = 0;
-    instance->current = nullptr;
     instance->initialized = false;
     instance->exitCode = 0;
 
@@ -273,7 +271,6 @@ Process *Interpreter::spawnProcess(ProcessDef *blueprint)
         }
     }
 
-    instance->current = instance;
     aliveProcesses.push(instance);
 
     return instance;
@@ -411,39 +408,28 @@ void Interpreter::run_process_step(Process *proc)
         return;
     }
 
-    ProcessExec *fiber = proc;
-    if (fiber->state == ProcessState::DEAD)
+    // Process e contexto de execução são o mesmo objeto.
+    if (proc->state == ProcessState::SUSPENDED)
     {
-        proc->state = ProcessState::DEAD;
-        proc->initialized = false;
-        return;
-    }
-
-    if (fiber->state == ProcessState::SUSPENDED)
-    {
-        if (currentTime < fiber->resumeTime)
+        if (currentTime < proc->resumeTime)
         {
-            proc->state = ProcessState::SUSPENDED;
-            proc->resumeTime = fiber->resumeTime;
             return;
         }
-        fiber->state = ProcessState::RUNNING;
+        proc->state = ProcessState::RUNNING;
     }
 
-    if (fiber->state != ProcessState::RUNNING)
+    if (proc->state != ProcessState::RUNNING)
     {
         return;
     }
 
     currentProcess = proc;
-    currentFiber = fiber;
-
-    proc->current = fiber;
+    currentFiber = proc;
 
     // Reset fatal error before each process step to prevent cascade
     hasFatalError_ = false;
 
-    FiberResult result = run_fiber(fiber, proc);
+    FiberResult result = run_process(proc);
 
     if (proc->state == ProcessState::DEAD)
     {
@@ -459,7 +445,6 @@ void Interpreter::run_process_step(Process *proc)
             Info("  Process '%s' (id=%u) killed due to runtime error",
                  proc->name ? proc->name->chars() : "?", proc->id);
         }
-        fiber->state = ProcessState::DEAD;
         proc->state = ProcessState::DEAD;
         proc->initialized = false;
         hasFatalError_ = false;
@@ -469,10 +454,8 @@ void Interpreter::run_process_step(Process *proc)
     if (result.reason == FiberResult::FIBER_YIELD)
     {
         // Legacy bytecode compatibility path: keep scheduler behavior if encountered.
-        fiber->state = ProcessState::SUSPENDED;
-        fiber->resumeTime = currentTime + result.yieldMs / 1000.0f;
         proc->state = ProcessState::SUSPENDED;
-        proc->resumeTime = fiber->resumeTime;
+        proc->resumeTime = currentTime + result.yieldMs / 1000.0f;
         return;
     }
 
@@ -493,7 +476,6 @@ void Interpreter::run_process_step(Process *proc)
 
     if (result.reason == FiberResult::FIBER_DONE)
     {
-        fiber->state = ProcessState::DEAD;
         proc->state = ProcessState::DEAD;
         proc->initialized = false;
         return;

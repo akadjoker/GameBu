@@ -32,8 +32,16 @@
 #define LIKELY(x) (x)
 #endif
 
-// Use computed goto dispatch (comment out to use switch)
+// VM dispatch mode:
+// 1 = computed goto (faster on GCC/Clang)
+// 0 = switch dispatch (portable fallback)
+#ifndef USE_COMPUTED_GOTO
 #define USE_COMPUTED_GOTO 1
+#endif
+
+#if (USE_COMPUTED_GOTO != 0) && (USE_COMPUTED_GOTO != 1)
+#error "USE_COMPUTED_GOTO must be 0 or 1"
+#endif
 
 #define BU_ENABLE_SOCKETS 1
 #define BU_ENABLE_FILE_IO 1
