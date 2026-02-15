@@ -343,6 +343,10 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
 }
 void onDestroy(Interpreter *vm, Process *proc, int exitCode)
 {
+    (void)vm;
+    (void)exitCode;
+    //BindingsBox2D::onProcessDestroy(proc);
+
     //   Info("Destroy process: %d with exit code %d", proc->id, exitCode);
     Entity *entity = (Entity *)proc->userData;
     if (entity && proc->userData)
@@ -506,6 +510,7 @@ int main(int argc, char *argv[])
         RenderScene();
         gParticleSystem.cleanup();
         gParticleSystem.draw();
+        BindingsBox2D::renderDebug();
         gCamera.end();
 
         BindingsDraw::RenderScreenCommands();
@@ -518,6 +523,7 @@ int main(int argc, char *argv[])
     }
     BindingsMessage::clearAllMessages();
     gParticleSystem.clear();
+    BindingsBox2D::shutdownPhysics();
     BindingsDraw::unloadFonts();
     DestroySound();
     DestroyScene();

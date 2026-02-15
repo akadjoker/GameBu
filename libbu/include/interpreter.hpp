@@ -489,20 +489,17 @@ struct VMHooks
   void (*onDestroy)(Interpreter *vm,Process *p, int exitCode) = nullptr;
 };
 
-struct FiberResult
+struct ProcessResult
 {
   enum Reason : uint8
   {
-    FIBER_YIELD,   // yield N
     PROCESS_FRAME, // frame(N)
     CALL_RETURN,   // return to native C++ caller boundary
-    FIBER_DONE,    // return/end
+    PROCESS_DONE,    // return/end
     ERROR
   };
 
   Reason reason;
-  int instructionsRun;
-  float yieldMs;    // Se FIBER_YIELD
   int framePercent; // Se PROCESS_FRAME
 };
 
@@ -579,6 +576,8 @@ enum class PrivateIndex : uint8
   SHOW = 23,
   XOLD = 24,
   YOLD = 25,
+  SIZEX =26,
+  SIZEY =27,
   
 
 };
@@ -692,14 +691,13 @@ class Interpreter
   float accumulator = 0.0f;
   const float FIXED_DT = 1.0f / 60.0f;
 
-  ProcessExec *currentFiber;
   Process *currentProcess;
   Process *mainProcess;
   // Internal boundary used by C++->script calls (callFunction/callMethod).
   // When the target frame returns, run_process stops with CALL_RETURN instead
   // of continuing to execute the caller frame.
   bool stopOnCallReturn_{false};
-  ProcessExec *callReturnFiber_{nullptr};
+  Process *callReturnProcess_{nullptr};
   int callReturnTargetFrameCount_{-1};
   bool hasFatalError_;
   bool debugMode_;
@@ -710,6 +708,24 @@ class Interpreter
   VMHooks hooks;
 
   Vector<String*> staticNames;
+
+  FORCE_INLINE ProcessExec *currentExec()
+  {
+    if (currentProcess)
+      return static_cast<ProcessExec *>(currentProcess);
+    if (mainProcess)
+      return static_cast<ProcessExec *>(mainProcess);
+    return nullptr;
+  }
+
+  FORCE_INLINE const ProcessExec *currentExec() const
+  {
+    if (currentProcess)
+      return static_cast<const ProcessExec *>(currentProcess);
+    if (mainProcess)
+      return static_cast<const ProcessExec *>(mainProcess);
+    return nullptr;
+  }
 
   void freeInstances();
   void freeBlueprints();
@@ -1097,7 +1113,7 @@ public:
   int registerFunction(const char *name, Function *func);
 
   void run_process_step(Process *proc);
-  FiberResult run_process(Process *process);
+  ProcessResult run_process(Process *process);
 
   float getCurrentTime() const;
 
@@ -1143,8 +1159,8 @@ public:
   void killAliveProcess();
 
   // ProcessExec/Process context (for callbacks from external libraries like GTK)
-  ProcessExec* getCurrentFiber() { return currentFiber; }
-  void setCurrentFiber(ProcessExec* fiber) { currentFiber = fiber; }
+  ProcessExec* getCurrentExec() { return currentExec(); }
+  void setCurrentExec(Process* process) { currentProcess = process; }
   Process* getCurrentProcess() { return currentProcess; }
   void setCurrentProcess(Process* process) { currentProcess = process; }
 

@@ -231,7 +231,6 @@ void Interpreter::reset()
   processes.clear();
 
   // 4. Reset de variáveis de estado
-  currentFiber = nullptr;
   currentProcess = nullptr;
   currentTime = 0.0f;
   hasFatalError_ = false;
@@ -427,11 +426,10 @@ void Interpreter::addStructField(NativeStructDef *def, const char *fieldName,
 
 void Interpreter::printStack()
 {
-
-  if (currentFiber)
+  ProcessExec *exec = currentExec();
+  if (exec)
   {
-
-    ProcessExec *fiber = currentFiber;
+    ProcessExec *fiber = exec;
     if (fiber->stackTop == fiber->stack)
       printf("  (empty)\n");
     else
@@ -723,12 +721,13 @@ void Interpreter::runtimeError(const char *format, ...)
   }
 
   // Print stack trace with line numbers
-  if (currentFiber && currentFiber->frameCount > 0)
+  ProcessExec *exec = currentExec();
+  if (exec && exec->frameCount > 0)
   {
     OsPrintf("\nStack trace:\n");
-    for (int i = currentFiber->frameCount - 1; i >= 0; i--)
+    for (int i = exec->frameCount - 1; i >= 0; i--)
     {
-      CallFrame *frame = &currentFiber->frames[i];
+      CallFrame *frame = &exec->frames[i];
       Function *func = frame->func;
 
       if (func && func->chunk->code && frame->ip >= func->chunk->code)
@@ -746,7 +745,11 @@ void Interpreter::runtimeError(const char *format, ...)
 }
 bool Interpreter::throwException(Value error)
 {
-  ProcessExec *fiber = currentFiber;
+  ProcessExec *fiber = currentExec();
+  if (!fiber)
+  {
+    return false;
+  }
 
   while (fiber->tryDepth > 0)
   {
@@ -796,12 +799,12 @@ void Interpreter::safetimeError(const char *format, ...)
 
 void Interpreter::resetFiber()
 {
-
-  if (currentFiber)
+  ProcessExec *exec = currentExec();
+  if (exec)
   {
-    currentFiber->stackTop = currentFiber->stack;
-    currentFiber->frameCount = 0;
-    currentFiber->state = ProcessState::DEAD;
+    exec->stackTop = exec->stack;
+    exec->frameCount = 0;
+    exec->state = ProcessState::DEAD;
   }
   hasFatalError_ = false;
 }
@@ -1158,8 +1161,8 @@ Value Interpreter::createClassInstance(ClassDef *klass, int argCount, Value *arg
     // Executa o constructor
     while (fiber->frameCount > savedFrameCount)
     {
-      FiberResult result = run_process(proc);
-      if (result.reason == FiberResult::FIBER_DONE || result.reason == FiberResult::ERROR)
+      ProcessResult result = run_process(proc);
+      if (result.reason == ProcessResult::PROCESS_DONE || result.reason == ProcessResult::ERROR)
       {
         break;
       }

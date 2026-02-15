@@ -1,9 +1,8 @@
 #include "box2d_joints.hpp"
+#include "bindings.hpp"
 
 #include <box2d/box2d.h>
 #include <box2d/b2_rope.h>
-#include <unordered_map>
-#include <vector>
 
 namespace BindingsBox2DJoints
 {
@@ -158,14 +157,6 @@ namespace BindingsBox2DJoints
             return;
         gWorld->DestroyJoint(joint);
     }
-
-    struct RopeDefBuffer
-    {
-        std::vector<b2Vec2> vertices;
-        std::vector<float> masses;
-    };
-
-    static std::unordered_map<b2RopeDef *, RopeDefBuffer> gRopeDefBuffers;
 
     static b2RopeTuning *as_b2_rope_tuning(void *data, const char *funcName)
     {
@@ -4009,13 +4000,24 @@ namespace BindingsBox2DJoints
     void *ctor_native_b2_rope_def(Interpreter *vm, int argCount, Value *args)
     {
         (void)vm;
-        (void)args;
-        if (argCount != 0)
+        if (argCount != 1 || !args[0].isNumber())
         {
-            Error("b2RopeDef expects no args");
+            Error("b2RopeDef expects 1 number arg (count)");
             return nullptr;
         }
-        return new b2RopeDef();
+
+        int32 count = (int32)args[0].asNumber();
+        if (count <= 0)
+        {
+            Error("b2RopeDef count must be > 0");
+            return nullptr;
+        }
+
+        b2RopeDef *def = new b2RopeDef();
+        def->vertices = new b2Vec2[count];
+        def->masses = new float[count];
+        def->count = count;
+        return def;
     }
 
     void dtor_native_b2_rope_def(Interpreter *vm, void *data)
@@ -4023,7 +4025,13 @@ namespace BindingsBox2DJoints
         (void)vm;
         b2RopeDef *def = static_cast<b2RopeDef *>(data);
         if (def)
-            gRopeDefBuffers.erase(def);
+        {
+            delete[] def->vertices;
+            delete[] def->masses; 
+            def->vertices = nullptr;
+            def->masses = nullptr;
+            def->count = 0;
+        }
         delete def;
     }
 
@@ -4074,6 +4082,186 @@ namespace BindingsBox2DJoints
         return 0;
     }
 
+    int native_b2_rope_def_set_stretching_model(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_stretching_model expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_stretching_model");
+        if (!def)
+            return 0;
+        def->tuning.stretchingModel = (b2StretchingModel)(int)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_bending_model(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_bending_model expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_bending_model");
+        if (!def)
+            return 0;
+        def->tuning.bendingModel = (b2BendingModel)(int)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_damping(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_damping expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_damping");
+        if (!def)
+            return 0;
+        def->tuning.damping = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_stretch_stiffness(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_stretch_stiffness expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_stretch_stiffness");
+        if (!def)
+            return 0;
+        def->tuning.stretchStiffness = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_stretch_hertz(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_stretch_hertz expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_stretch_hertz");
+        if (!def)
+            return 0;
+        def->tuning.stretchHertz = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_stretch_damping(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_stretch_damping expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_stretch_damping");
+        if (!def)
+            return 0;
+        def->tuning.stretchDamping = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_bend_stiffness(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_bend_stiffness expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_bend_stiffness");
+        if (!def)
+            return 0;
+        def->tuning.bendStiffness = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_bend_hertz(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_bend_hertz expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_bend_hertz");
+        if (!def)
+            return 0;
+        def->tuning.bendHertz = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_bend_damping(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_bend_damping expects 1 number arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_bend_damping");
+        if (!def)
+            return 0;
+        def->tuning.bendDamping = (float)args[0].asNumber();
+        return 0;
+    }
+
+    int native_b2_rope_def_set_isometric(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        bool enabled = false;
+        if (argCount != 1 || !value_to_bool(args[0], &enabled))
+        {
+            Error("set_isometric expects 1 bool arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_isometric");
+        if (!def)
+            return 0;
+        def->tuning.isometric = enabled;
+        return 0;
+    }
+
+    int native_b2_rope_def_set_fixed_effective_mass(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        bool enabled = false;
+        if (argCount != 1 || !value_to_bool(args[0], &enabled))
+        {
+            Error("set_fixed_effective_mass expects 1 bool arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_fixed_effective_mass");
+        if (!def)
+            return 0;
+        def->tuning.fixedEffectiveMass = enabled;
+        return 0;
+    }
+
+    int native_b2_rope_def_set_warm_start(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        bool enabled = false;
+        if (argCount != 1 || !value_to_bool(args[0], &enabled))
+        {
+            Error("set_warm_start expects 1 bool arg");
+            return 0;
+        }
+        b2RopeDef *def = as_b2_rope_def(data, "set_warm_start");
+        if (!def)
+            return 0;
+        def->tuning.warmStart = enabled;
+        return 0;
+    }
+
     int native_b2_rope_def_set_vertices(Interpreter *vm, void *data, int argCount, Value *args)
     {
         (void)vm;
@@ -4109,9 +4297,17 @@ namespace BindingsBox2DJoints
             return 0;
         }
 
-        RopeDefBuffer &buffer = gRopeDefBuffers[def];
-        buffer.vertices.resize(pointCount);
-        buffer.masses.resize(pointCount);
+        int32 capacity = def->count;
+        if (capacity <= 0)
+        {
+            Error("set_vertices invalid b2RopeDef count");
+            return 0;
+        }
+        if ((int32)pointCount != capacity)
+        {
+            Error("set_vertices expects exactly %d points", (int)capacity);
+            return 0;
+        }
 
         for (size_t i = 0; i < pointCount; ++i)
         {
@@ -4123,15 +4319,12 @@ namespace BindingsBox2DJoints
                 Error("set_vertices expects numeric points and masses");
                 return 0;
             }
-            buffer.vertices[i].Set(
+            def->vertices[i].Set(
                 pixelToWorld((float)vx.asNumber()),
                 pixelToWorld((float)vy.asNumber()));
-            buffer.masses[i] = (float)mv.asNumber();
+            def->masses[i] = (float)mv.asNumber();
         }
 
-        def->vertices = buffer.vertices.data();
-        def->masses = buffer.masses.data();
-        def->count = (int32)pointCount;
         return 0;
     }
 
@@ -4147,10 +4340,11 @@ namespace BindingsBox2DJoints
         b2RopeDef *def = as_b2_rope_def(data, "clear_vertices");
         if (!def)
             return 0;
-        gRopeDefBuffers.erase(def);
-        def->vertices = nullptr;
-        def->masses = nullptr;
-        def->count = 0;
+        for (int32 i = 0; i < def->count; ++i)
+        {
+            def->vertices[i].Set(0.0f, 0.0f);
+            def->masses[i] = 0.0f;
+        }
         return 0;
     }
 
@@ -4242,6 +4436,58 @@ namespace BindingsBox2DJoints
             return 0;
         rope->Reset(b2Vec2(pixelToWorld((float)args[0].asNumber()), pixelToWorld((float)args[1].asNumber())));
         return 0;
+    }
+
+ 
+
+    int native_b2_rope_get_count(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        (void)args;
+        if (argCount != 0)
+        {
+            Error("get_count expects no args");
+            vm->pushInt(0);
+            return 1;
+        }
+        b2Rope *rope = as_b2_rope(data, "get_count");
+        if (!rope)
+        {
+            vm->pushInt(0);
+            return 1;
+        }
+        vm->pushInt((int)rope->GetPointCount());
+        return 1;
+    }
+
+    int native_b2_rope_get_point(Interpreter *vm, void *data, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("get_point expects 1 number arg (index)");
+            vm->pushDouble(0);
+            vm->pushDouble(0);
+            return 2;
+        }
+        b2Rope *rope = as_b2_rope(data, "get_point");
+        if (!rope)
+        {
+            vm->pushDouble(0);
+            vm->pushDouble(0);
+            return 2;
+        }
+        int32 index = (int32)args[0].asNumber();
+        const int32 count = rope->GetPointCount();
+        if (index < 0 || index >= count)
+        {
+            Error("get_point index out of range");
+            vm->pushDouble(0);
+            vm->pushDouble(0);
+            return 2;
+        }
+        b2Vec2 p = rope->GetPoint(index);
+        vm->pushDouble(worldToPixel(p.x));
+        vm->pushDouble(worldToPixel(p.y));
+        return 2;
     }
 
     // -------------------------------------------------------------------------
@@ -4605,12 +4851,24 @@ namespace BindingsBox2DJoints
             kB2RopeDefClass,
             ctor_native_b2_rope_def,
             dtor_native_b2_rope_def,
-            0,
+            1,
             false);
 
         vm.addNativeMethod(b2RopeDefClass, "set_position", native_b2_rope_def_set_position);
         vm.addNativeMethod(b2RopeDefClass, "set_gravity", native_b2_rope_def_set_gravity);
         vm.addNativeMethod(b2RopeDefClass, "set_tuning", native_b2_rope_def_set_tuning);
+        vm.addNativeMethod(b2RopeDefClass, "set_stretching_model", native_b2_rope_def_set_stretching_model);
+        vm.addNativeMethod(b2RopeDefClass, "set_bending_model", native_b2_rope_def_set_bending_model);
+        vm.addNativeMethod(b2RopeDefClass, "set_damping", native_b2_rope_def_set_damping);
+        vm.addNativeMethod(b2RopeDefClass, "set_stretch_stiffness", native_b2_rope_def_set_stretch_stiffness);
+        vm.addNativeMethod(b2RopeDefClass, "set_stretch_hertz", native_b2_rope_def_set_stretch_hertz);
+        vm.addNativeMethod(b2RopeDefClass, "set_stretch_damping", native_b2_rope_def_set_stretch_damping);
+        vm.addNativeMethod(b2RopeDefClass, "set_bend_stiffness", native_b2_rope_def_set_bend_stiffness);
+        vm.addNativeMethod(b2RopeDefClass, "set_bend_hertz", native_b2_rope_def_set_bend_hertz);
+        vm.addNativeMethod(b2RopeDefClass, "set_bend_damping", native_b2_rope_def_set_bend_damping);
+        vm.addNativeMethod(b2RopeDefClass, "set_isometric", native_b2_rope_def_set_isometric);
+        vm.addNativeMethod(b2RopeDefClass, "set_fixed_effective_mass", native_b2_rope_def_set_fixed_effective_mass);
+        vm.addNativeMethod(b2RopeDefClass, "set_warm_start", native_b2_rope_def_set_warm_start);
         vm.addNativeMethod(b2RopeDefClass, "set_vertices", native_b2_rope_def_set_vertices);
         vm.addNativeMethod(b2RopeDefClass, "clear_vertices", native_b2_rope_def_clear_vertices);
 
@@ -4625,6 +4883,9 @@ namespace BindingsBox2DJoints
         vm.addNativeMethod(b2RopeClass, "set_tuning", native_b2_rope_set_tuning);
         vm.addNativeMethod(b2RopeClass, "step", native_b2_rope_step);
         vm.addNativeMethod(b2RopeClass, "reset", native_b2_rope_reset);
+ 
+        vm.addNativeMethod(b2RopeClass, "get_count", native_b2_rope_get_count);
+        vm.addNativeMethod(b2RopeClass, "get_point", native_b2_rope_get_point);
 
         vm.addGlobal("b2_pbdStretchingModel", vm.makeInt((int)b2_pbdStretchingModel));
         vm.addGlobal("b2_xpbdStretchingModel", vm.makeInt((int)b2_xpbdStretchingModel));

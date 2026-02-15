@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=address -fno-omit-frame-pointer  -O2 -g -DNDEBUG -fsanitize=address CMakeFiles/test.dir/src/main.cpp.o -o /media/projectos/projects/cpp/BuGame/bin/test  ../libbu/liblibbu.a -lm ../vendor/miniz/libminiz.a -lpthread 

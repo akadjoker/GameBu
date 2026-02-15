@@ -2,6 +2,8 @@
 
 #include "interpreter.hpp"
 
+class b2Draw;
+
 namespace Bindings
 {
     void registerAll(Interpreter &vm);
@@ -11,9 +13,23 @@ namespace BindingsInput
     void registerAll(Interpreter &vm);
 }
 
+namespace BindingsImage
+{
+    void registerAll(Interpreter &vm);
+}
+
 namespace BindingsProcess
 {
     void registerAll(Interpreter &vm);
+}
+
+namespace BindingsBox2D
+{
+    void registerAll(Interpreter &vm);
+    void onProcessDestroy(Process *proc);
+    void shutdownPhysics();
+    void renderDebug();
+    b2Draw *getDebugDraw();
 }
 
 namespace BindingsDraw

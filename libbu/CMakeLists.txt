@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(BU_USE_COMPUTED_GOTO "Use computed-goto opcode dispatch in VM" ON)
+option(BU_USE_COMPUTED_GOTO "Use computed-goto opcode dispatch in VM" OFF)
 
 # ============================================
 # Output Directory
@@ -18,7 +18,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 file(GLOB SOURCES
     "src/*.cpp"
     "src/*.c"
-    "src/miniz/*.c"
 )
  
 # ============================================
@@ -37,7 +36,8 @@ endif()
 # Enable PIC so libbu can be linked into shared libraries (plugins)
 set_target_properties(libbu PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-target_include_directories(libbu PUBLIC include src src/miniz)
+target_include_directories(libbu PUBLIC include src)
+target_link_libraries(libbu PRIVATE miniz)
 
 # ============================================
 # Compiler Flags - DEBUG

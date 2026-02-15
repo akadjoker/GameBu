@@ -228,7 +228,7 @@ process ai_car(spawn_x, spawn_y, car_color)
             var normal = [dx / dist, dy / dist];
             
             // Aplicar bounce com restituição 0.6
-            apply_collision_response(self, hit_player, normal, 0.6);
+            apply_collision_response(proc(id), hit_player, normal, 0.6);
             
             // Efeito visual
             var collision_x = (x + hit_player.x) / 2;

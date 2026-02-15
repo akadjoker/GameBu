@@ -312,6 +312,44 @@ namespace BindingsInput
         return 2;
     }
 
+    static int getMouseWheel(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_wheel expects no arguments");
+            return 0;
+        }
+
+        vm->pushFloat(GetMouseWheelMove());
+        return 1;
+    }
+
+    static int getMouseWheelX(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_wheel_x expects no arguments");
+            return 0;
+        }
+
+        Vector2 wheel = GetMouseWheelMoveV();
+        vm->pushFloat(wheel.x);
+        return 1;
+    }
+
+    static int getMouseWheelY(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("get_mouse_wheel_y expects no arguments");
+            return 0;
+        }
+
+        Vector2 wheel = GetMouseWheelMoveV();
+        vm->pushFloat(wheel.y);
+        return 1;
+    }
+
     static int setMousePosition(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2)
@@ -413,6 +451,9 @@ namespace BindingsInput
         vm.registerNative("get_mouse_screen_y", getMouseScreenY, 0);
         vm.registerNative("get_mouse_screen_position", getMouseScreenPosition, 0);
         vm.registerNative("get_mouse_delta", getMouseDelta, 0);
+        vm.registerNative("get_mouse_wheel", getMouseWheel, 0);
+        vm.registerNative("get_mouse_wheel_x", getMouseWheelX, 0);
+        vm.registerNative("get_mouse_wheel_y", getMouseWheelY, 0);
         vm.registerNative("set_mouse_position", setMousePosition, 2);
         vm.registerNative("set_mouse_offset", setMouseOffset, 2);
         vm.registerNative("set_mouse_scale", setMouseScale, 2);

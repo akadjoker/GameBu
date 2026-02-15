@@ -121,6 +121,12 @@ public:
 	///
 	void Draw(b2Draw* draw) const;
 
+	///
+	int32 GetPointCount() const;
+
+	///
+	b2Vec2 GetPoint(int32 index) const;
+
 private:
 
 	void SolveStretch_PBD();

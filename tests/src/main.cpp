@@ -546,18 +546,18 @@ static bool runLoadedMainProcess(Interpreter &vm, int maxSteps)
     }
 
     vm.setCurrentProcess(proc);
-    vm.setCurrentFiber(proc);
+    vm.setCurrentExec(proc);
 
     for (int i = 0; i < maxSteps; i++)
     {
-        FiberResult result = vm.run_process(proc);
+        ProcessResult result = vm.run_process(proc);
 
-        if (result.reason == FiberResult::ERROR)
+        if (result.reason == ProcessResult::ERROR)
         {
             return false;
         }
 
-        if (result.reason == FiberResult::FIBER_DONE)
+        if (result.reason == ProcessResult::PROCESS_DONE)
         {
             return true;
         }

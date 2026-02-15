@@ -30,7 +30,9 @@ namespace BindingsDraw
         LineEx,
         Triangle,
         Graph,
-        GraphEx
+        GraphEx,
+        ClipBegin,
+        ClipEnd
     };
 
     struct LineCmd { int x1, y1, x2, y2; };
@@ -46,6 +48,7 @@ namespace BindingsDraw
     struct TriangleCmd { int x1, y1, x2, y2, x3, y3; bool fill; };
     struct GraphCmd { int graphId; int x, y; };
     struct GraphExCmd { int graphId; int x, y; float rotation, sizeX, sizeY; bool flipX, flipY; };
+    struct ClipCmd { int x, y, width, height; };
 
     struct DrawCommand
     {
@@ -79,6 +82,7 @@ namespace BindingsDraw
     };
 
     static std::vector<DrawCommand> screenCommands;
+    static int activeClipDepth = 0;
 
     static void enqueueScreenCommand(DrawCommandType type, Color color, const LineCmd &p)
     {
@@ -172,6 +176,19 @@ namespace BindingsDraw
         cmd.type = type; cmd.color = color;
         cmd.graphId = p.graphId; cmd.x1 = p.x; cmd.y1 = p.y; cmd.rotation = p.rotation;
         cmd.sizeX = p.sizeX; cmd.sizeY = p.sizeY; cmd.flipX = p.flipX; cmd.flipY = p.flipY;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const ClipCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height;
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
         screenCommands.push_back(std::move(cmd));
     }
 
@@ -279,6 +296,17 @@ namespace BindingsDraw
             }
             break;
         }
+        case DrawCommandType::ClipBegin:
+            BeginScissorMode(cmd.x1, cmd.y1, cmd.width, cmd.height);
+            activeClipDepth += 1;
+            break;
+        case DrawCommandType::ClipEnd:
+            if (activeClipDepth > 0)
+            {
+                EndScissorMode();
+                activeClipDepth -= 1;
+            }
+            break;
         }
     }
 
@@ -902,6 +930,65 @@ namespace BindingsDraw
         return 0;
     }
 
+    static int native_clip_begin(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 4)
+        {
+            Error("clip_begin expects 4 arguments (x, y, width, height)");
+            return 0;
+        }
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() || !args[3].isNumber())
+        {
+            Error("clip_begin expects 4 number arguments (x, y, width, height)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int width = (int)args[2].asNumber();
+        int height = (int)args[3].asNumber();
+
+        if (width <= 0 || height <= 0)
+        {
+            return 0;
+        }
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::ClipBegin, currentColor, ClipCmd{x, y, width, height});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+        BeginScissorMode(x, y, width, height);
+        activeClipDepth += 1;
+        return 0;
+    }
+
+    static int native_clip_end(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0)
+        {
+            Error("clip_end expects 0 arguments");
+            return 0;
+        }
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::ClipEnd, currentColor);
+            return 0;
+        }
+
+        if (activeClipDepth > 0)
+        {
+            EndScissorMode();
+            activeClipDepth -= 1;
+        }
+        return 0;
+    }
+
     static int native_get_text_width(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2 || !args[0].isString() || !args[1].isNumber())
@@ -1006,6 +1093,11 @@ namespace BindingsDraw
     void resetDrawCommands()
     {
         screenCommands.clear();
+        while (activeClipDepth > 0)
+        {
+            EndScissorMode();
+            activeClipDepth -= 1;
+        }
     }
 
     void RenderWorldCommands()
@@ -1018,6 +1110,11 @@ namespace BindingsDraw
         for (size_t i = 0; i < screenCommands.size(); i++)
         {
             renderCommand(screenCommands[i]);
+        }
+        while (activeClipDepth > 0)
+        {
+            EndScissorMode();
+            activeClipDepth -= 1;
         }
         screenCommands.clear();
     }
@@ -1053,6 +1150,10 @@ namespace BindingsDraw
         vm.registerNative("set_alpha", native_set_alpha, 1);
 
         vm.registerNative("draw_fps", native_draw_fps, 2);
+        vm.registerNative("clip_begin", native_clip_begin, 4);
+        vm.registerNative("clip_end", native_clip_end, 0);
+        vm.registerNative("set_clip_rect", native_clip_begin, 4);
+        vm.registerNative("clear_clip_rect", native_clip_end, 0);
 
         vm.registerNative("start_fade", native_start_fade, 2);
         vm.registerNative("is_fade_complete", native_is_fade_complete, 0);

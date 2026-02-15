@@ -57,7 +57,7 @@ endif()
    
 endif()
 
-target_link_libraries(main raylib libbu graphics)
+target_link_libraries(main raylib libbu graphics box2d)
 
 if (WIN32)
     target_link_libraries(main Winmm.lib )

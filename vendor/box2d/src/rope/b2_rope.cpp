@@ -807,3 +807,17 @@ void b2Rope::Draw(b2Draw* draw) const
 	const b2Color& pc = m_invMasses[m_count - 1] > 0.0f ? pd : pg;
 	draw->DrawPoint(m_ps[m_count - 1], 5.0f, pc);
 }
+
+int32 b2Rope::GetPointCount() const
+{
+	return m_count;
+}
+
+b2Vec2 b2Rope::GetPoint(int32 index) const
+{
+	if (index < 0 || index >= m_count || m_ps == nullptr)
+	{
+		return b2Vec2(0.0f, 0.0f);
+	}
+	return m_ps[index];
+}

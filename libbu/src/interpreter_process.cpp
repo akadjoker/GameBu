@@ -79,6 +79,8 @@ int Interpreter::getProcessPrivateIndex(const char *name)
 
     case 's':
         if (strcmp(name, "size") == 0) return (int)PrivateIndex::SIZE;
+        if (strcmp(name, "sizex") == 0) return (int)PrivateIndex::SIZEX;
+        if (strcmp(name, "sizey") == 0) return (int)PrivateIndex::SIZEY;
         if (strcmp(name, "state") == 0) return (int)PrivateIndex::STATE;
         if (strcmp(name, "speed") == 0) return (int)PrivateIndex::SPEED;
         if (strcmp(name, "show") == 0) return (int)PrivateIndex::SHOW;
@@ -166,6 +168,9 @@ ProcessDef *Interpreter::addProcess(const char *name, Function *func)
     proc->privates[23] = makeInt(1);    // show
     proc->privates[24] = makeInt(0);    // xold
     proc->privates[25] = makeInt(0);    // yold
+    proc->privates[26] = makeDouble(1.0);    // sizex
+    proc->privates[27] = makeDouble(1.0);    // sizex
+
 
     initFiber(proc, func);
 
@@ -380,10 +385,6 @@ void Interpreter::update(float deltaTime)
         {
             currentProcess = nullptr;
         }
-        if (currentFiber == proc)
-        {
-            currentFiber = nullptr;
-        }
 
         ProcessPool::instance().recycle(proc);
     }
@@ -424,12 +425,11 @@ void Interpreter::run_process_step(Process *proc)
     }
 
     currentProcess = proc;
-    currentFiber = proc;
 
     // Reset fatal error before each process step to prevent cascade
     hasFatalError_ = false;
 
-    FiberResult result = run_process(proc);
+    ProcessResult result = run_process(proc);
 
     if (proc->state == ProcessState::DEAD)
     {
@@ -437,7 +437,7 @@ void Interpreter::run_process_step(Process *proc)
         return;
     }
 
-    if (result.reason == FiberResult::ERROR)
+    if (result.reason == ProcessResult::ERROR)
     {
         // Runtime error occurred - kill this process cleanly
         if (debugMode_)
@@ -451,15 +451,7 @@ void Interpreter::run_process_step(Process *proc)
         return;
     }
 
-    if (result.reason == FiberResult::FIBER_YIELD)
-    {
-        // Legacy bytecode compatibility path: keep scheduler behavior if encountered.
-        proc->state = ProcessState::SUSPENDED;
-        proc->resumeTime = currentTime + result.yieldMs / 1000.0f;
-        return;
-    }
-
-    if (result.reason == FiberResult::PROCESS_FRAME)
+    if (result.reason == ProcessResult::PROCESS_FRAME)
     {
         proc->state = ProcessState::SUSPENDED;
         proc->resumeTime = currentTime + (lastFrameTime * (result.framePercent - 100) / 100.0f);
@@ -474,7 +466,7 @@ void Interpreter::run_process_step(Process *proc)
         return;
     }
 
-    if (result.reason == FiberResult::FIBER_DONE)
+    if (result.reason == ProcessResult::PROCESS_DONE)
     {
         proc->state = ProcessState::DEAD;
         proc->initialized = false;

@@ -147,7 +147,7 @@ struct Entity
     double x, y;
     double angle;
     bool flip_x, flip_y;
-    double size;
+    double size_x,size_y,size;
     bool ready = false;
 
     uint32 collision_layer; // Em que layer esta entity está

@@ -1,0 +1,74 @@
+{
+  "prefabs": [
+    {
+      "b": 255,
+      "g": 255,
+      "r": 255,
+      "graph_id": 2,
+      "a": 255,
+      "size": 32
+    }
+  ],
+  "selected_graph": 1,
+  "scene_instances": [
+    {
+      "prefab": 0,
+      "y": 180,
+      "b": 255,
+      "g": 255,
+      "r": 255,
+      "graph_id": 2,
+      "angle": 0,
+      "x": 320,
+      "a": 255,
+      "size": 32
+    },
+    {
+      "prefab": 0,
+      "y": 204,
+      "b": 255,
+      "g": 255,
+      "r": 255,
+      "graph_id": 2,
+      "angle": 0,
+      "x": 601,
+      "a": 255,
+      "size": 32
+    }
+  ],
+  "processes": [
+    {
+      "prefab": 0,
+      "y": 180,
+      "b": 255,
+      "g": 255,
+      "r": 255,
+      "graph_id": 2,
+      "angle": 0,
+      "x": 320,
+      "a": 255,
+      "size": 32
+    },
+    {
+      "prefab": 0,
+      "y": 204,
+      "b": 255,
+      "g": 255,
+      "r": 255,
+      "graph_id": 2,
+      "angle": 0,
+      "x": 601,
+      "a": 255,
+      "size": 32
+    }
+  ],
+  "selected_scene_instance": 1,
+  "graphs": [
+    "assets/ship.png",
+    "assets/Orb.png",
+    "assets/ball.png",
+    "assets/explosion.png"
+  ],
+  "selected_process": 1,
+  "selected_prefab": 0
+}

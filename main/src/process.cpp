@@ -969,6 +969,7 @@ namespace BindingsProcess
         vm.registerNativeProcess("out_screen", native_out_screen, 0);
         vm.registerNativeProcess("set_layer", native_set_layer, 1);
         vm.registerNativeProcess("get_layer", native_get_layer, 0);
+        vm.registerNativeProcess("let_me_alone", native_let_me_alone, 0);
 
         vm.registerNativeProcess("flip_vertical", native_mirror_vertical, 1);
         vm.registerNativeProcess("flip_horizontal", native_mirror_horizontal, 1);
@@ -980,7 +981,6 @@ namespace BindingsProcess
         vm.registerNativeProcess("fget_angle", native_fget_angle, 1);
         vm.registerNativeProcess("fget_dist", native_fget_dist, 1);
         vm.registerNativeProcess("turn_to", native_turn_to, 2);
-        vm.registerNativeProcess("let_me_alone", native_let_me_alone, 0);
 
     }
 }

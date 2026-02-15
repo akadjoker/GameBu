@@ -119,6 +119,8 @@ Entity::Entity()
     flip_y = false;
     angle = 0;
     size = 100;
+    size_x = 1.0;
+    size_y = 1.0;
 
     center_x = -1; // POINT_UNDEFINED
     center_y = -1; // POINT_UNDEFINED

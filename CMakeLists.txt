@@ -6,6 +6,8 @@ project(BuGame)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
  
+add_subdirectory(vendor/miniz)
+add_subdirectory(vendor/box2d)
 add_subdirectory(libbu)
 add_subdirectory(graphics)
 

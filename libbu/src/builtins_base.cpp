@@ -56,6 +56,21 @@ static void valueToString(const Value &v, std::string &out)
     snprintf(buffer, 256, "<process:%u>", v.as.integer);
     out += buffer;
     break;
+  case ValueType::PROCESS_INSTANCE:
+  {
+    Process *proc = v.asProcess();
+    if (!proc)
+    {
+      out += "<process:null>";
+      break;
+    }
+    if (proc->name)
+      snprintf(buffer, 256, "<process:%u %s>", proc->id, proc->name->chars());
+    else
+      snprintf(buffer, 256, "<process:%u>", proc->id);
+    out += buffer;
+    break;
+  }
   case ValueType::ARRAY:
     out += "[array]";
     break;
