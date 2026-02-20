@@ -1,4 +1,0 @@
-[submodule "libbu"]
-	path = libbu
-	url = https://github.com/akadjoker/BUlangVM.git
-	branch = dev

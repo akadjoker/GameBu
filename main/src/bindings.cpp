@@ -3,8 +3,8 @@
 #include "math.hpp"
 #include <cmath>
 extern GraphLib gGraphLib;
-extern SoundLib gSoundLib;
 extern Scene gScene;
+extern Renderer gRenderer;
 
 namespace Bindings
 {
@@ -1243,129 +1243,6 @@ namespace Bindings
         return 1;
     }
 
-    int native_load_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("load_sound expects 1 string argument (path)");
-            return 0;
-        }
-        if (!args[0].isString())
-        {
-            Error("load_sound expects 1 string argument (path)");
-            return 0;
-        }
-
-        const char *path = args[0].asStringChars();
-        int soundId = gSoundLib.load(GetFileNameWithoutExt(path), path);
-        if (soundId < 0)
-        {
-            Error("Failed to load sound from path: %s", path);
-            return 0;
-        }
-
-        vm->pushInt(soundId);
-
-        return 1;
-    }
-
-    int native_play_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 3)
-        {
-            Error("play_sound expects 3 arguments (soundId, volume, pitch)");
-            return 0;
-        }
-        if (!args[0].isInt() || !args[1].isNumber() || !args[2].isNumber())
-        {
-            Error("play_sound expects 3 arguments (soundId, volume, pitch)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        float volume = (float)args[1].asNumber();
-        float pitch = (float)args[2].asNumber();
-
-        gSoundLib.play(soundId, volume, pitch);
-
-        return 0;
-    }
-
-    int native_stop_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("stop_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("stop_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.stop(soundId);
-        return 0;
-    }
-
-    int native_is_sound_playing(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("is_sound_playing expects 1 argument (soundId)");
-            vm->pushBool(false);
-            return 1;
-        }
-        if (!args[0].isInt())
-        {
-            Error("is_sound_playing expects 1 int argument (soundId)");
-            vm->pushBool(false);
-            return 1;
-        }
-
-        int soundId = (int)args[0].asInt();
-        bool playing = gSoundLib.isSoundPlaying(soundId);
-        vm->pushBool(playing);
-        return 1;
-    }
-
-    int native_pause_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("pause_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("pause_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.pause(soundId);
-        return 0;
-    }
-
-    int native_resume_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("resume_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("resume_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.resume(soundId);
-        return 0;
-    }
-
     int native_set_layer_mode(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2)
@@ -1976,6 +1853,137 @@ namespace Bindings
         return 1;
     }
 
+    int native_enable_post_processing(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1) {
+            Error("enable_post_processing expects 1 boolean argument");
+            return 0;
+        }
+        gRenderer.enablePostProcessing(args[0].asBool());
+        return 0;
+    }
+
+    int native_is_post_processing_enabled(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 0) {
+            Error("is_post_processing_enabled expects no arguments");
+            vm->pushBool(false);
+            return 1;
+        }
+        vm->pushBool(gRenderer.isPostProcessingEnabled());
+        return 1;
+    }
+
+    int native_add_post_processing_pass(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1)
+        {
+            Error("add_post_processing_pass expects 1 argument (RenderPass instance)");
+            return 0;
+        }
+
+        if (!args[0].isNativeClassInstance()) {
+            Error("add_post_processing_pass expects a RenderPass instance");
+            return 0;
+        }
+
+        NativeClassInstance* inst = args[0].asNativeClassInstance();
+        if (strcmp(inst->klass->name->chars(), RENDERPASS_CLASS_NAME) != 0) {
+            Error("add_post_processing_pass expects a RenderPass instance");
+            return 0;
+        }
+
+        RenderPass* pass = static_cast<RenderPass*>(inst->userData);
+        if (pass) gRenderer.addPostProcessingPass(*pass);
+        return 0;
+    }
+
+    int native_clear_post_processing_passes(Interpreter *vm, int argCount, Value *args)
+    {
+        gRenderer.clearPostProcessingPasses();
+        return 0;
+    }
+
+    // --- RenderPass Native Class ---
+
+    static const char* RENDERPASS_CLASS_NAME = "RenderPass";
+
+    static void* native_renderpass_ctor(Interpreter* vm, int argCount, Value* args)
+    {
+        if (argCount != 1 || !args[0].isInt())
+        {
+            Error("RenderPass() expects 1 integer argument (shaderId)");
+            return nullptr;
+        }
+        RenderPass* pass = new RenderPass();
+        pass->shaderId = args[0].asInt();
+        return pass;
+    }
+
+    static void native_renderpass_dtor(Interpreter* vm, void* data)
+    {
+        (void)vm;
+        delete static_cast<RenderPass*>(data);
+    }
+
+    static int native_renderpass_set_clear(Interpreter* vm, void* data, int argCount, Value* args)
+    {
+        RenderPass* pass = static_cast<RenderPass*>(data);
+        if (!pass) return 0;
+
+        if (argCount < 1 || !args[0].isBool())
+        {
+            Error("set_clear() expects at least 1 boolean argument (enabled)");
+            return 0;
+        }
+        pass->shouldClear = args[0].asBool();
+
+        if (argCount > 1)
+        {
+            if (argCount == 2 && args[1].isNativeStructInstance())
+            {
+                auto* inst = args[1].asNativeStructInstance();
+                if (strcmp(inst->klass->name->chars(), "Color") == 0)
+                {
+                    pass->clearColor = *static_cast<Color*>(inst->data);
+                }
+                else
+                {
+                    Error("set_clear() second argument must be a Color object");
+                }
+            }
+            else if (argCount >= 4 && args[1].isNumber() && args[2].isNumber() && args[3].isNumber())
+            {
+                pass->clearColor.r = (unsigned char)args[1].asInt();
+                pass->clearColor.g = (unsigned char)args[2].asInt();
+                pass->clearColor.b = (unsigned char)args[3].asInt();
+                pass->clearColor.a = (argCount > 4 && args[4].isNumber()) ? (unsigned char)args[4].asInt() : 255;
+            }
+            else
+            {
+                Error("set_clear() color must be a Color object or r, g, b, [a] values");
+            }
+        }
+        else
+        {
+            pass->clearColor = { 0, 0, 0, 0 };
+        }
+        return 0;
+    }
+
+    static int native_renderpass_set_size(Interpreter* vm, void* data, int argCount, Value* args)
+    {
+        RenderPass* pass = static_cast<RenderPass*>(data);
+        if (!pass) return 0;
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber()) {
+            Error("set_size() expects 2 number arguments (width, height)");
+            return 0;
+        }
+        pass->width = (int)args[0].asNumber();
+        pass->height = (int)args[1].asNumber();
+        return 0;
+    }
+
     void registerAll(Interpreter &vm)
     {
         NativeClassDef *mask = vm.registerNativeClass(
@@ -2013,12 +2021,6 @@ namespace Bindings
         vm.registerNative("exists", native_exists, 1);
         vm.registerNative("count_processes", native_get_count, 1);
         vm.registerNative("get_ids", native_get_ids, 1);
-        vm.registerNative("play_sound", native_play_sound, 3);
-        vm.registerNative("stop_sound", native_stop_sound, 1);
-        vm.registerNative("load_sound", native_load_sound, 1);
-        vm.registerNative("is_sound_playing", native_is_sound_playing, 1);
-        vm.registerNative("pause_sound", native_pause_sound, 1);
-        vm.registerNative("resume_sound", native_resume_sound, 1);
         vm.registerNative("set_layer_mode", native_set_layer_mode, 2);
         vm.registerNative("set_layer_clip", native_set_layer_clip, 1);
 
@@ -2071,6 +2073,21 @@ namespace Bindings
         vm.addGlobal("PF_OCTILE", vm.makeInt((int)PF_OCTILE));
         vm.addGlobal("PF_CHEBYSHEV", vm.makeInt((int)PF_CHEBYSHEV));
 
+        NativeClassDef* passDef = vm.registerNativeClass(
+            RENDERPASS_CLASS_NAME,
+            native_renderpass_ctor,
+            native_renderpass_dtor,
+            1,
+            false
+        );
+        vm.addNativeMethod(passDef, "set_clear", native_renderpass_set_clear);
+        vm.addNativeMethod(passDef, "set_size", native_renderpass_set_size);
+
+        vm.registerNative("enable_post_processing", native_enable_post_processing, 1);
+        vm.registerNative("is_post_processing_enabled", native_is_post_processing_enabled, 0);
+        vm.registerNative("add_post_processing_pass", native_add_post_processing_pass, 1);
+        vm.registerNative("clear_post_processing_passes", native_clear_post_processing_passes, 0);
+
         BindingsInput::registerAll(vm);
         BindingsImage::registerAll(vm);
         BindingsProcess::registerAll(vm);
@@ -2078,6 +2095,7 @@ namespace Bindings
         BindingsPoly2Tri::registerAll(vm);
         BindingsDraw::registerAll(vm);
         BindingsParticles::registerAll(vm);
+        BindingsSound::registerAll(vm);
         BindingsEase::registerAll(vm);
         BindingsMessage::registerAll(vm);
     }

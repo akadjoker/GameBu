@@ -5,6 +5,7 @@
 #include "interpreter.hpp"
 #include "bindings.hpp"
 #include "camera.hpp"
+#include "sound.hpp"
 #include "platform.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -668,7 +669,9 @@ int main(int argc, char *argv[])
         float dt = GetFrameTime();
         BindingsInput::update();
         gCamera.update(dt);
+        BindingsSound::updateMusicStreams();
         UpdateFade(dt);
+        gParticleSystem.update(dt);
         gScene.updateCollision();
 
          
@@ -676,7 +679,6 @@ int main(int argc, char *argv[])
         BeginDrawing();
         ClearBackground(BACKGROUND_COLOR);
         gCamera.begin();
-        gParticleSystem.update(dt);
         BindingsDraw::resetDrawCommands();
         vm.update(dt);
         RenderScene();
@@ -696,6 +698,7 @@ int main(int argc, char *argv[])
     }
     BindingsMessage::clearAllMessages();
     gParticleSystem.clear();
+    BindingsSound::shutdown();
     BindingsBox2D::shutdownPhysics();
     BindingsDraw::unloadFonts();
  
