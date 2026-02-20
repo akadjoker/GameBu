@@ -828,24 +828,247 @@ namespace Bindings
         vm->pushString("nil");
         return 1;
     }
+
+    static Process *resolve_debug_process(Interpreter *vm, int argCount, Value *args, bool *badArgs)
+    {
+        if (badArgs)
+            *badArgs = false;
+
+        if (argCount == 0)
+        {
+            return vm->getCurrentProcess();
+        }
+
+        if (argCount != 1)
+        {
+            if (badArgs)
+                *badArgs = true;
+            return nullptr;
+        }
+
+        if (args[0].isProcessInstance())
+        {
+            return args[0].asProcess();
+        }
+
+        if (args[0].isNumber())
+        {
+            uint32 id = (uint32)args[0].asNumber();
+            return vm->findProcessById(id);
+        }
+
+        if (badArgs)
+            *badArgs = true;
+        return nullptr;
+    }
+
+    int native_debug_stack(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_stack expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        Value arrValue = vm->makeArray();
+        ArrayInstance *arr = arrValue.as.array;
+
+        for (Value *slot = exec->stackTop; slot > exec->stack;)
+        {
+            --slot; // top to bottom, same order as debugger output
+            arr->values.push(*slot);
+        }
+
+        vm->push(arrValue);
+        return 1;
+    }
+
+    int native_debug_locals(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_locals expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        if (exec->frameCount <= 0)
+        {
+            vm->push(vm->makeArray());
+            return 1;
+        }
+
+        CallFrame *frame = &exec->frames[exec->frameCount - 1];
+        Value *start = frame->slots;
+        if (!start || start < exec->stack || start > exec->stackTop)
+        {
+            start = exec->stack;
+        }
+
+        Value arrValue = vm->makeArray();
+        ArrayInstance *arr = arrValue.as.array;
+        for (Value *slot = start; slot < exec->stackTop; ++slot)
+        {
+            arr->values.push(*slot);
+        }
+
+        vm->push(arrValue);
+        return 1;
+    }
+
+    int native_debug_frames(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_frames expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        Value outValue = vm->makeArray();
+        ArrayInstance *out = outValue.as.array;
+
+        for (int i = exec->frameCount - 1; i >= 0; --i)
+        {
+            CallFrame *frame = &exec->frames[i];
+            Function *func = frame->func;
+
+            Value frameMapValue = vm->makeMap();
+            MapInstance *frameMap = frameMapValue.as.map;
+
+            frameMap->table.set(vm->makeString("index").asString(), vm->makeInt(i));
+
+            const char *funcName = "<script>";
+            if (func && func->name)
+            {
+                funcName = func->name->chars();
+            }
+            frameMap->table.set(vm->makeString("func").asString(), vm->makeString(funcName));
+
+            int ipOffset = 0;
+            int line = -1;
+            if (func && func->chunk && frame->ip && func->chunk->count > 0)
+            {
+                ptrdiff_t offset = frame->ip - func->chunk->code;
+                if (offset > 0)
+                {
+                    offset -= 1;
+                }
+                if (offset < 0)
+                {
+                    offset = 0;
+                }
+                if ((size_t)offset >= func->chunk->count)
+                {
+                    offset = (ptrdiff_t)(func->chunk->count - 1);
+                }
+
+                ipOffset = (int)offset;
+                line = func->chunk->lines[offset];
+            }
+
+            frameMap->table.set(vm->makeString("ip").asString(), vm->makeInt(ipOffset));
+            frameMap->table.set(vm->makeString("line").asString(), vm->makeInt(line));
+
+            int slotStart = 0;
+            if (frame->slots && frame->slots >= exec->stack && frame->slots <= exec->stackTop)
+            {
+                slotStart = (int)(frame->slots - exec->stack);
+            }
+            frameMap->table.set(vm->makeString("slot").asString(), vm->makeInt(slotStart));
+
+            out->values.push(frameMapValue);
+        }
+
+        vm->push(outValue);
+        return 1;
+    }
+
+    int native_debug_processes(Interpreter *vm, int argCount, Value *args)
+    {
+        (void)args;
+        if (argCount != 0)
+        {
+            Error("debug_processes expects no arguments");
+            vm->pushNil();
+            return 1;
+        }
+
+        Value outValue = vm->makeArray();
+        ArrayInstance *out = outValue.as.array;
+
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (!proc)
+                continue;
+
+            Value procMapValue = vm->makeMap();
+            MapInstance *procMap = procMapValue.as.map;
+
+            procMap->table.set(vm->makeString("id").asString(), vm->makeInt((int)proc->id));
+            procMap->table.set(vm->makeString("blueprint").asString(), vm->makeInt(proc->blueprint));
+            procMap->table.set(vm->makeString("state").asString(), vm->makeInt((int)proc->state));
+            procMap->table.set(vm->makeString("frames").asString(), vm->makeInt(proc->frameCount));
+            procMap->table.set(vm->makeString("stack").asString(), vm->makeInt((int)(proc->stackTop - proc->stack)));
+
+            const char *name = "<unnamed>";
+            if (proc->name)
+                name = proc->name->chars();
+            procMap->table.set(vm->makeString("name").asString(), vm->makeString(name));
+            procMap->table.set(vm->makeString("process").asString(), vm->makeProcessInstance(proc));
+
+            out->values.push(procMapValue);
+        }
+
+        vm->push(outValue);
+        return 1;
+    }
+
     static void applySignal(Process *proc, int signalType)
     {
         switch (signalType)
         {
         case 0: // S_KILL
-            proc->state = FiberState::DEAD;
+            proc->state = ProcessState::DEAD;
             break;
         case 1: // S_FREEZE
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 2: // S_HIDE - freeze + hide (same as freeze for now)
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 3: // S_SHOW - wakeup from frozen
-            if (proc->state == FiberState::FROZEN)
-                proc->state = FiberState::RUNNING;
+            if (proc->state == ProcessState::FROZEN)
+                proc->state = ProcessState::RUNNING;
             break;
         }
     }
@@ -867,7 +1090,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            if (proc && proc->state != FiberState::DEAD)
+            if (proc && proc->state != ProcessState::DEAD)
                 applySignal(proc, signalType);
             return 0;
         }
@@ -913,7 +1136,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            vm->pushBool(proc && proc->state != FiberState::DEAD);
+            vm->pushBool(proc && proc->state != ProcessState::DEAD);
             return 1;
         }
 
@@ -925,7 +1148,7 @@ namespace Bindings
             for (size_t i = 0; i < alive.size(); i++)
             {
                 Process *proc = alive[i];
-                if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 {
                     vm->pushBool(true);
                     return 1;
@@ -963,7 +1186,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 count++;
         }
 
@@ -987,7 +1210,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 array->values.push(vm->makeProcessInstance(proc));
         }
 
@@ -1009,7 +1232,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
             {
                 vm->push(vm->makeProcessInstance(proc));
                 return 1;
@@ -1832,6 +2055,10 @@ namespace Bindings
         vm.registerNative("angle_delta", native_angle_delta, 2);
         vm.registerNative("near_angle", native_near_angle, 3);
         vm.registerNative("normalize_angle", native_normalize_angle, 1);
+        vm.registerNative("debug_stack", native_debug_stack, -1);
+        vm.registerNative("debug_locals", native_debug_locals, -1);
+        vm.registerNative("debug_frames", native_debug_frames, -1);
+        vm.registerNative("debug_processes", native_debug_processes, 0);
 
         vm.addGlobal("SKILL", vm.makeInt(0));
         vm.addGlobal("SFREEZE", vm.makeInt(1));
@@ -1845,7 +2072,10 @@ namespace Bindings
         vm.addGlobal("PF_CHEBYSHEV", vm.makeInt((int)PF_CHEBYSHEV));
 
         BindingsInput::registerAll(vm);
+        BindingsImage::registerAll(vm);
         BindingsProcess::registerAll(vm);
+        BindingsBox2D::registerAll(vm);
+        BindingsPoly2Tri::registerAll(vm);
         BindingsDraw::registerAll(vm);
         BindingsParticles::registerAll(vm);
         BindingsEase::registerAll(vm);

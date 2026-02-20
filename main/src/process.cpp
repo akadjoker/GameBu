@@ -425,7 +425,7 @@ namespace BindingsProcess
         }
 
         Process *hitProc = (Process*)hit->userData;
-        if (hitProc && hitProc->state != FiberState::DEAD)
+        if (hitProc && hitProc->state != ProcessState::DEAD)
             vm->push(vm->makeProcessInstance(hitProc));
         else
             vm->pushBool(false);
@@ -454,7 +454,7 @@ namespace BindingsProcess
         if (!entity) return 0;
         
         Process *childProc = args[0].asProcess();
-         if (!childProc || childProc->state == FiberState::DEAD)
+         if (!childProc || childProc->state == ProcessState::DEAD)
          {
              Error("atach: child process is dead or invalid");
              return 0;
@@ -705,7 +705,7 @@ namespace BindingsProcess
                 Process *other = alive[i];
                 if (!other || other == proc) continue;
                 if (other->blueprint != blueprint) continue;
-                if (other->state == FiberState::DEAD || other->state == FiberState::FROZEN) continue;
+                if (other->state == ProcessState::DEAD || other->state == ProcessState::FROZEN) continue;
 
                 double dx = other->privates[0].asNumber() - mx;
                 double dy = other->privates[1].asNumber() - my;
@@ -847,7 +847,7 @@ namespace BindingsProcess
         {
             Process *other = alive[i];
             if (other && other != proc)
-                other->state = FiberState::DEAD;
+                other->state = ProcessState::DEAD;
         }
         return 0;
     }
@@ -862,7 +862,7 @@ namespace BindingsProcess
             return 1;
         }
 
-        if(proc->state == FiberState::FROZEN || proc->state == FiberState::DEAD)
+        if(proc->state == ProcessState::FROZEN || proc->state == ProcessState::DEAD)
         {
            
             vm->pushBool(false);
@@ -917,7 +917,7 @@ namespace BindingsProcess
             if (other->procID < 0) continue;
 
             Process *otherProc = (Process*)other->userData;
-            if (!otherProc || otherProc->state == FiberState::DEAD) continue;
+            if (!otherProc || otherProc->state == ProcessState::DEAD) continue;
             if (otherProc->blueprint != targetBlueprint) continue;
  
 
@@ -969,6 +969,7 @@ namespace BindingsProcess
         vm.registerNativeProcess("out_screen", native_out_screen, 0);
         vm.registerNativeProcess("set_layer", native_set_layer, 1);
         vm.registerNativeProcess("get_layer", native_get_layer, 0);
+        vm.registerNativeProcess("let_me_alone", native_let_me_alone, 0);
 
         vm.registerNativeProcess("flip_vertical", native_mirror_vertical, 1);
         vm.registerNativeProcess("flip_horizontal", native_mirror_horizontal, 1);
@@ -980,7 +981,6 @@ namespace BindingsProcess
         vm.registerNativeProcess("fget_angle", native_fget_angle, 1);
         vm.registerNativeProcess("fget_dist", native_fget_dist, 1);
         vm.registerNativeProcess("turn_to", native_turn_to, 2);
-        vm.registerNativeProcess("let_me_alone", native_let_me_alone, 0);
 
     }
 }

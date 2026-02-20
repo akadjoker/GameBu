@@ -1,17 +1,18 @@
 
 
 #include "engine.hpp"
+#include "filebuffer.hpp"
 #include "interpreter.hpp"
 #include "bindings.hpp"
 #include "camera.hpp"
 #include "platform.hpp"
-#include <iostream>
-#include <fstream>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstring>
 #include <cmath>
+#include <exception>
 #include <algorithm>
+#include <vector>
 #include <raylib.h>
 
 extern Scene gScene;
@@ -24,65 +25,153 @@ struct FileLoaderContext
     const char *searchPaths[8];
     int pathCount;
     char fullPath[512];
-    char buffer[1024 * 1024];
+    FileBuffer fileBuffer;
 };
+
+static bool isAbsolutePath(const char *path)
+{
+    if (!path || !*path)
+        return false;
+    if (path[0] == '/' || path[0] == '\\')
+        return true;
+#if defined(_WIN32)
+    if (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+        path[1] == ':')
+    {
+        return true;
+    }
+#endif
+    return false;
+}
+
+static void pathDirname(const char *path, char *out, size_t outSize)
+{
+    if (!out || outSize == 0)
+        return;
+    out[0] = '\0';
+
+    if (!path || !*path)
+    {
+        snprintf(out, outSize, ".");
+        return;
+    }
+
+    const char *slash1 = strrchr(path, '/');
+    const char *slash2 = strrchr(path, '\\');
+    const char *slash = slash1;
+    if (slash2 && (!slash1 || slash2 > slash1))
+        slash = slash2;
+
+    if (!slash)
+    {
+        snprintf(out, outSize, ".");
+        return;
+    }
+
+    size_t len = (size_t)(slash - path);
+    if (len == 0)
+    {
+        snprintf(out, outSize, "/");
+        return;
+    }
+
+    if (len >= outSize)
+        len = outSize - 1;
+    memcpy(out, path, len);
+    out[len] = '\0';
+}
 
 const char *multiPathFileLoader(const char *filename, size_t *outSize, void *userdata)
 {
+    if (!filename || !outSize || !userdata)
+        return nullptr;
+
     FileLoaderContext *ctx = (FileLoaderContext *)userdata;
+    *outSize = 0;
 
-    for (int i = 0; i < ctx->pathCount; i++)
+    // If include path starts with '/' (ex: "/scripts/main.bu"), also keep relative form.
+    const char *relativeName = filename;
+    while (*relativeName == '/' || *relativeName == '\\')
     {
-        snprintf(ctx->fullPath, sizeof(ctx->fullPath), "%s/%s", ctx->searchPaths[i], filename);
-
-        FILE *f = fopen(ctx->fullPath, "rb");
-        if (!f)
-            continue;
-
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-
-        if (size <= 0)
-        {
-            fclose(f);
-            continue;
-        }
-
-        if (size >= (long)sizeof(ctx->buffer))
-        {
-            fprintf(stderr, "File too large: %s (%ld bytes)\n", ctx->fullPath, size);
-            fclose(f);
-            *outSize = 0;
-            return nullptr;
-        }
-
-        fseek(f, 0, SEEK_SET);
-        size_t bytesRead = fread(ctx->buffer, 1, size, f);
-        fclose(f);
-
-        if (bytesRead != (size_t)size)
-            continue;
-
-        ctx->buffer[bytesRead] = '\0';
-        *outSize = bytesRead;
-        return ctx->buffer;
+        relativeName++;
     }
 
-    *outSize = 0;
+    // Absolute filesystem path: try directly.
+    if (isAbsolutePath(filename))
+    {
+        if (ctx->fileBuffer.load(filename))
+        {
+            *outSize = ctx->fileBuffer.size();
+            return ctx->fileBuffer.c_str();
+        }
+        return nullptr;
+    }
+
+    // Relative include: search configured script roots first.
+    const char *namePart = (relativeName != filename) ? relativeName : filename;
+    for (int i = 0; i < ctx->pathCount; i++)
+    {
+        snprintf(ctx->fullPath, sizeof(ctx->fullPath), "%s/%s", ctx->searchPaths[i], namePart);
+        if (!ctx->fileBuffer.load(ctx->fullPath))
+            continue;
+
+        *outSize = ctx->fileBuffer.size();
+        return ctx->fileBuffer.c_str();
+    }
+
+    // Last fallback: current working directory relative.
+    if (ctx->fileBuffer.load(filename))
+    {
+        *outSize = ctx->fileBuffer.size();
+        return ctx->fileBuffer.c_str();
+    }
+    if (relativeName != filename && ctx->fileBuffer.load(relativeName))
+    {
+        *outSize = ctx->fileBuffer.size();
+        return ctx->fileBuffer.c_str();
+    }
+
     return nullptr;
 }
 
 // Helper: load file contents into a string
-static std::string loadFile(const char *path)
+static std::string loadFile(const char *path, bool quiet = false)
 {
-    std::ifstream file(path);
-    if (!file.is_open())
+    FileBuffer file;
+    if (!file.load(path))
     {
-        fprintf(stderr, "Could not open file: %s\n", path);
+        if (!quiet)
+        {
+            TraceLog(LOG_WARNING, "Could not open file: %s", path ? path : "<null>");
+        }
         return "";
     }
-    return std::string((std::istreambuf_iterator<char>(file)),
-                       std::istreambuf_iterator<char>());
+    return file.toString();
+}
+
+static void showFatalScreen(const std::string &message)
+{
+    bool createdWindow = false;
+    if (!IsWindowReady())
+    {
+        InitWindow(960, 540, "BuGameEngine - Startup Error");
+        createdWindow = true;
+    }
+
+    while (!WindowShouldClose())
+    {
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawText("Startup Error", 20, 20, 34, RED);
+        DrawText(message.c_str(), 20, 80, 22, RAYWHITE);
+        DrawText("Press BACK/ESC or close window to exit.", 20, 500, 20, GRAY);
+        EndDrawing();
+    }
+
+    if (createdWindow && IsWindowReady())
+    {
+        CloseWindow();
+    }
 }
 
 // ============================================================
@@ -343,6 +432,10 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
 }
 void onDestroy(Interpreter *vm, Process *proc, int exitCode)
 {
+    (void)vm;
+    (void)exitCode;
+    //BindingsBox2D::onProcessDestroy(proc);
+
     //   Info("Destroy process: %d with exit code %d", proc->id, exitCode);
     Entity *entity = (Entity *)proc->userData;
     if (entity && proc->userData)
@@ -357,6 +450,12 @@ void onRender(Interpreter *vm, Process *proc)
 
 int main(int argc, char *argv[])
 {
+#if defined(PLATFORM_ANDROID)
+    SetTraceLogLevel(LOG_INFO);
+#else
+    SetTraceLogLevel(LOG_WARNING);
+#endif
+
     Interpreter vm;
 
     VMHooks hooks;
@@ -379,67 +478,144 @@ int main(int argc, char *argv[])
     vm.registerNative("close_window", native_close_window, 0);
     vm.registerNative("set_log_level", native_set_log_level, 1);
 
-    FileLoaderContext ctx;
-    ctx.searchPaths[0] = "./bin";
-    ctx.searchPaths[1] = "./scripts";
-    ctx.searchPaths[2] = "../scripts";
-    ctx.searchPaths[3] = ".";
-    ctx.pathCount = 4;
-    vm.setFileLoader(multiPathFileLoader, &ctx);
+    FileLoaderContext ctx{};
 
     const char *scriptFile = nullptr;
-
+    std::string code;
     if (argc > 1)
-    {
-        if (OsFileExists(argv[1]))
-        {
-            scriptFile = argv[1];
-        }
-        else
-        {
-            fprintf(stderr, "Specified script file does not exist: %s\n", argv[1]);
+        scriptFile = argv[1];
 
-            return 1;
-        }
-    }
-
-    if (!scriptFile)
-    {
-        if (OsFileExists("scripts/main.bu"))
-        {
-            scriptFile = "scripts/main.bu";
-        }
-        else if (OsFileExists("main.bu"))
-        {
-            scriptFile = "main.bu";
-        }
-        else if (OsFileExists("../scripts/main.bu"))
-        {
-            scriptFile = "../scripts/main.bu";
-        }
-        else
-        {
-            fprintf(stderr, "No script file specified and no default found.\n");
-
-            return 1;
-        }
-    }
-
-    std::ifstream file(scriptFile);
-    std::string code((std::istreambuf_iterator<char>(file)),
-                     std::istreambuf_iterator<char>());
-    SetTraceLogLevel(LOG_NONE);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE.c_str());
     SetExitKey(KEY_NULL); // Disable default ESC exit from Raylib.
     InitSound();
+
+    if (scriptFile != nullptr)
+    {
+        code = loadFile(scriptFile, false);
+        if (code.empty())
+        {
+            std::string msg = "Could not load script: ";
+            msg += (scriptFile ? scriptFile : "<null>");
+            TraceLog(LOG_ERROR, "%s", msg.c_str());
+            showFatalScreen(msg);
+            return 1;
+        }
+    }
+
+    if (code.empty())
+    {
+        static const char *defaultCandidates[] = {
+#ifdef __EMSCRIPTEN__
+            "/scripts/main.bu",
+            "/main.bu",
+#endif
+            "scripts/main.bu",
+            "./scripts/main.bu",
+            "main.bu",
+            "../scripts/main.bu",
+        };
+
+        for (const char *candidate : defaultCandidates)
+        {
+            code = loadFile(candidate, true);
+            if (!code.empty())
+            {
+                scriptFile = candidate;
+                break;
+            }
+        }
+
+        if (code.empty())
+        {
+            std::string msg = "No script file specified and no default found.";
+            TraceLog(LOG_ERROR, "%s", msg.c_str());
+            showFatalScreen(msg);
+            return 1;
+        }
+    }
+    TraceLog(LOG_INFO, "Using script: %s", scriptFile ? scriptFile : "<none>");
+
+    // Build include search paths anchored to the loaded main script location.
+    char scriptPathAbs[512] = {0};
+    if (scriptFile && isAbsolutePath(scriptFile))
+    {
+        snprintf(scriptPathAbs, sizeof(scriptPathAbs), "%s", scriptFile);
+    }
+    else if (scriptFile)
+    {
+        snprintf(scriptPathAbs, sizeof(scriptPathAbs), "%s/%s", GetWorkingDirectory(), scriptFile);
+    }
+    else
+    {
+        snprintf(scriptPathAbs, sizeof(scriptPathAbs), "%s", GetWorkingDirectory());
+    }
+
+    char scriptDir[512] = {0};
+    char scriptParentDir[512] = {0};
+    pathDirname(scriptPathAbs, scriptDir, sizeof(scriptDir));
+    pathDirname(scriptDir, scriptParentDir, sizeof(scriptParentDir));
+
+    ctx.pathCount = 0;
+    auto addSearchPath = [&](const char *p)
+    {
+        if (!p || !*p || ctx.pathCount >= 8)
+            return;
+        for (int i = 0; i < ctx.pathCount; ++i)
+        {
+            if (strcmp(ctx.searchPaths[i], p) == 0)
+                return;
+        }
+        ctx.searchPaths[ctx.pathCount++] = p;
+    };
+
+    addSearchPath(scriptDir);
+    addSearchPath(scriptParentDir);
+    addSearchPath("/scripts");
+    addSearchPath("scripts");
+    addSearchPath("./scripts");
+    addSearchPath("../scripts");
+    addSearchPath(".");
+
+    vm.setFileLoader(multiPathFileLoader, &ctx);
+
     InitScene();
     gCamera.init(WINDOW_WIDTH, WINDOW_HEIGHT);
     gCamera.setScreenScaleMode(SCALE_NONE);
-    gCamera.setVirtualScreenEnabled(false); 
+    gCamera.setVirtualScreenEnabled(false);
 
-    if (!vm.run(code.c_str(), false))
+    bool scriptOk = false;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+    try
+    {
+        scriptOk = vm.run(code.c_str(), false);
+    }
+    catch (const std::exception &e)
+    {
+        std::string msg = "Script exception while loading: ";
+        msg += e.what();
+        Error("%s", msg.c_str());
+        showFatalScreen(msg);
+        CloseWindow();
+        return 1;
+    }
+    catch (...)
+    {
+        std::string msg = "Unknown C++ exception while loading script.";
+        Error("%s", msg.c_str());
+        showFatalScreen(msg);
+        CloseWindow();
+        return 1;
+    }
+#else
+    scriptOk = vm.run(code.c_str(), false);
+#endif
+
+    if (!scriptOk)
     {
         Error("Failed to execute script: %s", scriptFile);
+        std::string msg = "Failed to execute script: ";
+        msg += (scriptFile ? scriptFile : "<null>");
+        showFatalScreen(msg);
         CloseWindow();
         return 1;
     }
@@ -468,7 +644,6 @@ int main(int argc, char *argv[])
     // gCamera.setScreenScaleMode(SCALE_STRETCH);  // Usar modo FIT para manter aspecto ratio e mostrar barras pretas se necessário
     // gCamera.setVirtualScreenEnabled(true); // Ativar virtual screen para usar a resolução de design
 
-
     while (!CAN_CLOSE && vm.getTotalAliveProcesses() > 0)
     {
         if (WindowShouldClose())
@@ -488,9 +663,10 @@ int main(int argc, char *argv[])
         // if (IsKeyPressed(KEY_F4)) gCamera.setScreenScaleMode(SCALE_FILL);
 
 
+
        
-        
         float dt = GetFrameTime();
+        BindingsInput::update();
         gCamera.update(dt);
         UpdateFade(dt);
         gScene.updateCollision();
@@ -506,10 +682,12 @@ int main(int argc, char *argv[])
         RenderScene();
         gParticleSystem.cleanup();
         gParticleSystem.draw();
+        BindingsBox2D::renderDebug();
         gCamera.end();
 
         BindingsDraw::RenderScreenCommands();
-
+        BindingsInput::drawVirtualKeys();
+ 
 
         DrawFade();
 
@@ -518,8 +696,11 @@ int main(int argc, char *argv[])
     }
     BindingsMessage::clearAllMessages();
     gParticleSystem.clear();
+    BindingsBox2D::shutdownPhysics();
     BindingsDraw::unloadFonts();
+ 
     DestroySound();
+ 
     DestroyScene();
 
     CloseWindow();

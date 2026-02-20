@@ -21,6 +21,11 @@ void DestroySound()
 
 int SoundLib::load(const char *name, const char *soundPath)
 {
+    if (!IsAudioDeviceReady())
+    {
+        InitAudioDevice();
+    }
+
     Sound snd = LoadSound(soundPath);
     SoundData sd;
     sd.id = (int)sounds.size();
