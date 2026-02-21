@@ -18,29 +18,26 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
-add_compile_options(
-        # Optimization level
-        -O3
-        
-       
-        
-        # Architecture specific
-        -march=native
-        -mtune=native
-        
-
-        
-        # Vectorization
-        -ftree-vectorize
-        
-        # Strip debug info
-        -DNDEBUG
-        
-        # Inline agressivo
-        -finline-functions
-        -funroll-loops
-
-)
+# Keep host-specific tuning only for native desktop builds.
+if(NOT CMAKE_CROSSCOMPILING AND NOT EMSCRIPTEN AND NOT ANDROID)
+    add_compile_options(
+            -O3
+            -march=native
+            -mtune=native
+            -ftree-vectorize
+            -DNDEBUG
+            -finline-functions
+            -funroll-loops
+    )
+else()
+    add_compile_options(
+            -O3
+            -ftree-vectorize
+            -DNDEBUG
+            -finline-functions
+            -funroll-loops
+    )
+endif()
 
 
 

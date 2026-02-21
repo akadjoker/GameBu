@@ -51,3 +51,5 @@ print("Load Main");
 //include "box2d_motor_joint_demo.bu";
 //include "box2d_rope_demo.bu";
 include "candicrash_3.bu";
+
+//include "music_notes_trainer.bu";

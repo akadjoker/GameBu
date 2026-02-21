@@ -5678,7 +5678,7 @@ GLOBAL FUNCTIONS
     2946    | OP_LOOP              2946 -> 723
     2949 1397 OP_CONSTANT           170 'Bye CandiCrash'
     2952    | OP_PRINT                1
-    2954   53 OP_NIL              
+    2954   55 OP_NIL              
     2955    | OP_RETURN           
 
 

@@ -7,6 +7,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BU_USE_COMPUTED_GOTO "Use computed-goto opcode dispatch in VM" OFF)
 
+set(BU_NATIVE_ARCH_FLAGS)
+if(NOT CMAKE_CROSSCOMPILING AND NOT EMSCRIPTEN AND NOT ANDROID)
+    set(BU_NATIVE_ARCH_FLAGS
+        -march=native
+        -mtune=native
+    )
+endif()
+
 # ============================================
 # Output Directory
 # ============================================
@@ -90,9 +98,8 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
         
     
         
-        # Architecture specific
-        -march=native
-        -mtune=native
+        # Architecture specific (native desktop only)
+        ${BU_NATIVE_ARCH_FLAGS}
         
       
         
@@ -121,7 +128,7 @@ elseif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     target_compile_options(libbu PRIVATE
         -O2
         -g
-        -march=native
+        ${BU_NATIVE_ARCH_FLAGS}
     )
     
 # ============================================
@@ -133,7 +140,7 @@ else()
     
     target_compile_options(libbu PRIVATE
         -O3
-        -march=native
+        ${BU_NATIVE_ARCH_FLAGS}
     )
 endif()
  
