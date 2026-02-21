@@ -3,154 +3,10 @@
 #include <raylib.h>
 #include <vector>
 #include <string>
+ 
 
-// SoundLib for short sound effects
-struct SoundData
-{
-    Sound sound;
-    int id;
-    char name[MAXNAME];
-};
-
-struct SoundLib
-{
-    std::vector<SoundData> sounds;
-
-    int load(const char *name, const char *soundPath)
-    {
-        for (const auto &s : sounds)
-        {
-            if (strcmp(s.name, name) == 0)
-                return s.id;
-        }
-
-        Sound sound = LoadSound(soundPath);
-        if (sound.frameCount == 0)
-            return -1;
-
-        SoundData data;
-        data.sound = sound;
-        data.id = (int)sounds.size();
-        strncpy(data.name, name, MAXNAME - 1);
-        data.name[MAXNAME - 1] = '\0';
-        sounds.push_back(data);
-        return data.id;
-    }
-
-    Sound *getSound(int id)
-    {
-        if (id < 0 || id >= (int)sounds.size())
-            return nullptr;
-        return &sounds[id].sound;
-    }
-
-    void play(int id, float volume, float pitch)
-    {
-        Sound *s = getSound(id);
-        if (s)
-        {
-            SetSoundVolume(*s, volume);
-            SetSoundPitch(*s, pitch);
-            PlaySound(*s);
-        }
-    }
-
-    void stop(int id)
-    {
-        Sound *s = getSound(id);
-        if (s)
-            StopSound(*s);
-    }
-
-    void pause(int id)
-    {
-        Sound *s = getSound(id);
-        if (s)
-            PauseSound(*s);
-    }
-
-    void resume(int id)
-    {
-        Sound *s = getSound(id);
-        if (s)
-            ResumeSound(*s);
-    }
-
-    bool isSoundPlaying(int id)
-    {
-        Sound *s = getSound(id);
-        return s ? IsSoundPlaying(*s) : false;
-    }
-
-    void destroy()
-    {
-        for (auto &s : sounds)
-            UnloadSound(s.sound);
-        sounds.clear();
-    }
-};
-
-// MusicLib for streaming music
-struct MusicData
-{
-    Music music;
-    int id;
-    char name[MAXNAME];
-};
-
-struct MusicLib
-{
-    std::vector<MusicData> musics;
-
-    int load(const char *name, const char *musicPath)
-    {
-        for (const auto &m : musics)
-        {
-            if (strcmp(m.name, name) == 0)
-                return m.id;
-        }
-
-        Music music = LoadMusicStream(musicPath);
-        if (!IsMusicReady(music))
-            return -1;
-
-        MusicData data;
-        data.music = music;
-        data.id = (int)musics.size();
-        strncpy(data.name, name, MAXNAME - 1);
-        data.name[MAXNAME - 1] = '\0';
-        musics.push_back(data);
-        return data.id;
-    }
-
-    MusicData *getMusicData(int id)
-    {
-        if (id < 0 || id >= (int)musics.size())
-            return nullptr;
-        return &musics[id];
-    }
-
-    void updateStreams()
-    {
-        for (auto &m : musics)
-        {
-            if (IsMusicStreamPlaying(m.music))
-            {
-                UpdateMusicStream(m.music);
-            }
-        }
-    }
-
-    void destroy()
-    {
-        for (auto &m : musics)
-            UnloadMusicStream(m.music);
-        musics.clear();
-    }
-};
-
-static SoundLib gSoundLib;
-static MusicLib gMusicLib;
+extern SoundLib gSoundLib;
+ 
 
 namespace BindingsSound
 {
@@ -222,7 +78,7 @@ namespace BindingsSound
     {
         if (argCount != 1 || !args[0].isString()) { Error("load_music expects 1 string argument (path)"); vm->pushInt(-1); return 1; }
         const char *path = args[0].asStringChars();
-        int musicId = gMusicLib.load(GetFileNameWithoutExt(path), path);
+        int musicId = gSoundLib.loadMusic(GetFileNameWithoutExt(path), path);
         if (musicId < 0) { Error("Failed to load music from path: %s", path); vm->pushInt(-1); return 1; }
         vm->pushInt(musicId);
         return 1;
@@ -231,55 +87,49 @@ namespace BindingsSound
     int native_play_music(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1 || !args[0].isInt()) { Error("play_music expects 1 int argument (musicId)"); return 0; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        if (data) PlayMusicStream(data->music);
+        gSoundLib.playMusic(args[0].asInt());
         return 0;
     }
 
     int native_stop_music(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1 || !args[0].isInt()) { Error("stop_music expects 1 int argument (musicId)"); return 0; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        if (data) StopMusicStream(data->music);
+        gSoundLib.stopMusic(args[0].asInt());
         return 0;
     }
 
     int native_pause_music(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1 || !args[0].isInt()) { Error("pause_music expects 1 int argument (musicId)"); return 0; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        if (data) PauseMusicStream(data->music);
+        gSoundLib.pauseMusic(args[0].asInt());
         return 0;
     }
 
     int native_resume_music(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1 || !args[0].isInt()) { Error("resume_music expects 1 int argument (musicId)"); return 0; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        if (data) ResumeMusicStream(data->music);
+        gSoundLib.resumeMusic(args[0].asInt());
         return 0;
     }
 
     int native_set_music_volume(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 2 || !args[0].isInt() || !args[1].isNumber()) { Error("set_music_volume expects (musicId, volume)"); return 0; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        if (data) SetMusicVolume(data->music, (float)args[1].asNumber());
+        gSoundLib.setMusicVolume(args[0].asInt(), (float)args[1].asNumber());
         return 0;
     }
 
     int native_is_music_playing(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1 || !args[0].isInt()) { Error("is_music_playing expects 1 int argument (musicId)"); vm->pushBool(false); return 1; }
-        MusicData *data = gMusicLib.getMusicData(args[0].asInt());
-        vm->pushBool(data ? IsMusicStreamPlaying(data->music) : false);
+        vm->pushBool(gSoundLib.isMusicPlaying(args[0].asInt()));
         return 1;
     }
 
     int native_update_music_streams(Interpreter *vm, int argCount, Value *args)
     {
         (void)vm; (void)argCount; (void)args;
-        gMusicLib.updateStreams();
+        gSoundLib.updateMusicStreams();
         return 0;
     }
 
@@ -302,6 +152,6 @@ namespace BindingsSound
         vm.registerNative("update_music_streams", native_update_music_streams, 0);
     }
 
-    void updateMusicStreams() { gMusicLib.updateStreams(); }
-    void shutdown() { gSoundLib.destroy(); gMusicLib.destroy(); }
+    void updateMusicStreams() { gSoundLib.updateMusicStreams(); }
+    void shutdown() { gSoundLib.destroy(); }
 }

@@ -818,16 +818,29 @@ struct SoundData
     int id;
     char name[MAXNAME];
 };
+struct MusicData
+{
+    Music music;
+    int id;
+    char name[MAXNAME];
+};
 
 struct SoundLib
 {
 
     std::vector<SoundData> sounds;
+    std::vector<MusicData> musics;
+
 
     int load(const char *name, const char *soundPath);
 
+    int loadMusic(const char *name, const char *musicPath);
+
     Sound *getSound(int id);
     SoundData *getSoundData(int id);
+
+    Music *getMusic(int id);
+    MusicData *getMusicData(int id);
 
     // Play direto pelo ID
     void play(int id, float volume = 1.0f, float pitch = 1.0f);
@@ -835,10 +848,20 @@ struct SoundLib
     void pause(int id);
     void resume(int id);
 
+    // Music control
+    void playMusic(int id);
+    void stopMusic(int id);
+    void pauseMusic(int id);
+    void resumeMusic(int id);
+    void setMusicVolume(int id, float volume);
+    bool isMusicPlaying(int id);
+    void updateMusicStreams();
+    void destroyMusic();
+
     // Info
     bool isSoundPlaying(int id);
     int getSoundCount() const { return sounds.size(); }
-
+    int getMusicCount() const { return musics.size(); }
     // Cleanup
     void destroy();
 };

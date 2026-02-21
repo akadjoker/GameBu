@@ -1,0 +1,553 @@
+
+import math;
+
+var VIEW_W = 1280;
+var VIEW_H = 720;
+
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+var KEY_ENTER = 257;
+var KEY_SPACE = 32;
+var KEY_ESCAPE = 256;
+
+var STATE_MENU = 0;
+var STATE_AIMING = 1;
+var STATE_CHARGING = 2;
+var STATE_SLIDING = 3;
+var STATE_GAME_OVER = 4;
+
+var ARENA_X = 190;
+var ARENA_Y = 80;
+var ARENA_W = 900;
+var ARENA_H = 560;
+var STONE_R = 22;
+
+var TARGET_X = ARENA_X + ARENA_W / 2;
+var TARGET_Y = ARENA_Y + ARENA_H / 2;
+var TARGET_R = 80;
+
+var MAX_CHARGE = 100.0;
+var MAX_TURNS = 6;
+
+var game_state = STATE_MENU;
+var current_player = 0;
+var turn = 1;
+
+var score = [0, 0];
+var stone_x = [0.0, 0.0];
+var stone_y = [0.0, 0.0];
+var stone_vx = [0.0, 0.0];
+var stone_vy = [0.0, 0.0];
+
+var aim_angle = 0.0;
+var charge = 0.0;
+var charge_dir = 1;
+
+var MOUSE_X = 0.0;
+var MOUSE_Y = 0.0;
+
+var msg = "";
+var msg_t = 0.0;
+
+var snow_x = [];
+var snow_y = [];
+var snow_s = [];
+var SNOW_COUNT = 70;
+
+def init_snow()
+{
+    snow_x.clear();
+    snow_y.clear();
+    snow_s.clear();
+    var i = 0;
+    while (i < SNOW_COUNT)
+    {
+        snow_x.push(math.rand(0, VIEW_W));
+        snow_y.push(math.rand(0, VIEW_H));
+        snow_s.push(math.rand(28, 72));
+        i += 1;
+    }
+}
+
+def update_draw_snow(_dt)
+{
+    var i = 0;
+    while (i < SNOW_COUNT)
+    {
+        snow_y[i] =snow_y[i] + snow_s[i] * _dt;
+        if (snow_y[i] > VIEW_H + 4)
+        {
+            snow_y[i] = -4;
+            snow_x[i] = math.rand(0, VIEW_W);
+        }
+        set_alpha(160);
+        set_color(210, 230, 255);
+        draw_circle(snow_x[i], snow_y[i], 2, true);
+        i += 1;
+    }
+    set_alpha(255);
+}
+
+def reset_game()
+{
+    stone_x[0] = ARENA_X + ARENA_W * 0.28;
+    stone_y[0] = ARENA_Y + ARENA_H * 0.65;
+    stone_x[1] = ARENA_X + ARENA_W * 0.72;
+    stone_y[1] = ARENA_Y + ARENA_H * 0.35;
+    stone_vx[0] = 0; stone_vy[0] = 0;
+    stone_vx[1] = 0; stone_vy[1] = 0;
+    score[0] = 0; score[1] = 0;
+    turn = 1;
+    current_player = 0;
+    aim_angle = 0.0;
+    charge = 0.0;
+    charge_dir = 1;
+    game_state = STATE_AIMING;
+}
+
+def show_msg(_s, _t)
+{
+    msg = _s;
+    msg_t = _t;
+}
+
+def stones_moving()
+{
+    var i = 0;
+    while (i < 2)
+    {
+        var spd = sqrt(stone_vx[i] * stone_vx[i] + stone_vy[i] * stone_vy[i]);
+        if (spd > 10.0) return true;
+        i += 1;
+    }
+    return false;
+}
+
+def dist_target(_i)
+{
+    var dx = stone_x[_i] - TARGET_X;
+    var dy = stone_y[_i] - TARGET_Y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+def update_physics(_dt)
+{
+    var i = 0;
+    while (i < 2)
+    {
+        stone_vx[i] =stone_vx[i] * (1.0 - _dt * 0.45);
+        stone_vy[i] =stone_vy[i] * (1.0 - _dt * 0.45);
+        stone_x[i] =stone_x[i] + stone_vx[i] * _dt;
+        stone_y[i] =stone_y[i] + stone_vy[i] * _dt;
+
+        if (stone_x[i] < ARENA_X + STONE_R)
+        {
+            stone_x[i] = ARENA_X + STONE_R;
+            stone_vx[i] = abs(stone_vx[i]) * 0.65;
+        }
+        if (stone_x[i] > ARENA_X + ARENA_W - STONE_R)
+        {
+            stone_x[i] = ARENA_X + ARENA_W - STONE_R;
+            stone_vx[i] = -abs(stone_vx[i]) * 0.65;
+        }
+        if (stone_y[i] < ARENA_Y + STONE_R)
+        {
+            stone_y[i] = ARENA_Y + STONE_R;
+            stone_vy[i] = abs(stone_vy[i]) * 0.65;
+        }
+        if (stone_y[i] > ARENA_Y + ARENA_H - STONE_R)
+        {
+            stone_y[i] = ARENA_Y + ARENA_H - STONE_R;
+            stone_vy[i] = -abs(stone_vy[i]) * 0.65;
+        }
+        i += 1;
+    }
+
+    // Stone vs stone
+    var dx = stone_x[1] - stone_x[0];
+    var dy = stone_y[1] - stone_y[0];
+    var dist = sqrt(dx * dx + dy * dy);
+    var min_d = STONE_R * 2;
+
+    if (dist < min_d && dist > 0.01)
+    {
+        var nx = dx / dist;
+        var ny = dy / dist;
+        var overlap = (min_d - dist) * 0.5;
+        stone_x[0] =stone_x[0]-  nx * overlap;
+        stone_y[0] =stone_y[0]-  ny * overlap;
+        stone_x[1] =stone_x[1]+  nx * overlap;
+        stone_y[1] =stone_y[1]+  ny * overlap;
+
+        var dvx = stone_vx[0] - stone_vx[1];
+        var dvy = stone_vy[0] - stone_vy[1];
+        var dot = dvx * nx + dvy * ny;
+        if (dot > 0)
+        {
+            stone_vx[0] =stone_vx[0]-  dot * nx * 0.92;
+            stone_vy[0] =stone_vy[0]-  dot * ny * 0.92;
+            stone_vx[1] =stone_vx[1]+  dot * nx * 0.92;
+            stone_vy[1] =stone_vy[1]+  dot * ny * 0.92;
+        }
+    }
+}
+
+def check_round_end()
+{
+    var d0 = dist_target(0);
+    var d1 = dist_target(1);
+
+    if (d0 < d1)
+    {
+        score[0] = score[0] +1;
+        show_msg("P1 scores!", 1.8);
+    }
+    elif (d1 < d0)
+    {
+        score[1] = score[1] +1;
+        show_msg("P2 scores!", 1.8);
+    }
+    else
+    {
+        show_msg("Draw round!", 1.8);
+    }
+
+    turn = turn +1;
+    if (turn > MAX_TURNS)
+    {
+        game_state = STATE_GAME_OVER;
+    }
+    else
+    {
+        current_player = 0;
+        aim_angle = 0.0;
+        charge = 0.0;
+        charge_dir = 1;
+        game_state = STATE_AIMING;
+    }
+}
+
+def update_aiming(_dt)
+{
+    aim_angle = get_angle(stone_x[current_player], stone_y[current_player], MOUSE_X, MOUSE_Y);
+    if (key_down(KEY_LEFT)) aim_angle += 90.0 * _dt;
+    if (key_down(KEY_RIGHT)) aim_angle -= 90.0 * _dt;
+
+    if (key_pressed(KEY_SPACE) || key_pressed(KEY_ENTER) || mouse_pressed(0))
+    {
+        game_state = STATE_CHARGING;
+    }
+}
+
+def update_charging(_dt)
+{
+    charge += charge_dir * 110.0 * _dt;
+    if (charge >= MAX_CHARGE) { charge = MAX_CHARGE; charge_dir = -1; }
+    if (charge <= 0) { charge = 0; charge_dir = 1; }
+
+    if (key_pressed(KEY_SPACE) || key_pressed(KEY_ENTER) || mouse_pressed(0))
+    {
+        var power = charge * 5.5;
+        stone_vx[current_player] = get_distx(aim_angle, power);
+        stone_vy[current_player] = get_disty(aim_angle, power);
+        charge = 0;
+        charge_dir = 1;
+        game_state = STATE_SLIDING;
+    }
+}
+
+def update_sliding(_dt)
+{
+    update_physics(_dt);
+    if (!stones_moving())
+    {
+        if (current_player == 0)
+        {
+            current_player = 1;
+            aim_angle = normalize_angle(aim_angle + 180);
+            charge = 0;
+            game_state = STATE_AIMING;
+            show_msg("P2's turn!", 1.2);
+        }
+        else
+        {
+            check_round_end();
+        }
+    }
+}
+
+def draw_background()
+{
+    set_color(11, 16, 26);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+}
+
+def draw_arena()
+{
+    // Ice floor
+    set_color(148, 196, 228);
+    draw_rectangle(ARENA_X, ARENA_Y, ARENA_W, ARENA_H, true);
+
+    // Reflection shimmer
+    set_alpha(22);
+    set_color(255, 255, 255);
+    var lx = ARENA_X;
+    while (lx < ARENA_X + ARENA_W)
+    {
+        draw_line(lx, ARENA_Y, lx, ARENA_Y + ARENA_H);
+        lx += 20;
+    }
+    set_alpha(255);
+
+    // Target rings
+    set_alpha(70);
+    set_color(190, 50, 50);
+    draw_circle(TARGET_X, TARGET_Y, TARGET_R, true);
+    set_color(255, 255, 255);
+    draw_circle(TARGET_X, TARGET_Y, int(TARGET_R * 0.65), true);
+    set_color(190, 50, 50);
+    draw_circle(TARGET_X, TARGET_Y, int(TARGET_R * 0.32), true);
+    set_alpha(255);
+
+    // Ice cracks
+    set_alpha(35);
+    set_color(200, 230, 255);
+    draw_line(ARENA_X + 100, ARENA_Y + 90, ARENA_X + 160, ARENA_Y + 160);
+    draw_line(ARENA_X + 680, ARENA_Y + 380, ARENA_X + 760, ARENA_Y + 440);
+    draw_line(ARENA_X + 380, ARENA_Y + 210, ARENA_X + 420, ARENA_Y + 290);
+    set_alpha(255);
+
+    // Border
+    set_color(90, 140, 190);
+    draw_rectangle(ARENA_X, ARENA_Y, ARENA_W, ARENA_H, false);
+}
+
+def draw_stones()
+{
+    // P1 blue, P2 red
+    var cr = [80, 220];
+    var cg = [140, 80];
+    var cb = [220, 80];
+
+    var i = 0;
+    while (i < 2)
+    {
+        // Ice reflection below stone
+        set_alpha(35);
+        set_color(cr[i], cg[i], cb[i]);
+        draw_circle(stone_x[i], stone_y[i] + 7, STONE_R, true);
+        set_alpha(255);
+
+        // Body
+        set_color(cr[i], cg[i], cb[i]);
+        draw_circle(stone_x[i], stone_y[i], STONE_R, true);
+
+        // Shine
+        set_alpha(110);
+        set_color(255, 255, 255);
+        draw_circle(stone_x[i] - 7, stone_y[i] - 7, int(STONE_R * 0.32), true);
+        set_alpha(255);
+
+        // Outline
+        set_color(30, 34, 52);
+        draw_circle(stone_x[i], stone_y[i], STONE_R, false);
+
+        // Label
+        set_color(255, 255, 255);
+        if (i == 0) draw_text("1", stone_x[i] - 4, stone_y[i] - 9, 15);
+        else draw_text("2", stone_x[i] - 4, stone_y[i] - 9, 15);
+
+        i += 1;
+    }
+}
+
+def draw_aim()
+{
+    if (game_state != STATE_AIMING && game_state != STATE_CHARGING) return;
+
+    var sx = stone_x[current_player];
+    var sy = stone_y[current_player];
+    var ex = sx + get_distx(aim_angle, 200);
+    var ey = sy + get_disty(aim_angle, 200);
+
+    set_alpha(150);
+    set_color(255, 215, 90);
+    draw_line(sx, sy, ex, ey);
+    draw_circle(ex, ey, 5, true);
+    set_alpha(255);
+}
+
+def draw_charge_bar()
+{
+    if (game_state != STATE_CHARGING) return;
+
+    var bx = ARENA_X + ARENA_W / 2 - 160;
+    var by = ARENA_Y + ARENA_H + 18;
+    var bw = 320;
+    var bh = 20;
+
+    set_color(20, 24, 38);
+    draw_rectangle(bx, by, bw, bh, true);
+
+    var fill_r = int(60 + charge * 1.95);
+    var fill_g = int(210 - charge * 1.5);
+    set_color(fill_r, fill_g, 55);
+    draw_rectangle(bx, by, int(bw * charge / MAX_CHARGE), bh, true);
+
+    set_color(170, 195, 230);
+    draw_rectangle(bx, by, bw, bh, false);
+    set_color(240, 244, 252);
+    draw_text("POWER  -  SPACE to release", bx + 52, by + 2, 15);
+}
+
+def draw_hud()
+{
+    set_color(12, 16, 28);
+    draw_rectangle(0, 0, VIEW_W, 72, true);
+
+    set_color(230, 238, 255);
+    draw_text("ICE COINS", 20, 8, 38);
+
+    set_color(80, 140, 220);
+    draw_text("P1: " + str(score[0]), 290, 16, 28);
+    set_color(220, 80, 80);
+    draw_text("P2: " + str(score[1]), 470, 16, 28);
+
+    set_color(170, 195, 228);
+    draw_text("Round " + str(turn) + "/" + str(MAX_TURNS), 660, 18, 22);
+
+    var d0 = int(dist_target(0));
+    var d1 = int(dist_target(1));
+    set_color(80, 140, 220);
+    draw_text("P1 dist: " + str(d0), 860, 12, 16);
+    set_color(220, 80, 80);
+    draw_text("P2 dist: " + str(d1), 860, 34, 16);
+
+    if (game_state == STATE_AIMING)
+    {
+        if (current_player == 0) set_color(80, 140, 220);
+        else set_color(220, 80, 80);
+        draw_text("P" + str(current_player + 1) + " — aim with mouse, SPACE to charge", 1020, 20, 16);
+    }
+    elif (game_state == STATE_CHARGING)
+    {
+        if (current_player == 0) set_color(80, 140, 220);
+        else set_color(220, 80, 80);
+        draw_text("P" + str(current_player + 1) + " — SPACE to release!", 1020, 20, 16);
+    }
+}
+
+def draw_msg()
+{
+    if (msg_t <= 0) return;
+    var a = int(255.0 * math.min(1.0, msg_t));
+    set_alpha(a);
+    set_color(255, 235, 120);
+    draw_text(msg, VIEW_W / 2 - 120, VIEW_H / 2 - 18, 32);
+    set_alpha(255);
+}
+
+def draw_menu()
+{
+    draw_background();
+
+    set_color(235, 242, 255);
+    draw_text("ICE COINS", VIEW_W / 2 - 170, 110, 68);
+    set_color(148, 196, 228);
+    draw_text("Cozy Winter Arena", VIEW_W / 2 - 130, 196, 34);
+
+    set_color(180, 205, 235);
+    draw_text("Slide your stone closest to the target", VIEW_W / 2 - 228, 290, 22);
+    draw_text("Knock your opponent's stone away!", VIEW_W / 2 - 210, 318, 22);
+    draw_text("Each player throws once per round — 6 rounds total", VIEW_W / 2 - 268, 346, 22);
+
+    set_color(255, 228, 90);
+    draw_text("ENTER or SPACE to start", VIEW_W / 2 - 168, 440, 28);
+
+    set_color(130, 158, 192);
+    draw_text("Aim: MOUSE   Charge: SPACE   Fine-tune: LEFT/RIGHT", VIEW_W / 2 - 260, 490, 20);
+}
+
+def draw_game_over()
+{
+    set_alpha(185);
+    set_color(0, 0, 0);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+    set_alpha(255);
+
+    var winner = "";
+    if (score[0] > score[1]) winner = "PLAYER 1 WINS!";
+    elif (score[1] > score[0]) winner = "PLAYER 2 WINS!";
+    else winner = "IT'S A DRAW!";
+
+    set_color(255, 228, 90);
+    draw_text(winner, VIEW_W / 2 - 200, VIEW_H / 2 - 50, 46);
+
+    set_color(80, 140, 220);
+    draw_text("P1 score: " + str(score[0]), VIEW_W / 2 - 130, VIEW_H / 2 + 20, 28);
+    set_color(220, 80, 80);
+    draw_text("P2 score: " + str(score[1]), VIEW_W / 2 - 130, VIEW_H / 2 + 56, 28);
+
+    set_color(170, 196, 228);
+    draw_text("ENTER — play again     ESC — menu", VIEW_W / 2 - 210, VIEW_H / 2 + 116, 22);
+}
+
+// Bootstrap
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Ice Coins - Cozy Winter Jam 2026");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+init_snow();
+
+loop
+{
+    var dt = delta();
+    MOUSE_X = get_mouse_x();
+    MOUSE_Y = get_mouse_y();
+    if (msg_t > 0) msg_t -= dt;
+
+    set_draw_screen(true);
+
+    if (game_state == STATE_MENU)
+    {
+        draw_menu();
+        update_draw_snow(dt);
+        if (key_pressed(KEY_ENTER) || key_pressed(KEY_SPACE))
+        {
+            reset_game();
+        }
+    }
+    elif (game_state == STATE_GAME_OVER)
+    {
+        draw_background();
+        update_draw_snow(dt);
+        draw_arena();
+        draw_stones();
+        draw_game_over();
+
+        if (key_pressed(KEY_ENTER)) reset_game();
+        if (key_pressed(KEY_ESCAPE)) game_state = STATE_MENU;
+    }
+    else
+    {
+        draw_background();
+        update_draw_snow(dt);
+        draw_arena();
+        draw_aim();
+        draw_stones();
+        draw_charge_bar();
+        draw_hud();
+        draw_msg();
+
+        if (game_state == STATE_AIMING) update_aiming(dt);
+        elif (game_state == STATE_CHARGING) update_charging(dt);
+        elif (game_state == STATE_SLIDING) update_sliding(dt);
+
+        if (key_pressed(KEY_ESCAPE)) game_state = STATE_MENU;
+    }
+
+    set_draw_screen(false);
+    frame;
+}

@@ -1,0 +1,345 @@
+// === ICE CAPS ARENA ===
+// A physics-based hockey game using only draw primitives.
+// Theme: Winter/Ice | Style: World Caps Championship (Chapas)
+
+import math;
+
+// --- Configuration ---
+var VIEW_W = 1024;
+var VIEW_H = 600;
+var ARENA_W = 900;
+var ARENA_H = 500;
+var ARENA_X = (VIEW_W - ARENA_W) / 2;
+var ARENA_Y = (VIEW_H - ARENA_H) / 2;
+
+var GOAL_SIZE = 140;
+var PUCK_R = 14;
+var PLAYER_R = 28;
+
+var FRICTION_ICE = 0.985; // Slippery!
+var WALL_BOUNCE = 0.7;
+
+var SCORE_P1 = 0;
+var SCORE_CPU = 0;
+
+// --- Inputs ---
+var KEY_W = 87; var KEY_A = 65; var KEY_S = 83; var KEY_D = 68;
+var KEY_UP = 265; var KEY_LEFT = 263; var KEY_DOWN = 264; var KEY_RIGHT = 262;
+var KEY_R = 82;
+
+// --- Globals ---
+var PUCK_ID = -1;
+var PLAYER_ID = -1;
+var CPU_ID = -1;
+
+// --- Functions (Defined BEFORE usage) ---
+
+// Physics Helper
+// Uses 'state' property to store radius for collision
+def resolve_circle_collision(p1, p2)
+{
+    var dx = p1.x - p2.x;
+    var dy = p1.y - p2.y;
+    var dist = sqrt(dx*dx + dy*dy);
+    
+    // Accessing 'state' which we use for radius
+    var r1 = p1.state;
+    var r2 = p2.state;
+    var min_dist = r1 + r2;
+    
+    if (dist < min_dist && dist > 0.001)
+    {
+        // 1. Push apart (prevent overlap)
+        var nx = dx / dist;
+        var ny = dy / dist;
+        var pen = (min_dist - dist) * 0.5;
+        
+        p1.x += nx * pen;
+        p1.y += ny * pen;
+        p2.x -= nx * pen;
+        p2.y -= ny * pen;
+        
+        // 2. Elastic bounce (transfer momentum)
+        var dvx = p1.velx - p2.velx;
+        var dvy = p1.vely - p2.vely;
+        var dot = dvx * nx + dvy * ny;
+        
+        if (dot < 0)
+        {
+            // Simulação de Massa: Area (Raio^2) para diferenca de massa mais acentuada
+            var m1 = r1 * r1;
+            var m2 = r2 * r2;
+            
+            // Elasticidade Arcade (1.6 = Super Bouncy)
+            var e = 1.6; 
+            
+            // Impulso escalar com massa
+            var j = -(1 + e) * dot / (1.0/m1 + 1.0/m2);
+            
+            p1.velx += (j / m1) * nx;
+            p1.vely += (j / m1) * ny;
+            p2.velx -= (j / m2) * nx;
+            p2.vely -= (j / m2) * ny;
+        }
+    }
+}
+
+def reset_game()
+{
+    // Reset positions
+    var p = proc(PLAYER_ID);
+    if (p) { p.x = ARENA_X + 150; p.y = ARENA_Y + ARENA_H/2; p.velx=0; p.vely=0; }
+    
+    var c = proc(CPU_ID);
+    if (c) { c.x = ARENA_X + ARENA_W - 150; c.y = ARENA_Y + ARENA_H/2; c.velx=0; c.vely=0; }
+    
+    var pk = proc(PUCK_ID);
+    if (pk) { pk.x = ARENA_X + ARENA_W/2; pk.y = ARENA_Y + ARENA_H/2; pk.velx=0; pk.vely=0; }
+}
+
+def draw_arena()
+{
+    // Ice Surface
+    set_color(230, 240, 255);
+    draw_rectangle(ARENA_X, ARENA_Y, ARENA_W, ARENA_H, true);
+    
+    // Center Line
+    set_color(200, 80, 80); 
+    draw_line(ARENA_X + ARENA_W/2, ARENA_Y, ARENA_X + ARENA_W/2, ARENA_Y + ARENA_H);
+    set_alpha(50);
+    draw_circle(ARENA_X + ARENA_W/2, ARENA_Y + ARENA_H/2, 70, true);
+    set_alpha(255);
+    draw_circle(ARENA_X + ARENA_W/2, ARENA_Y + ARENA_H/2, 70, false);
+    
+    // Blue Lines
+    set_color(80, 80, 200); 
+    draw_line(ARENA_X + ARENA_W/3, ARENA_Y, ARENA_X + ARENA_W/3, ARENA_Y + ARENA_H);
+    draw_line(ARENA_X + 2*ARENA_W/3, ARENA_Y, ARENA_X + 2*ARENA_W/3, ARENA_Y + ARENA_H);
+
+    // Borders
+    set_color(40, 50, 70);
+    draw_rectangle(ARENA_X, ARENA_Y, ARENA_W, ARENA_H, false);
+    
+    // Goals
+    set_color(200, 50, 50);
+    // Left Goal
+    draw_rectangle(ARENA_X - 20, ARENA_Y + ARENA_H/2 - GOAL_SIZE/2, 20, GOAL_SIZE, true);
+    // Right Goal
+    draw_rectangle(ARENA_X + ARENA_W, ARENA_Y + ARENA_H/2 - GOAL_SIZE/2, 20, GOAL_SIZE, true);
+}
+
+// --- Processes ---
+
+process goal_effect(gx, gy, msg)
+{
+    x = gx; y = gy;
+    var timer = 2.0;
+    loop
+    {
+        timer -= delta();
+        if (timer <= 0) break;
+        
+        set_color(255, 220, 0);
+        draw_text(msg, x - 60, y - 50 - (2.0-timer)*20, 40);
+        frame;
+    }
+}
+
+process puck(start_x, start_y)
+{
+    x = start_x; y = start_y;
+    velx = 0.0; vely = 0.0;
+    
+    // Use 'state' for radius
+    state = PUCK_R;
+    set_circle_shape(state);
+    
+    loop
+    {
+        var dt = delta();
+        
+        // Movement
+        x += velx * dt;
+        y += vely * dt;
+        
+        // Friction (Ice)
+        velx *= FRICTION_ICE;
+        vely *= FRICTION_ICE;
+        
+        // Wall Bounce
+        if (x < ARENA_X + state) { x = ARENA_X + state; velx *= -WALL_BOUNCE; }
+        if (x > ARENA_X + ARENA_W - state) { x = ARENA_X + ARENA_W - state; velx *= -WALL_BOUNCE; }
+        if (y < ARENA_Y + state) { y = ARENA_Y + state; vely *= -WALL_BOUNCE; }
+        if (y > ARENA_Y + ARENA_H - state) { y = ARENA_Y + ARENA_H - state; vely *= -WALL_BOUNCE; }
+        
+        // Goal Check
+        if (y > ARENA_Y + ARENA_H/2 - GOAL_SIZE/2 && y < ARENA_Y + ARENA_H/2 + GOAL_SIZE/2)
+        {
+            if (x <= ARENA_X + state + 5) // Left Goal (CPU Scores)
+            {
+                SCORE_CPU += 1;
+                goal_effect(ARENA_X + 100, ARENA_Y + ARENA_H/2, "CPU SCORES!");
+                reset_game();
+            }
+            if (x >= ARENA_X + ARENA_W - state - 5) // Right Goal (Player Scores)
+            {
+                SCORE_P1 += 1;
+                goal_effect(ARENA_X + ARENA_W - 100, ARENA_Y + ARENA_H/2, "YOU SCORE!");
+                reset_game();
+            }
+        }
+        
+        // Render Puck
+        set_color(20, 20, 20);
+        draw_circle(x, y, state, true);
+        set_color(80, 80, 80);
+        draw_circle(x, y, state * 0.7, true);
+        
+        frame;
+    }
+}
+
+process player(is_cpu)
+{
+    // Use 'state' for radius
+    state = PLAYER_R;
+    set_circle_shape(state);
+    
+    velx = 0.0; vely = 0.0;
+    var speed = 25.0; // Acceleration
+    var max_speed = 500.0;
+    
+    // Initial Position
+    if (is_cpu) { x = ARENA_X + ARENA_W - 150; y = ARENA_Y + ARENA_H/2; }
+    else        { x = ARENA_X + 150; y = ARENA_Y + ARENA_H/2; }
+
+    loop
+    {
+        var dt = delta();
+        
+        // Input / AI
+        var ax = 0.0; var ay = 0.0;
+        
+        if (is_cpu)
+        {
+            // AI Logic
+            var pk = proc(PUCK_ID);
+            if (pk)
+            {
+                var target_x = pk.x;
+                var target_y = pk.y;
+                
+                // Defensive Strategy: Stay between puck and goal if puck is behind
+                if (pk.x > x && abs(pk.x - (ARENA_X + ARENA_W)) < 300)
+                {
+                    target_x = ARENA_X + ARENA_W - 60;
+                    target_y = ARENA_Y + ARENA_H/2;
+                }
+                
+                var dx = target_x - x;
+                var dy = target_y - y;
+                var dist = sqrt(dx*dx + dy*dy);
+                if (dist > 10) { ax = dx/dist; ay = dy/dist; }
+            }
+        }
+        else
+        {
+            // Player Input
+            if (key_down(KEY_W) || key_down(KEY_UP)) ay -= 1;
+            if (key_down(KEY_S) || key_down(KEY_DOWN)) ay += 1;
+            if (key_down(KEY_A) || key_down(KEY_LEFT)) ax -= 1;
+            if (key_down(KEY_D) || key_down(KEY_RIGHT)) ax += 1;
+        }
+        
+        // Apply Physics
+        velx += ax * speed;
+        vely += ay * speed;
+        
+        // Clamp Speed
+        var current_speed = sqrt(velx*velx + vely*vely);
+        if (current_speed > max_speed)
+        {
+            velx = (velx/current_speed) * max_speed;
+            vely = (vely/current_speed) * max_speed;
+        }
+        
+        // Friction
+        velx *= FRICTION_ICE;
+        vely *= FRICTION_ICE;
+        
+        x += velx * dt;
+        y += vely * dt;
+        
+        // Walls
+        if (x < ARENA_X + state) { x = ARENA_X + state; velx *= -0.5; }
+        if (x > ARENA_X + ARENA_W - state) { x = ARENA_X + ARENA_W - state; velx *= -0.5; }
+        if (y < ARENA_Y + state) { y = ARENA_Y + state; vely *= -0.5; }
+        if (y > ARENA_Y + ARENA_H - state) { y = ARENA_Y + ARENA_H - state      ; vely *= -0.5; }
+        
+        // Collisions
+        var me = proc(id);
+        var pk = proc(PUCK_ID);
+        if (pk) resolve_circle_collision(me, pk);
+        
+        var other_id = CPU_ID;
+        if (is_cpu) other_id = PLAYER_ID;
+
+        var other = proc(other_id);
+        if (other) resolve_circle_collision(me, other);
+
+        // Render Cap
+        if (is_cpu) set_color(220, 60, 60); // Red (CPU)
+        else        set_color(60, 100, 220); // Blue (Player)
+        
+        draw_circle(x, y, state, true);
+        
+        // Highlight/Detail
+        set_color(255, 255, 255);
+        set_alpha(100);
+        draw_circle(x - 5, y - 5, state * 0.4, true);
+        set_alpha(255);
+        
+        set_color(255, 255, 255);
+        draw_circle(x, y, state, false); // Outline
+        if (is_cpu) draw_text("CPU", x-12, y-8, 16);
+        else        draw_text("P1", x-12, y-8, 16);
+        
+        frame;
+    }
+}
+
+// --- Main Execution ---
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Ice Caps Arena - Winter Jam");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+// Init Entities
+var p = player(false);
+PLAYER_ID = p.id;
+
+var c = player(true);
+CPU_ID = c.id;
+
+var pk = puck(ARENA_X + ARENA_W/2, ARENA_Y + ARENA_H/2);
+PUCK_ID = pk.id;
+
+loop
+{
+    // Background
+    set_color(30, 35, 45);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+    
+    draw_arena();
+    
+    // UI Scoreboard
+    set_color(255, 255, 255);
+    draw_text(format("PLAYER: {}", SCORE_P1), ARENA_X, ARENA_Y - 40, 24);
+    draw_text(format("CPU: {}", SCORE_CPU), ARENA_X + ARENA_W - 120, ARENA_Y - 40, 24);
+    
+    draw_text("WASD to Move | R to Reset", VIEW_W/2 - 100, VIEW_H - 30, 16);
+
+    if (key_pressed(KEY_R)) reset_game();
+    
+    frame;
+}
