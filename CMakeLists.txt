@@ -5,13 +5,18 @@ project(BuGame)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
- 
+
+add_subdirectory(vendor/miniz)
+add_subdirectory(vendor/poly2tri)
+add_subdirectory(vendor/box2d)
+add_subdirectory(vendor/raylib)
+
 add_subdirectory(libbu)
 add_subdirectory(graphics)
 
 add_subdirectory(main)
+add_subdirectory(runner)
 add_subdirectory(tests)
-add_subdirectory(test)
 
  
 
