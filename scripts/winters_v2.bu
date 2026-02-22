@@ -1,0 +1,971 @@
+// Cozy Winter Delivery v2 (Jam Cut)
+// Keeps original winters.bu intact.
+
+import math;
+
+var VIEW_W = 1024;
+var VIEW_H = 600;
+
+var KEY_W = 87; var KEY_A = 65; var KEY_S = 83; var KEY_D = 68;
+var KEY_UP = 265; var KEY_LEFT = 263; var KEY_DOWN = 264; var KEY_RIGHT = 262;
+var KEY_ESCAPE = 256; var KEY_ENTER = 257; var KEY_SPACE = 32; var KEY_P = 80;
+
+var STATE_MENU = 0;
+var STATE_PLAY = 1;
+var STATE_PAUSE = 2;
+var STATE_WIN = 3;
+
+var GAME_STATE = STATE_MENU;
+var APP_RUNNING = true;
+
+var MENU_INDEX = 0;
+var PAUSE_INDEX = 0;
+var WIN_INDEX = 0;
+var SHOW_HELP = false;
+
+var MENU_OPTIONS = ["Start Run", "How To Play", "Exit"];
+var PAUSE_OPTIONS = ["Resume", "Restart", "Menu"];
+var WIN_OPTIONS = ["Play Again", "Back To Menu"];
+
+var POINTER_X = 0.0;
+var POINTER_Y = 0.0;
+var POINTER_DOWN = false;
+var POINTER_PRESSED = false;
+var POINTER_DOWN_PREV = false;
+
+var PLAYER_X = VIEW_W * 0.5;
+var PLAYER_Y = VIEW_H * 0.72;
+var PLAYER_VX = 0.0;
+var PLAYER_VY = 0.0;
+var PLAYER_SIZE = 18;
+
+var DEST_X = PLAYER_X;
+var DEST_Y = PLAYER_Y;
+var DEST_ACTIVE = false;
+
+var HOUSES_X = [];
+var HOUSES_Y = [];
+var HOUSES_KIND = [];
+var HOUSE_COUNT = 0;
+
+var TARGET_HOUSE = -1;
+var LAST_TARGET_HOUSE = -1;
+
+var GOAL_DELIVERIES = 5;
+var DELIVERIES = 0;
+var SCORE = 0;
+var RUN_TIMER = 120.0;
+var RUN_TIME_TOTAL = 120.0;
+var FINISH_TIME = 0.0;
+
+var TARGET_PULSE = 0.0;
+var FEEDBACK_TIMER = 0.0;
+var FEEDBACK_TEXT = "";
+
+var BTN_PAUSE_X = VIEW_W - 136;
+var BTN_PAUSE_Y = 16;
+var BTN_PAUSE_W = 104;
+var BTN_PAUSE_H = 38;
+
+var SNOW = []; // [x, y, speed, drift, size]
+
+
+def point_in_rect(px, py, rx, ry, rw, rh)
+{
+    if (px < rx) return false;
+    if (py < ry) return false;
+    if (px > rx + rw) return false;
+    if (py > ry + rh) return false;
+    return true;
+}
+
+def dist2(x1, y1, x2, y2)
+{
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    return dx * dx + dy * dy;
+}
+
+def clampf(v, a, b)
+{
+    if (v < a) return a;
+    if (v > b) return b;
+    return v;
+}
+
+def update_pointer()
+{
+    if (touch_count() > 0)
+    {
+        POINTER_X = get_touch_screen_x(0);
+        POINTER_Y = get_touch_screen_y(0);
+        POINTER_DOWN = true;
+    }
+    else
+    {
+        POINTER_X = get_mouse_x();
+        POINTER_Y = get_mouse_y();
+        POINTER_DOWN = mouse_down(0);
+    }
+
+    POINTER_PRESSED = (POINTER_DOWN && !POINTER_DOWN_PREV);
+    POINTER_DOWN_PREV = POINTER_DOWN;
+}
+
+def seed_snow()
+{
+    SNOW.clear();
+
+    var i = 0;
+    while (i < 110)
+    {
+        var x = math.rand(0, VIEW_W);
+        var y = math.rand(0, VIEW_H);
+        var spd = math.rand(25, 75);
+        var drift = math.rand(-16, 16) / 10.0;
+        var size = math.rand(1, 3);
+        SNOW.push([x, y, spd, drift, size]);
+        i += 1;
+    }
+}
+
+def update_snow(_dt)
+{
+    var i = 0;
+    while (i < len(SNOW))
+    {
+        var p = SNOW[i];
+
+        p[0] = p[0] + p[3] * _dt;
+        p[1] = p[1] + p[2] * _dt;
+
+        if (p[1] > VIEW_H + 6)
+        {
+            p[1] = -8;
+            p[0] = math.rand(0, VIEW_W);
+            p[2] = math.rand(25, 75);
+            p[3] = math.rand(-16, 16) / 10.0;
+            p[4] = math.rand(1, 3);
+        }
+
+        if (p[0] < -8) p[0] = VIEW_W + 6;
+        if (p[0] > VIEW_W + 8) p[0] = -6;
+
+        SNOW[i] = p;
+        i += 1;
+    }
+}
+
+def draw_snow()
+{
+    var i = 0;
+    while (i < len(SNOW))
+    {
+        var p = SNOW[i];
+
+        if (p[4] <= 1)
+        {
+            set_alpha(140);
+            set_color(220, 230, 245);
+        }
+        elif (p[4] <= 2)
+        {
+            set_alpha(185);
+            set_color(230, 238, 250);
+        }
+        else
+        {
+            set_alpha(220);
+            set_color(242, 248, 255);
+        }
+
+        draw_circle(p[0], p[1], p[4], true);
+        i += 1;
+    }
+    set_alpha(255);
+}
+
+def build_map()
+{
+    HOUSES_X.clear();
+    HOUSES_Y.clear();
+    HOUSES_KIND.clear();
+
+    var rows = [150, 230, 310, 390];
+    var cols = [110, 250, 390, 530, 670, 810, 950];
+
+    var r = 0;
+    while (r < len(rows))
+    {
+        var c = 0;
+        while (c < len(cols))
+        {
+            var x = cols[c] + math.rand(-16, 16);
+            var y = rows[r] + math.rand(-10, 10);
+
+            HOUSES_X.push(x);
+            HOUSES_Y.push(y);
+            HOUSES_KIND.push(math.rand(0, 2));
+
+            c += 1;
+        }
+        r += 1;
+    }
+
+    HOUSE_COUNT = len(HOUSES_X);
+}
+
+def pick_target()
+{
+    if (HOUSE_COUNT <= 0)
+    {
+        TARGET_HOUSE = -1;
+        return;
+    }
+
+    var tries = 0;
+    var idx = math.rand(0, HOUSE_COUNT - 1);
+    while (tries < 64)
+    {
+        idx = math.rand(0, HOUSE_COUNT - 1);
+        if (idx != LAST_TARGET_HOUSE) break;
+        tries += 1;
+    }
+
+    TARGET_HOUSE = idx;
+    LAST_TARGET_HOUSE = idx;
+}
+
+def start_game()
+{
+    PLAYER_X = VIEW_W * 0.5;
+    PLAYER_Y = VIEW_H * 0.74;
+    PLAYER_VX = 0;
+    PLAYER_VY = 0;
+
+    DEST_X = PLAYER_X;
+    DEST_Y = PLAYER_Y;
+    DEST_ACTIVE = false;
+
+    DELIVERIES = 0;
+    SCORE = 0;
+    RUN_TIMER = RUN_TIME_TOTAL;
+    TARGET_PULSE = 0;
+    FEEDBACK_TIMER = 0;
+    FEEDBACK_TEXT = "";
+
+    build_map();
+    pick_target();
+
+    GAME_STATE = STATE_PLAY;
+}
+
+def do_pause_action(idx)
+{
+    if (idx == 0)
+    {
+        GAME_STATE = STATE_PLAY;
+    }
+    elif (idx == 1)
+    {
+        start_game();
+    }
+    else
+    {
+        GAME_STATE = STATE_MENU;
+    }
+}
+
+def do_win_action(idx)
+{
+    if (idx == 0)
+    {
+        start_game();
+    }
+    else
+    {
+        GAME_STATE = STATE_MENU;
+    }
+}
+
+def draw_bg()
+{
+    // sky
+    set_color(14, 20, 34);
+    draw_rectangle(0, 0, VIEW_W, 190, true);
+
+    set_color(20, 30, 50);
+    draw_rectangle(0, 190, VIEW_W, 130, true);
+
+    set_color(28, 42, 68);
+    draw_rectangle(0, 320, VIEW_W, 90, true);
+
+    // reflection water/ice band
+    set_color(18, 36, 58);
+    draw_rectangle(0, 410, VIEW_W, 78, true);
+
+    set_color(130, 160, 210);
+    draw_rectangle(0, 410, VIEW_W, 2, true);
+
+    // ground
+    set_color(220, 230, 244);
+    draw_rectangle(0, 488, VIEW_W, VIEW_H - 488, true);
+
+    // moon
+    set_color(235, 242, 255);
+    draw_circle(880, 96, 42, true);
+    set_color(205, 220, 245);
+    draw_circle(868, 86, 42, true);
+}
+
+def draw_house(x, y, kind)
+{
+    var w = 48;
+    var h = 34;
+
+    var r = 100; var g = 90; var b = 120;
+    if (kind == 1) { r = 160; g = 95; b = 80; }
+    elif (kind == 2) { r = 80; g = 120; b = 170; }
+
+    // reflected silhouette
+    set_alpha(55);
+    set_color(90, 120, 160);
+    draw_rectangle(x - w / 2, 410 + (410 - y), w, h, true);
+    set_alpha(255);
+
+    // house body
+    set_color(r, g, b);
+    draw_rectangle(x - w / 2, y - h / 2, w, h, true);
+
+    // roof snow
+    set_color(235, 242, 252);
+    draw_rectangle(x - w / 2 - 3, y - h / 2 - 7, w + 6, 10, true);
+
+    // window
+    set_color(255, 224, 130);
+    draw_rectangle(x - 8, y - 4, 16, 12, true);
+}
+
+def draw_map()
+{
+    var i = 0;
+    while (i < HOUSE_COUNT)
+    {
+        draw_house(HOUSES_X[i], HOUSES_Y[i], HOUSES_KIND[i]);
+        i += 1;
+    }
+}
+
+def draw_target_marker()
+{
+    if (TARGET_HOUSE < 0 || TARGET_HOUSE >= HOUSE_COUNT) return;
+
+    var tx = HOUSES_X[TARGET_HOUSE];
+    var ty = HOUSES_Y[TARGET_HOUSE];
+
+    var pulse = 20 + (sin(TARGET_PULSE * 6.0) + 1) * 8;
+
+    set_alpha(85);
+    set_color(255, 210, 90);
+    draw_circle(tx, ty, pulse, false);
+    set_alpha(255);
+
+    set_color(255, 240, 170);
+    draw_circle(tx, ty, 9, true);
+}
+
+def draw_player()
+{
+    // reflection first
+    set_alpha(70);
+    set_color(100, 132, 178);
+    draw_circle(PLAYER_X, 410 + (410 - PLAYER_Y), PLAYER_SIZE, true);
+    set_alpha(255);
+
+    // shadow
+    set_alpha(60);
+    set_color(0, 0, 0);
+    draw_circle(PLAYER_X + 2, PLAYER_Y + 4, PLAYER_SIZE + 2, true);
+    set_alpha(255);
+
+    // car body
+    set_color(210, 78, 82);
+    draw_circle(PLAYER_X, PLAYER_Y, PLAYER_SIZE, true);
+    set_color(255, 214, 160);
+    draw_circle(PLAYER_X + 6, PLAYER_Y - 4, 4, true);
+}
+
+def draw_pause_button()
+{
+    var hot = point_in_rect(POINTER_X, POINTER_Y, BTN_PAUSE_X, BTN_PAUSE_Y, BTN_PAUSE_W, BTN_PAUSE_H);
+
+    if (hot) set_color(82, 118, 176);
+    else set_color(56, 82, 128);
+    draw_rectangle(BTN_PAUSE_X, BTN_PAUSE_Y, BTN_PAUSE_W, BTN_PAUSE_H, true);
+
+    if (hot) set_color(214, 230, 255);
+    else set_color(164, 188, 220);
+    draw_rectangle(BTN_PAUSE_X, BTN_PAUSE_Y, BTN_PAUSE_W, BTN_PAUSE_H, false);
+
+    set_color(245, 248, 255);
+    draw_text("PAUSE", BTN_PAUSE_X + 20, BTN_PAUSE_Y + 10, 20);
+}
+
+def draw_hud()
+{
+    set_color(20, 30, 48);
+    draw_rectangle(0, 0, VIEW_W, 74, true);
+
+    set_color(236, 244, 255);
+    draw_text("Cozy Winter Delivery v2", 22, 20, 30);
+
+    set_color(175, 198, 228);
+    draw_text(format("Deliveries: {}/{}", DELIVERIES, GOAL_DELIVERIES), 420, 28, 22);
+    draw_text(format("Score: {}", SCORE), 670, 28, 22);
+    draw_text(format("Time: {}", int(RUN_TIMER)), 835, 28, 22);
+
+    draw_pause_button();
+
+    if (FEEDBACK_TIMER > 0)
+    {
+        set_color(255, 244, 180);
+        draw_text(FEEDBACK_TEXT, VIEW_W / 2 - 120, 88, 24);
+    }
+
+    set_color(155, 178, 208);
+    draw_text("Arrows/WASD or click/touch destination", 22, VIEW_H - 28, 18);
+}
+
+def draw_menu()
+{
+    draw_bg();
+    draw_snow();
+
+    set_color(255, 224, 140);
+    draw_text("COZY WINTER DELIVERY", VIEW_W / 2 - 240, 120, 46);
+
+    set_color(190, 210, 236);
+    draw_text("Jam cut: short run, cozy vibes, clear goal", VIEW_W / 2 - 220, 178, 22);
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = 270;
+    var bw = 340;
+    var bh = 50;
+    var gap = 14;
+
+    var i = 0;
+    while (i < len(MENU_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        var hot = point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh);
+
+        if (i == MENU_INDEX) set_color(76, 112, 170);
+        elif (hot) set_color(58, 90, 140);
+        else set_color(40, 62, 98);
+        draw_rectangle(bx, by, bw, bh, true);
+
+        if (i == MENU_INDEX || hot) set_color(216, 232, 255);
+        else set_color(160, 186, 220);
+        draw_rectangle(bx, by, bw, bh, false);
+
+        set_color(240, 246, 255);
+        draw_text(MENU_OPTIONS[i], bx + 74, by + 12, 25);
+
+        i += 1;
+    }
+
+    set_color(160, 184, 214);
+    draw_text("Keyboard + mouse/touch supported", VIEW_W / 2 - 165, VIEW_H - 48, 18);
+
+    if (SHOW_HELP)
+    {
+        set_color(0, 0, 0);
+        set_alpha(170);
+        draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+        set_alpha(255);
+
+        var px = VIEW_W / 2 - 330;
+        var py = VIEW_H / 2 - 190;
+        var pw = 660;
+        var ph = 380;
+
+        set_color(28, 42, 68);
+        draw_rectangle(px, py, pw, ph, true);
+        set_color(185, 210, 240);
+        draw_rectangle(px, py, pw, ph, false);
+
+        set_color(238, 246, 255);
+        draw_text("How To Play", px + 24, py + 22, 34);
+
+        set_color(196, 214, 238);
+        draw_text("1) Reach the glowing house marker.", px + 28, py + 92, 24);
+        draw_text("2) Complete 5 deliveries before time ends.", px + 28, py + 132, 24);
+        draw_text("3) Move with keyboard or click/touch destination.", px + 28, py + 172, 24);
+        draw_text("4) Cozy run: no enemies, just flow and reflection vibes.", px + 28, py + 212, 24);
+
+        set_color(164, 190, 220);
+        draw_text("Press ENTER/ESC or tap to close", px + 186, py + ph - 36, 20);
+    }
+}
+
+def draw_play()
+{
+    draw_bg();
+    draw_snow();
+    draw_map();
+    draw_target_marker();
+    draw_player();
+    draw_hud();
+}
+
+def draw_pause()
+{
+    draw_play();
+
+    set_color(0, 0, 0);
+    set_alpha(165);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+    set_alpha(255);
+
+    var px = VIEW_W / 2 - 230;
+    var py = VIEW_H / 2 - 150;
+    var pw = 460;
+    var ph = 300;
+
+    set_color(30, 44, 70);
+    draw_rectangle(px, py, pw, ph, true);
+    set_color(184, 208, 240);
+    draw_rectangle(px, py, pw, ph, false);
+
+    set_color(240, 247, 255);
+    draw_text("PAUSED", px + 150, py + 26, 42);
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = VIEW_H / 2 - 8;
+    var bw = 340;
+    var bh = 46;
+    var gap = 12;
+
+    var i = 0;
+    while (i < len(PAUSE_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        var hot = point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh);
+
+        if (i == PAUSE_INDEX) set_color(76, 112, 170);
+        elif (hot) set_color(58, 90, 140);
+        else set_color(42, 64, 100);
+        draw_rectangle(bx, by, bw, bh, true);
+
+        if (i == PAUSE_INDEX || hot) set_color(216, 232, 255);
+        else set_color(160, 186, 220);
+        draw_rectangle(bx, by, bw, bh, false);
+
+        set_color(240, 246, 255);
+        draw_text(PAUSE_OPTIONS[i], bx + 94, by + 10, 24);
+
+        i += 1;
+    }
+}
+
+def draw_win()
+{
+    draw_bg();
+    draw_snow();
+
+    set_color(0, 0, 0);
+    set_alpha(110);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+    set_alpha(255);
+
+    var px = VIEW_W / 2 - 300;
+    var py = VIEW_H / 2 - 220;
+    var pw = 600;
+    var ph = 440;
+
+    set_color(28, 42, 68);
+    draw_rectangle(px, py, pw, ph, true);
+    set_color(190, 214, 244);
+    draw_rectangle(px, py, pw, ph, false);
+
+    if (DELIVERIES >= GOAL_DELIVERIES)
+    {
+        set_color(255, 232, 166);
+        draw_text("Shift Complete", px + 150, py + 48, 50);
+    }
+    else
+    {
+        set_color(255, 188, 150);
+        draw_text("Shift Ended", px + 182, py + 48, 50);
+    }
+
+    set_color(220, 236, 255);
+    draw_text(format("Deliveries: {}/{}", DELIVERIES, GOAL_DELIVERIES), px + 180, py + 136, 30);
+    draw_text(format("Score: {}", SCORE), px + 228, py + 176, 30);
+    draw_text(format("Time left: {}s", int(FINISH_TIME)), px + 198, py + 216, 30);
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = VIEW_H / 2 + 60;
+    var bw = 340;
+    var bh = 48;
+    var gap = 14;
+
+    var i = 0;
+    while (i < len(WIN_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        var hot = point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh);
+
+        if (i == WIN_INDEX) set_color(76, 112, 170);
+        elif (hot) set_color(58, 90, 140);
+        else set_color(42, 64, 100);
+        draw_rectangle(bx, by, bw, bh, true);
+
+        if (i == WIN_INDEX || hot) set_color(216, 232, 255);
+        else set_color(160, 186, 220);
+        draw_rectangle(bx, by, bw, bh, false);
+
+        set_color(240, 246, 255);
+        draw_text(WIN_OPTIONS[i], bx + 84, by + 11, 24);
+
+        i += 1;
+    }
+}
+
+def update_menu()
+{
+    if (SHOW_HELP)
+    {
+        if (key_pressed(KEY_ESCAPE) || key_pressed(KEY_ENTER) || POINTER_PRESSED)
+        {
+            SHOW_HELP = false;
+        }
+        return;
+    }
+
+    if (key_pressed(KEY_UP) || key_pressed(KEY_W))
+    {
+        MENU_INDEX -= 1;
+        if (MENU_INDEX < 0) MENU_INDEX = len(MENU_OPTIONS) - 1;
+    }
+
+    if (key_pressed(KEY_DOWN) || key_pressed(KEY_S))
+    {
+        MENU_INDEX += 1;
+        if (MENU_INDEX >= len(MENU_OPTIONS)) MENU_INDEX = 0;
+    }
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = 270;
+    var bw = 340;
+    var bh = 50;
+    var gap = 14;
+
+    var i = 0;
+    while (i < len(MENU_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        if (point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh))
+        {
+            MENU_INDEX = i;
+            if (POINTER_PRESSED)
+            {
+                if (i == 0) start_game();
+                elif (i == 1) SHOW_HELP = true;
+                else APP_RUNNING = false;
+                return;
+            }
+        }
+        i += 1;
+    }
+
+    if (key_pressed(KEY_ENTER) || key_pressed(KEY_SPACE))
+    {
+        if (MENU_INDEX == 0) start_game();
+        elif (MENU_INDEX == 1) SHOW_HELP = true;
+        else APP_RUNNING = false;
+    }
+}
+
+def update_play(_dt)
+{
+    if (POINTER_PRESSED && point_in_rect(POINTER_X, POINTER_Y, BTN_PAUSE_X, BTN_PAUSE_Y, BTN_PAUSE_W, BTN_PAUSE_H))
+    {
+        PAUSE_INDEX = 0;
+        GAME_STATE = STATE_PAUSE;
+        return;
+    }
+
+    if (key_pressed(KEY_ESCAPE) || key_pressed(KEY_P) || key_pressed(KEY_SPACE))
+    {
+        PAUSE_INDEX = 0;
+        GAME_STATE = STATE_PAUSE;
+        return;
+    }
+
+    RUN_TIMER -= _dt;
+    if (RUN_TIMER < 0) RUN_TIMER = 0;
+
+    TARGET_PULSE += _dt;
+
+    if (FEEDBACK_TIMER > 0)
+    {
+        FEEDBACK_TIMER -= _dt;
+        if (FEEDBACK_TIMER < 0) FEEDBACK_TIMER = 0;
+    }
+
+    var input_x = 0.0;
+    var input_y = 0.0;
+
+    if (key_down(KEY_LEFT) || key_down(KEY_A)) input_x -= 1;
+    if (key_down(KEY_RIGHT) || key_down(KEY_D)) input_x += 1;
+    if (key_down(KEY_UP) || key_down(KEY_W)) input_y -= 1;
+    if (key_down(KEY_DOWN) || key_down(KEY_S)) input_y += 1;
+
+    if (POINTER_PRESSED)
+    {
+        if (POINTER_Y > 90)
+        {
+            DEST_X = POINTER_X;
+            DEST_Y = POINTER_Y;
+            DEST_ACTIVE = true;
+        }
+    }
+
+    var accel = 420.0;
+    var friction = 3.3;
+    var max_speed = 230.0;
+
+    if (abs(input_x) > 0 || abs(input_y) > 0)
+    {
+        DEST_ACTIVE = false;
+
+        PLAYER_VX = PLAYER_VX + input_x * accel * _dt;
+        PLAYER_VY = PLAYER_VY + input_y * accel * _dt;
+    }
+    elif (DEST_ACTIVE)
+    {
+        var dx = DEST_X - PLAYER_X;
+        var dy = DEST_Y - PLAYER_Y;
+        var d = sqrt(dx * dx + dy * dy);
+
+        if (d > 6)
+        {
+            var nx = dx / d;
+            var ny = dy / d;
+            PLAYER_VX = PLAYER_VX + nx * accel * _dt;
+            PLAYER_VY = PLAYER_VY + ny * accel * _dt;
+        }
+        else
+        {
+            DEST_ACTIVE = false;
+        }
+    }
+
+    PLAYER_VX = PLAYER_VX * (1.0 - friction * _dt);
+    PLAYER_VY = PLAYER_VY * (1.0 - friction * _dt);
+
+    var spd = sqrt(PLAYER_VX * PLAYER_VX + PLAYER_VY * PLAYER_VY);
+    if (spd > max_speed)
+    {
+        var k = max_speed / spd;
+        PLAYER_VX = PLAYER_VX * k;
+        PLAYER_VY = PLAYER_VY * k;
+    }
+
+    PLAYER_X = PLAYER_X + PLAYER_VX * _dt;
+    PLAYER_Y = PLAYER_Y + PLAYER_VY * _dt;
+
+    PLAYER_X = clampf(PLAYER_X, 30, VIEW_W - 30);
+    PLAYER_Y = clampf(PLAYER_Y, 110, VIEW_H - 24);
+
+    if (TARGET_HOUSE >= 0 && TARGET_HOUSE < HOUSE_COUNT)
+    {
+        var tx = HOUSES_X[TARGET_HOUSE];
+        var ty = HOUSES_Y[TARGET_HOUSE];
+
+        if (dist2(PLAYER_X, PLAYER_Y, tx, ty) < (44 * 44))
+        {
+            DELIVERIES += 1;
+
+            var bonus = 80 + int(RUN_TIMER * 4);
+            SCORE += bonus;
+
+            FEEDBACK_TEXT = format("Delivered +{}", bonus);
+            FEEDBACK_TIMER = 1.2;
+
+            if (DELIVERIES >= GOAL_DELIVERIES)
+            {
+                FINISH_TIME = RUN_TIMER;
+                GAME_STATE = STATE_WIN;
+                return;
+            }
+
+            pick_target();
+        }
+    }
+
+    if (RUN_TIMER <= 0)
+    {
+        FINISH_TIME = 0;
+        GAME_STATE = STATE_WIN;
+    }
+}
+
+def update_pause()
+{
+    if (key_pressed(KEY_ESCAPE) || key_pressed(KEY_P) || key_pressed(KEY_SPACE))
+    {
+        GAME_STATE = STATE_PLAY;
+        return;
+    }
+
+    if (key_pressed(KEY_UP) || key_pressed(KEY_W))
+    {
+        PAUSE_INDEX -= 1;
+        if (PAUSE_INDEX < 0) PAUSE_INDEX = len(PAUSE_OPTIONS) - 1;
+    }
+
+    if (key_pressed(KEY_DOWN) || key_pressed(KEY_S))
+    {
+        PAUSE_INDEX += 1;
+        if (PAUSE_INDEX >= len(PAUSE_OPTIONS)) PAUSE_INDEX = 0;
+    }
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = VIEW_H / 2 - 8;
+    var bw = 340;
+    var bh = 46;
+    var gap = 12;
+
+    var i = 0;
+    while (i < len(PAUSE_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        if (point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh))
+        {
+            PAUSE_INDEX = i;
+            if (POINTER_PRESSED)
+            {
+                do_pause_action(PAUSE_INDEX);
+                return;
+            }
+        }
+        i += 1;
+    }
+
+    if (key_pressed(KEY_ENTER))
+    {
+        do_pause_action(PAUSE_INDEX);
+    }
+}
+
+def update_win()
+{
+    if (key_pressed(KEY_UP) || key_pressed(KEY_W) || key_pressed(KEY_LEFT) || key_pressed(KEY_A))
+    {
+        WIN_INDEX -= 1;
+        if (WIN_INDEX < 0) WIN_INDEX = len(WIN_OPTIONS) - 1;
+    }
+
+    if (key_pressed(KEY_DOWN) || key_pressed(KEY_S) || key_pressed(KEY_RIGHT) || key_pressed(KEY_D))
+    {
+        WIN_INDEX += 1;
+        if (WIN_INDEX >= len(WIN_OPTIONS)) WIN_INDEX = 0;
+    }
+
+    var bx = VIEW_W / 2 - 170;
+    var by0 = VIEW_H / 2 + 60;
+    var bw = 340;
+    var bh = 48;
+    var gap = 14;
+
+    var i = 0;
+    while (i < len(WIN_OPTIONS))
+    {
+        var by = by0 + i * (bh + gap);
+        if (point_in_rect(POINTER_X, POINTER_Y, bx, by, bw, bh))
+        {
+            WIN_INDEX = i;
+            if (POINTER_PRESSED)
+            {
+                do_win_action(WIN_INDEX);
+                return;
+            }
+        }
+        i += 1;
+    }
+
+    if (key_pressed(KEY_ENTER) || key_pressed(KEY_SPACE))
+    {
+        do_win_action(WIN_INDEX);
+    }
+
+    if (key_pressed(KEY_ESCAPE))
+    {
+        GAME_STATE = STATE_MENU;
+    }
+}
+
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Cozy Winter Delivery v2 - Jam Cut");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+seed_snow();
+
+loop
+{
+    var dt = delta();
+
+    update_pointer();
+    update_snow(dt);
+
+    if (GAME_STATE == STATE_MENU)
+    {
+        update_menu();
+    }
+    elif (GAME_STATE == STATE_PLAY)
+    {
+        update_play(dt);
+    }
+    elif (GAME_STATE == STATE_PAUSE)
+    {
+        update_pause();
+    }
+    else
+    {
+        update_win();
+    }
+
+    set_draw_screen(true);
+
+    if (GAME_STATE == STATE_MENU)
+    {
+        draw_menu();
+    }
+    elif (GAME_STATE == STATE_PLAY)
+    {
+        draw_play();
+    }
+    elif (GAME_STATE == STATE_PAUSE)
+    {
+        draw_pause();
+    }
+    else
+    {
+        draw_win();
+    }
+
+    set_draw_screen(false);
+
+    if (!APP_RUNNING)
+    {
+        let_me_alone();
+        break;
+    }
+
+    frame;
+}

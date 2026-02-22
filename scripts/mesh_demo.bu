@@ -1,0 +1,233 @@
+// === BU Hill Mesh Demo ===
+// One mesh only: body + top edge layers (HillClimb style).
+
+import math;
+
+var VIEW_W = 1280;
+var VIEW_H = 720;
+
+var KEY_W = 87;
+var KEY_A = 65;
+var KEY_S = 83;
+var KEY_D = 68;
+var KEY_UP = 265;
+var KEY_LEFT = 263;
+var KEY_DOWN = 264;
+var KEY_RIGHT = 262;
+var KEY_R = 82;
+var KEY_Q = 81; // less depth
+var KEY_E = 69; // more depth
+var KEY_Z = 90; // less hill amplitude
+var KEY_X = 88; // more hill amplitude
+var KEY_ESCAPE = 256;
+
+var CAM_X = 0.0;
+var CAM_Y = 0.0;
+var CAM_SPEED = 760.0;
+
+var MESH_ID = -1;
+var BODY_TEX = -1;
+var EDGE_TEX = -1;
+
+var TOP_POINTS = 30;
+var STEP_X = 180.0;
+var BASE_Y = 340.0;
+var AMP_A = 120.0;
+var AMP_B = 60.0;
+var PHASE = 0.0;
+
+var TRACK_DEPTH = 860.0;
+var EDGE_WIDTH = 26.0;
+var BODY_UV = 0.010;
+var EDGE_UV = 0.020;
+
+var WORLD_W = 4000.0;
+var WORLD_H = 1800.0;
+
+var TRACK_X = [];
+var TRACK_Y = [];
+
+def rebuild_track()
+{
+    mesh_clear(MESH_ID);
+    TRACK_X.clear();
+    TRACK_Y.clear();
+
+    // Top profile (left -> right)
+    var i = 0;
+    while (i < TOP_POINTS)
+    {
+        var x = i * STEP_X;
+        var y = BASE_Y;
+        y += sin(i * 0.43 + PHASE) * AMP_A;
+        y += sin(i * 0.18 + PHASE * 0.7) * AMP_B;
+
+        if (i == 0) y = BASE_Y;
+        if (i == TOP_POINTS - 1) y = BASE_Y + sin(PHASE) * 30;
+
+        TRACK_X.push(x);
+        TRACK_Y.push(y);
+        mesh_add_point(MESH_ID, x, y);
+        i += 1;
+    }
+
+    mesh_set_scale_bottom(MESH_ID, 2.0,10.0);
+    mesh_set_scale_top(MESH_ID, 1.0,1.0);
+
+    // One mesh with fixed default UV/edge values from engine side.
+    mesh_build_track(MESH_ID, TRACK_DEPTH);
+    if (BODY_TEX != -1) mesh_set_body_texture(MESH_ID, BODY_TEX);
+    if (EDGE_TEX != -1) mesh_set_edge_texture(MESH_ID, EDGE_TEX);
+
+    WORLD_W = TRACK_X[len(TRACK_X) - 1] + 900;
+    WORLD_H = BASE_Y + TRACK_DEPTH + 600;
+}
+
+def update_camera(_dt)
+{
+    if (key_down(KEY_A) || key_down(KEY_LEFT)) CAM_X -= CAM_SPEED * _dt;
+    if (key_down(KEY_D) || key_down(KEY_RIGHT)) CAM_X += CAM_SPEED * _dt;
+    if (key_down(KEY_W) || key_down(KEY_UP)) CAM_Y -= CAM_SPEED * _dt;
+    if (key_down(KEY_S) || key_down(KEY_DOWN)) CAM_Y += CAM_SPEED * _dt;
+
+    var max_x = WORLD_W - VIEW_W + 220;
+    if (max_x < -220) max_x = -220;
+    var max_y = WORLD_H - VIEW_H + 220;
+    if (max_y < -220) max_y = -220;
+
+    if (CAM_X < -220) CAM_X = -220;
+    if (CAM_Y < -220) CAM_Y = -220;
+    if (CAM_X > max_x) CAM_X = max_x;
+    if (CAM_Y > max_y) CAM_Y = max_y;
+}
+
+def update_controls()
+{
+    var changed = false;
+
+    if (key_pressed(KEY_R))
+    {
+        PHASE += 0.85;
+        changed = true;
+    }
+    if (key_pressed(KEY_Q))
+    {
+        TRACK_DEPTH -= 30;
+        if (TRACK_DEPTH < 220) TRACK_DEPTH = 220;
+        changed = true;
+    }
+    if (key_pressed(KEY_E))
+    {
+        TRACK_DEPTH += 30;
+        if (TRACK_DEPTH > 1800) TRACK_DEPTH = 1800;
+        changed = true;
+    }
+    if (key_pressed(KEY_Z))
+    {
+        AMP_A -= 12;
+        AMP_B -= 6;
+        if (AMP_A < 20) AMP_A = 20;
+        if (AMP_B < 10) AMP_B = 10;
+        changed = true;
+    }
+    if (key_pressed(KEY_X))
+    {
+        AMP_A += 12;
+        AMP_B += 6;
+        if (AMP_A > 240) AMP_A = 240;
+        if (AMP_B > 120) AMP_B = 120;
+        changed = true;
+    }
+
+    if (changed) rebuild_track();
+}
+
+def draw_world()
+{
+    set_draw_screen(false);
+
+    set_color(24, 30, 42);
+  //  draw_rectangle(CAM_X - 320, CAM_Y - 320, VIEW_W + 640, VIEW_H + 640, true);
+
+    set_alpha(28);
+    set_color(96, 116, 150);
+    var gx = int(CAM_X / 200) * 200;
+    while (gx < CAM_X + VIEW_W + 220)
+    {
+        draw_line(gx, CAM_Y - 40, gx, CAM_Y + VIEW_H + 40);
+        gx += 200;
+    }
+    var gy = int(CAM_Y / 200) * 200;
+    while (gy < CAM_Y + VIEW_H + 220)
+    {
+        draw_line(CAM_X - 40, gy, CAM_X + VIEW_W + 40, gy);
+        gy += 200;
+    }
+    set_alpha(255);
+
+    mesh_draw(MESH_ID, 0, 0, 0, 1);
+
+    // Debug line over the generated top profile points.
+    set_color(255, 226, 130);
+    var i = 0;
+    while (i < len(TRACK_X))
+    {
+        if (i + 1 < len(TRACK_X))
+        {
+            draw_line(TRACK_X[i], TRACK_Y[i], TRACK_X[i + 1], TRACK_Y[i + 1]);
+        }
+        draw_circle(TRACK_X[i], TRACK_Y[i], 4, true);
+        i += 1;
+    }
+
+    set_draw_screen(true);
+}
+
+def draw_ui()
+{
+    set_color(238, 246, 255);
+    draw_text("BU Hill Mesh Demo", 34, 28, 30);
+
+    set_color(178, 200, 228);
+    draw_text("Move camera: WASD / Arrows", 34, 66, 20);
+    draw_text("R: new profile   Q/E: depth   Z/X: amplitude", 34, 92, 20);
+    draw_text(format("Depth:{}  EdgeW:{}  AmpA:{}  AmpB:{}", int(TRACK_DEPTH), int(EDGE_WIDTH), int(AMP_A), int(AMP_B)), 34, 118, 20);
+    draw_text(format("MeshId:{}  BodyTex:{}  EdgeTex:{}", MESH_ID, BODY_TEX, EDGE_TEX), 34, 144, 20);
+
+    // if (BODY_TEX >= 0) draw_graph(BODY_TEX, 34, 176);
+    // if (EDGE_TEX >= 0) draw_graph(EDGE_TEX, 170, 176);
+
+    set_color(140, 164, 196);
+    draw_text("ESC to exit", VIEW_W - 150, 26, 18);
+}
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Bu Hill Mesh Demo");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+MESH_ID = create_mesh();
+EDGE_TEX = load_graph("assets/tile2.png");
+BODY_TEX = load_graph("assets/tile5.png");
+
+rebuild_track();
+
+loop
+{
+    var dt = delta();
+
+    if (key_pressed(KEY_ESCAPE))
+    {
+        let_me_alone();
+        break;
+    }
+
+    update_controls();
+    update_camera(dt);
+    set_scroll(CAM_X, CAM_Y);
+    draw_world();
+    draw_ui();
+
+    frame;
+}
