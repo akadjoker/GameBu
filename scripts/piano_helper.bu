@@ -24,9 +24,10 @@ var HELP_LETTER = 1;
 var HELP_NUMBER = 2;
 var HELP_NONE = 3;
 
-var SPEED_SLOW = 0;
-var SPEED_NORMAL = 1;
-var SPEED_FAST = 2;
+var SPEED_VERY_SLOW = 0;
+var SPEED_SLOW = 1;
+var SPEED_NORMAL = 2;
+var SPEED_FAST = 3;
 
 var SCREEN_MENU = 0;
 var SCREEN_GAME = 1;
@@ -51,6 +52,8 @@ var BPM = 90;
 var SCROLL_SPEED = 210.0;
 var SPAWN_INTERVAL = 0.666;
 var SPAWN_TIMER = 0.0;
+var METRONOME_TIMER = 0.0;
+var SND_TICK = -1;
 
 var NOTES_ALL = [];
 var NOTES_POOL = [];
@@ -58,8 +61,8 @@ var NOTES_ACTIVE = [];
 
 var CLEF_NAMES = ["Treble only", "Bass only", "Treble + Bass"];
 var HELP_NAMES = ["Solfege", "Letter", "Number", "None"];
-var SPEED_NAMES = ["Slow", "Normal", "Fast"];
-var SPEED_BPM_LABELS = ["60 BPM", "90 BPM", "120 BPM"];
+var SPEED_NAMES = ["Very Slow", "Slow", "Normal", "Fast"];
+var SPEED_BPM_LABELS = ["40 BPM", "60 BPM", "90 BPM", "120 BPM"];
 var LEVEL_LABELS = ["", "Do Re Mi", "Do Re Mi Fa", "Do Re Mi Fa Sol La Si"];
 var MENU_NAMES = ["Clef", "Level", "Help", "Speed", "Start", "Exit"];
 var PAUSE_NAMES = ["Continue", "Restart", "Menu"];
@@ -67,6 +70,7 @@ var PAUSE_NAMES = ["Continue", "Restart", "Menu"];
 var MOUSE_X = 0.0;
 var MOUSE_Y = 0.0;
 var MOUSE_CLICK = false;
+var POINTER_WAS_DOWN = false;
 
 var MENU_X = 70;
 var MENU_Y0 = 132;
@@ -90,9 +94,21 @@ def ui_point_in_rect(px, py, rx, ry, rw, rh)
 
 def update_mouse_state()
 {
-    MOUSE_X = get_mouse_x();
-    MOUSE_Y = get_mouse_y();
-    MOUSE_CLICK = mouse_pressed(0);
+    var touch_down = (touch_count() > 0);
+    if (touch_down)
+    {
+        MOUSE_X = get_touch_screen_x(0);
+        MOUSE_Y = get_touch_screen_y(0);
+    }
+    else
+    {
+        MOUSE_X = get_mouse_x();
+        MOUSE_Y = get_mouse_y();
+    }
+
+    var pointer_down = (touch_down || mouse_down(0));
+    MOUSE_CLICK = (pointer_down && !POINTER_WAS_DOWN);
+    POINTER_WAS_DOWN = pointer_down;
 }
 
 def menu_hit_index(px, py)
@@ -221,6 +237,7 @@ def rebuild_pool()
 
 def speed_to_bpm()
 {
+    if (SPEED_MODE == SPEED_VERY_SLOW) return 40;
     if (SPEED_MODE == SPEED_SLOW) return 60;
     if (SPEED_MODE == SPEED_NORMAL) return 90;
     return 120;
@@ -334,6 +351,7 @@ def reset_run()
 {
     NOTES_ACTIVE = [];
     SPAWN_TIMER = 0.0;
+    METRONOME_TIMER = 0.0;
 }
 
 def start_game()
@@ -390,12 +408,12 @@ def cycle_speed(_dir)
     if (_dir > 0)
     {
         SPEED_MODE += 1;
-        if (SPEED_MODE > 2) SPEED_MODE = 0;
+        if (SPEED_MODE > 3) SPEED_MODE = 0;
     }
     else
     {
         SPEED_MODE -= 1;
-        if (SPEED_MODE < 0) SPEED_MODE = 2;
+        if (SPEED_MODE < 0) SPEED_MODE = 3;
     }
 
     recompute_timing();
@@ -509,6 +527,15 @@ def update_game(_dt)
         SPAWN_TIMER -= SPAWN_INTERVAL;
         spawn_wave();
     }
+    
+    // Metronome Logic
+    METRONOME_TIMER += _dt;
+    var beat_interval = 60.0 / BPM;
+    if (METRONOME_TIMER >= beat_interval)
+    {
+        METRONOME_TIMER -= beat_interval;
+        if (SND_TICK != -1) play_sound(SND_TICK);
+    }
 
     var i = 0;
     while (i < len(NOTES_ACTIVE))
@@ -585,7 +612,7 @@ def draw_menu()
     set_color(235, 240, 252);
     draw_text("Piano Helper", 46, 24, 42);
     set_color(170, 185, 214);
-    draw_text("Visual teleprompter (no input validation)", 48, 66, 19);
+    draw_text("Visual teleprompter", 48, 66, 19);
 
     var i = 0;
     while (i < len(MENU_NAMES))
@@ -669,6 +696,16 @@ def draw_staff_scene()
         if (near) set_color(88, 60, 20);
         else set_color(34, 42, 56);
         draw_circle(n.x, y, NOTE_RADIUS, false);
+        
+        // Draw Note Stem (Haste da nota)
+        // Regra visual simples: notas acima da linha media (step > 2) haste para baixo, senao para cima
+        var stem_len = 35;
+        set_color(235, 242, 255); // Mesma cor do interior da nota
+        if (n.step > 2) {
+            draw_line(n.x - NOTE_RADIUS + 2, y, n.x - NOTE_RADIUS + 2, y + stem_len);
+        } else {
+            draw_line(n.x + NOTE_RADIUS - 2, y, n.x + NOTE_RADIUS - 2, y - stem_len);
+        }
 
         if (HELP_MODE != HELP_NONE)
         {
@@ -772,10 +809,12 @@ set_screen_scale_mode(3);
 init_note_table();
 recompute_timing();
 rebuild_pool();
+if (SND_TICK == -1) SND_TICK = load_sound("assets/tic2.wav");
 
 loop
 {
     var dt = delta();
+    if (dt > 0.05) dt = 0.05;
     update_mouse_state();
     set_draw_screen(true);
 

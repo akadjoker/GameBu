@@ -1,0 +1,702 @@
+// === BU Hill Mesh Point Editor Demo ===
+// Click to add points, drag to edit, press B/ENTER to rebuild mesh.
+
+import math;
+import fs;
+import json;
+
+var VIEW_W = 1280;
+var VIEW_H = 720;
+
+var KEY_W = 87;
+var KEY_A = 65;
+var KEY_S = 83;
+var KEY_D = 68;
+var KEY_UP = 265;
+var KEY_LEFT = 263;
+var KEY_DOWN = 264;
+var KEY_RIGHT = 262;
+var KEY_B = 66;
+var KEY_ENTER = 257;
+var KEY_R = 82;
+var KEY_C = 67;
+var KEY_V = 86;
+var KEY_1 = 49;
+var KEY_2 = 50;
+var KEY_3 = 51;
+var KEY_4 = 52;
+var KEY_5 = 53;
+var KEY_G = 71;
+var KEY_L = 76;
+var KEY_F5 = 294;
+var KEY_F9 = 298;
+var KEY_ESCAPE = 256;
+
+var CAM_X = 0.0;
+var CAM_Y = 0.0;
+var CAM_SPEED = 760.0;
+
+var CAM_MIN_X = -400.0;
+var CAM_MAX_X = 5000.0;
+var CAM_MIN_Y = -400.0;
+var CAM_MAX_Y = 3000.0;
+
+var POINTER_X = 0.0;
+var POINTER_Y = 0.0;
+var POINTER_WX = 0.0;
+var POINTER_WY = 0.0;
+var POINTER_DOWN = false;
+var POINTER_PRESSED = false;
+var POINTER_RELEASED = false;
+var POINTER_WAS_DOWN = false;
+
+var MESH_ID = -1;
+var BODY_TEX = -1;
+var EDGE_TEX = -1;
+
+var TRACK_DEPTH = 860.0;
+var TOP_SCALE_X = 1.0;
+var TOP_SCALE_Y = 1.0;
+var BOTTOM_SCALE_X = 2.0;
+var BOTTOM_SCALE_Y = 10.0;
+
+var TRACK_X = [];
+var TRACK_Y = [];
+var SPLINE_X = [];
+var SPLINE_Y = [];
+var DRAG_INDEX = -1;
+var HOVER_INDEX = -1;
+var DIRTY = false;
+var SPLINE_STEPS = 8;
+var ACTIVE_PRESET = 1;
+var SAVE_FILE = "track_points.json";
+var INFO_TEXT = "";
+
+var HANDLE_RADIUS = 11.0;
+var MIN_POINT_GAP = 28.0;
+
+def dist_sq(ax, ay, bx, by)
+{
+    var dx = ax - bx;
+    var dy = ay - by;
+    return dx * dx + dy * dy;
+}
+
+def catmull_val(p0, p1, p2, p3, t)
+{
+    var t2 = t * t;
+    var t3 = t2 * t;
+    return 0.5 * ((2 * p1) +
+                 (-p0 + p2) * t +
+                 (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+                 (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+}
+
+def set_info(_msg)
+{
+    INFO_TEXT = _msg;
+}
+
+def build_preset(_preset)
+{
+    ACTIVE_PRESET = _preset;
+    TRACK_X.clear();
+    TRACK_Y.clear();
+
+    var i = 0;
+    var x = 0.0;
+
+    if (_preset == 1)
+    {
+        // Rolling hills (base classic)
+        SPLINE_STEPS = 8;
+        var count = 20;
+        var step = 180.0;
+        var base_y = 360.0;
+        i = 0;
+        while (i < count)
+        {
+            x = i * step;
+            var y = base_y + sin(i * 0.45) * 85 + sin(i * 0.17) * 35;
+            TRACK_X.push(x);
+            TRACK_Y.push(y);
+            i += 1;
+        }
+    }
+    elif (_preset == 2)
+    {
+        // Long climb then descent
+        SPLINE_STEPS = 9;
+        var count2 = 24;
+        var step2 = 165.0;
+        var base_y2 = 500.0;
+        i = 0;
+        while (i < count2)
+        {
+            x = i * step2;
+            var p = i / (count2 - 1.0);
+            var y2 = base_y2 - p * 240 + sin(i * 0.40) * 60;
+            if (i > 14) y2 += (i - 14) * 22;
+            TRACK_X.push(x);
+            TRACK_Y.push(y2);
+            i += 1;
+        }
+    }
+    elif (_preset == 3)
+    {
+        // Technical uneven terrain
+        SPLINE_STEPS = 6;
+        var count3 = 28;
+        var step3 = 135.0;
+        var base_y3 = 395.0;
+        i = 0;
+        while (i < count3)
+        {
+            x = i * step3;
+            var y3 = base_y3 + sin(i * 0.90) * 42 + sin(i * 0.23) * 72;
+            if (i % 5 == 0) y3 += 70;
+            if (i % 7 == 0) y3 -= 55;
+            TRACK_X.push(x);
+            TRACK_Y.push(y3);
+            i += 1;
+        }
+    }
+    elif (_preset == 4)
+    {
+        // Ramps and jump-like waves
+        SPLINE_STEPS = 4;
+        var count4 = 22;
+        var step4 = 180.0;
+        var base_y4 = 430.0;
+        i = 0;
+        while (i < count4)
+        {
+            x = i * step4;
+            var y4 = base_y4 + sin(i * 0.32) * 30;
+            if (i % 4 == 1) y4 -= 110;
+            if (i % 4 == 2) y4 += 70;
+            TRACK_X.push(x);
+            TRACK_Y.push(y4);
+            i += 1;
+        }
+    }
+    else
+    {
+        // Canyon / valley run
+        SPLINE_STEPS = 10;
+        var count5 = 26;
+        var step5 = 160.0;
+        var base_y5 = 330.0;
+        var center = (count5 - 1) / 2.0;
+        i = 0;
+        while (i < count5)
+        {
+            x = i * step5;
+            var d = abs(i - center);
+            var y5 = base_y5 + d * d * 2.2 + sin(i * 0.50) * 22;
+            TRACK_X.push(x);
+            TRACK_Y.push(y5);
+            i += 1;
+        }
+    }
+
+    DRAG_INDEX = -1;
+    DIRTY = true;
+}
+
+def update_pointer()
+{
+    POINTER_X = get_mouse_x();
+    POINTER_Y = get_mouse_y();
+    POINTER_WX = POINTER_X + CAM_X;
+    POINTER_WY = POINTER_Y + CAM_Y;
+
+    POINTER_DOWN = mouse_down(0);
+    POINTER_PRESSED = (POINTER_DOWN && !POINTER_WAS_DOWN);
+    POINTER_RELEASED = (!POINTER_DOWN && POINTER_WAS_DOWN);
+    POINTER_WAS_DOWN = POINTER_DOWN;
+}
+
+def sort_points_by_x()
+{
+    var n = len(TRACK_X);
+    if (n <= 1) return;
+
+    var i = 0;
+    while (i < n - 1)
+    {
+        var j = 0;
+        while (j < n - 1 - i)
+        {
+            if (TRACK_X[j] > TRACK_X[j + 1])
+            {
+                var tx = TRACK_X[j];
+                TRACK_X[j] = TRACK_X[j + 1];
+                TRACK_X[j + 1] = tx;
+
+                var ty = TRACK_Y[j];
+                TRACK_Y[j] = TRACK_Y[j + 1];
+                TRACK_Y[j + 1] = ty;
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+}
+
+def find_point_near(wx, wy, radius)
+{
+    var r2 = radius * radius;
+    var best_i = -1;
+    var best_d = r2 + 1;
+
+    var i = 0;
+    while (i < len(TRACK_X))
+    {
+        var d = dist_sq(wx, wy, TRACK_X[i], TRACK_Y[i]);
+        if (d <= r2 && d < best_d)
+        {
+            best_d = d;
+            best_i = i;
+        }
+        i += 1;
+    }
+
+    return best_i;
+}
+
+def update_camera_limits()
+{
+    if (len(TRACK_X) <= 0)
+    {
+        CAM_MIN_X = -400;
+        CAM_MAX_X = 2400;
+        CAM_MIN_Y = -400;
+        CAM_MAX_Y = 1800;
+        return;
+    }
+
+    var min_x = TRACK_X[0];
+    var max_x = TRACK_X[0];
+    var min_y = TRACK_Y[0];
+    var max_y = TRACK_Y[0];
+
+    var i = 1;
+    while (i < len(TRACK_X))
+    {
+        var x = TRACK_X[i];
+        var y = TRACK_Y[i];
+        if (x < min_x) min_x = x;
+        if (x > max_x) max_x = x;
+        if (y < min_y) min_y = y;
+        if (y > max_y) max_y = y;
+        i += 1;
+    }
+
+    CAM_MIN_X = min_x - 600;
+    CAM_MAX_X = max_x + 600 - VIEW_W;
+    CAM_MIN_Y = min_y - 520;
+    CAM_MAX_Y = max_y + TRACK_DEPTH + 300 - VIEW_H;
+
+    if (CAM_MAX_X < CAM_MIN_X) CAM_MAX_X = CAM_MIN_X;
+    if (CAM_MAX_Y < CAM_MIN_Y) CAM_MAX_Y = CAM_MIN_Y;
+}
+
+def update_camera(_dt)
+{
+    if (key_down(KEY_A) || key_down(KEY_LEFT)) CAM_X -= CAM_SPEED * _dt;
+    if (key_down(KEY_D) || key_down(KEY_RIGHT)) CAM_X += CAM_SPEED * _dt;
+    if (key_down(KEY_W) || key_down(KEY_UP)) CAM_Y -= CAM_SPEED * _dt;
+    if (key_down(KEY_S) || key_down(KEY_DOWN)) CAM_Y += CAM_SPEED * _dt;
+
+    update_camera_limits();
+
+    if (CAM_X < CAM_MIN_X) CAM_X = CAM_MIN_X;
+    if (CAM_X > CAM_MAX_X) CAM_X = CAM_MAX_X;
+    if (CAM_Y < CAM_MIN_Y) CAM_Y = CAM_MIN_Y;
+    if (CAM_Y > CAM_MAX_Y) CAM_Y = CAM_MAX_Y;
+}
+
+def rebuild_mesh()
+{
+    mesh_clear(MESH_ID);
+    if (len(TRACK_X) < 2) return;
+
+    SPLINE_X.clear();
+    SPLINE_Y.clear();
+
+    var n = len(TRACK_X);
+    if (n == 2)
+    {
+        SPLINE_X.push(TRACK_X[0]); SPLINE_Y.push(TRACK_Y[0]);
+        SPLINE_X.push(TRACK_X[1]); SPLINE_Y.push(TRACK_Y[1]);
+    }
+    else
+    {
+        var i = 0;
+        while (i < n - 1)
+        {
+            var i0 = i - 1; if (i0 < 0) i0 = 0;
+            var i1 = i;
+            var i2 = i + 1;
+            var i3 = i + 2; if (i3 > n - 1) i3 = n - 1;
+
+            var p0x = TRACK_X[i0]; var p0y = TRACK_Y[i0];
+            var p1x = TRACK_X[i1]; var p1y = TRACK_Y[i1];
+            var p2x = TRACK_X[i2]; var p2y = TRACK_Y[i2];
+            var p3x = TRACK_X[i3]; var p3y = TRACK_Y[i3];
+
+            var s = 0;
+            while (s < SPLINE_STEPS)
+            {
+                var t = s / SPLINE_STEPS;
+                var sx = math.catmull(p0x, p1x, p2x, p3x, t);
+                var sy = math.catmull(p0y, p1y, p2y, p3y, t);
+
+                if (len(SPLINE_X) > 0)
+                {
+                    var prev_x = SPLINE_X[len(SPLINE_X) - 1];
+                    if (sx < prev_x + 1) sx = prev_x + 1;
+                }
+
+                SPLINE_X.push(sx);
+                SPLINE_Y.push(sy);
+                s += 1;
+            }
+
+            i += 1;
+        }
+        SPLINE_X.push(TRACK_X[n - 1]);
+        SPLINE_Y.push(TRACK_Y[n - 1]);
+    }
+
+    var k = 0;
+    while (k < len(SPLINE_X))
+    {
+        mesh_add_point(MESH_ID, SPLINE_X[k], SPLINE_Y[k]);
+        k += 1;
+    }
+
+    mesh_set_scale_top(MESH_ID, TOP_SCALE_X, TOP_SCALE_Y);
+    mesh_set_scale_bottom(MESH_ID, BOTTOM_SCALE_X, BOTTOM_SCALE_Y);
+
+    mesh_build_track(MESH_ID, TRACK_DEPTH);
+    if (BODY_TEX != -1) mesh_set_body_texture(MESH_ID, BODY_TEX);
+    if (EDGE_TEX != -1) mesh_set_edge_texture(MESH_ID, EDGE_TEX);
+    DIRTY = false;
+}
+
+def save_points()
+{
+    var data = {
+        "preset": ACTIVE_PRESET,
+        "depth": TRACK_DEPTH,
+        "steps": SPLINE_STEPS,
+        "points": []
+    };
+
+    var i = 0;
+    while (i < len(TRACK_X))
+    {
+        data["points"].push([TRACK_X[i], TRACK_Y[i]]);
+        i += 1;
+    }
+
+    var text = json.stringify(data, 2);
+    var ok = fs.write(SAVE_FILE, text);
+    if (ok) set_info("Saved: " + SAVE_FILE);
+    else set_info("Save failed");
+}
+
+def load_points()
+{
+    var raw = fs.read(SAVE_FILE);
+    if (!raw)
+    {
+        set_info("Load failed (file not found)");
+        return;
+    }
+
+    var obj = json.parse(raw);
+    if (!obj)
+    {
+        set_info("Load failed (json parse)");
+        return;
+    }
+
+    var pts = obj["points"];
+    if (!pts || len(pts) < 2)
+    {
+        set_info("Load failed (invalid points)");
+        return;
+    }
+
+    TRACK_X.clear();
+    TRACK_Y.clear();
+
+    var i = 0;
+    while (i < len(pts))
+    {
+        var p = pts[i];
+        if (p && len(p) >= 2)
+        {
+            TRACK_X.push(p[0]);
+            TRACK_Y.push(p[1]);
+        }
+        i += 1;
+    }
+
+    if (len(TRACK_X) < 2)
+    {
+        set_info("Load failed (not enough points)");
+        return;
+    }
+
+    var v_depth = obj["depth"];
+    if (v_depth) TRACK_DEPTH = v_depth;
+    var v_steps = obj["steps"];
+    if (v_steps)
+    {
+        SPLINE_STEPS = int(v_steps);
+        if (SPLINE_STEPS < 2) SPLINE_STEPS = 2;
+        if (SPLINE_STEPS > 24) SPLINE_STEPS = 24;
+    }
+    var v_preset = obj["preset"];
+    if (v_preset) ACTIVE_PRESET = int(v_preset);
+
+    sort_points_by_x();
+    rebuild_mesh();
+    set_info("Loaded: " + SAVE_FILE);
+}
+
+def reset_points()
+{
+    build_preset(ACTIVE_PRESET);
+}
+
+def update_editor()
+{
+    HOVER_INDEX = find_point_near(POINTER_WX, POINTER_WY, HANDLE_RADIUS + 2);
+
+    if (POINTER_PRESSED)
+    {
+        var idx = find_point_near(POINTER_WX, POINTER_WY, HANDLE_RADIUS + 8);
+        if (idx != -1)
+        {
+            DRAG_INDEX = idx;
+        }
+        else
+        {
+            TRACK_X.push(POINTER_WX);
+            TRACK_Y.push(POINTER_WY);
+            sort_points_by_x();
+            DRAG_INDEX = find_point_near(POINTER_WX, POINTER_WY, HANDLE_RADIUS + 20);
+            DIRTY = true;
+        }
+    }
+
+    if (POINTER_DOWN && DRAG_INDEX != -1)
+    {
+        var nx = POINTER_WX;
+        var ny = POINTER_WY;
+
+        if (DRAG_INDEX > 0)
+        {
+            var left_x = TRACK_X[DRAG_INDEX - 1] + MIN_POINT_GAP;
+            if (nx < left_x) nx = left_x;
+        }
+        if (DRAG_INDEX + 1 < len(TRACK_X))
+        {
+            var right_x = TRACK_X[DRAG_INDEX + 1] - MIN_POINT_GAP;
+            if (nx > right_x) nx = right_x;
+        }
+
+        TRACK_X[DRAG_INDEX] = nx;
+        TRACK_Y[DRAG_INDEX] = ny;
+        DIRTY = true;
+    }
+
+    if (POINTER_RELEASED) DRAG_INDEX = -1;
+
+    if (key_pressed(KEY_B) || key_pressed(KEY_ENTER))
+    {
+        rebuild_mesh();
+    }
+
+    if (key_pressed(KEY_C))
+    {
+        SPLINE_STEPS -= 1;
+        if (SPLINE_STEPS < 2) SPLINE_STEPS = 2;
+        DIRTY = true;
+    }
+    if (key_pressed(KEY_V))
+    {
+        SPLINE_STEPS += 1;
+        if (SPLINE_STEPS > 24) SPLINE_STEPS = 24;
+        DIRTY = true;
+    }
+
+    if (key_pressed(KEY_R))
+    {
+        reset_points();
+        rebuild_mesh();
+    }
+    if (key_pressed(KEY_F5) || key_pressed(KEY_G))
+    {
+        save_points();
+    }
+    if (key_pressed(KEY_F9) || key_pressed(KEY_L))
+    {
+        load_points();
+    }
+    if (key_pressed(KEY_1))
+    {
+        build_preset(1);
+        rebuild_mesh();
+    }
+    if (key_pressed(KEY_2))
+    {
+        build_preset(2);
+        rebuild_mesh();
+    }
+    if (key_pressed(KEY_3))
+    {
+        build_preset(3);
+        rebuild_mesh();
+    }
+    if (key_pressed(KEY_4))
+    {
+        build_preset(4);
+        rebuild_mesh();
+    }
+    if (key_pressed(KEY_5))
+    {
+        build_preset(5);
+        rebuild_mesh();
+    }
+}
+
+def draw_world()
+{
+    set_draw_screen(false);
+
+    set_color(20, 28, 40);
+    draw_rectangle(CAM_X - 280, CAM_Y - 280, VIEW_W + 560, VIEW_H + 560, true);
+
+    set_alpha(24);
+    set_color(96, 116, 150);
+    var gx = int(CAM_X / 200) * 200;
+    while (gx < CAM_X + VIEW_W + 220)
+    {
+        draw_line(gx, CAM_Y - 40, gx, CAM_Y + VIEW_H + 40);
+        gx += 200;
+    }
+    var gy = int(CAM_Y / 200) * 200;
+    while (gy < CAM_Y + VIEW_H + 220)
+    {
+        draw_line(CAM_X - 40, gy, CAM_X + VIEW_W + 40, gy);
+        gy += 200;
+    }
+    set_alpha(255);
+
+    mesh_draw(MESH_ID, 0, 0, 0, 1);
+
+    var j = 0;
+    while (j + 1 < len(SPLINE_X))
+    {
+        set_color(172, 255, 190);
+        draw_line(SPLINE_X[j], SPLINE_Y[j], SPLINE_X[j + 1], SPLINE_Y[j + 1]);
+        j += 1;
+    }
+
+    var i = 0;
+    while (i < len(TRACK_X))
+    {
+        if (i + 1 < len(TRACK_X))
+        {
+            set_color(255, 200, 110);
+            draw_line(TRACK_X[i], TRACK_Y[i], TRACK_X[i + 1], TRACK_Y[i + 1]);
+        }
+
+        var hot = (i == HOVER_INDEX || i == DRAG_INDEX);
+        if (hot) set_color(255, 245, 180);
+        else set_color(242, 206, 120);
+        draw_circle(TRACK_X[i], TRACK_Y[i], 7, true);
+
+        if (hot) set_color(255, 255, 255);
+        else set_color(100, 70, 30);
+        draw_circle(TRACK_X[i], TRACK_Y[i], 11, false);
+        i += 1;
+    }
+
+    set_color(170, 220, 255);
+    draw_circle(POINTER_WX, POINTER_WY, 5, false);
+    draw_line(POINTER_WX - 8, POINTER_WY, POINTER_WX + 8, POINTER_WY);
+    draw_line(POINTER_WX, POINTER_WY - 8, POINTER_WX, POINTER_WY + 8);
+
+    set_draw_screen(true);
+}
+
+def draw_ui()
+{
+    set_color(238, 246, 255);
+    draw_text("BU Hill Mesh Point Editor", 34, 28, 30);
+
+    set_color(178, 200, 228);
+    draw_text("LMB on empty: add point", 34, 66, 20);
+    draw_text("LMB on handle: drag point", 34, 92, 20);
+    draw_text("B/ENTER: build   C/V: spline detail   1..5: terrain presets", 34, 118, 20);
+    draw_text("R: reset preset   F5/G: save   F9/L: load   WASD/Arrows: camera", 34, 142, 20);
+
+    set_color(148, 172, 208);
+    draw_text(format("Preset:{}  CtrlPts:{}  SplinePts:{}  Steps:{}  Depth:{}  MeshId:{}", ACTIVE_PRESET, len(TRACK_X), len(SPLINE_X), SPLINE_STEPS, int(TRACK_DEPTH), MESH_ID), 34, 174, 20);
+    draw_text(format("Mouse world: ({}, {})", int(POINTER_WX), int(POINTER_WY)), 34, 198, 20);
+    draw_text("Save file: " + SAVE_FILE, 34, 222, 20);
+
+    if (DIRTY) set_color(255, 190, 120);
+    else set_color(150, 230, 170);
+    if (DIRTY) draw_text("STATUS: DIRTY (press B to rebuild)", 34, 246, 20);
+    else draw_text("STATUS: CLEAN", 34, 246, 20);
+
+    if (len(INFO_TEXT) > 0)
+    {
+        set_color(200, 224, 255);
+        draw_text(INFO_TEXT, 34, 270, 20);
+    }
+
+    set_color(140, 164, 196);
+    draw_text("ESC to exit", VIEW_W - 150, 26, 18);
+}
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Bu Hill Mesh Point Editor");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+MESH_ID = create_mesh();
+EDGE_TEX = load_graph("assets/tile2.png");
+BODY_TEX = load_graph("assets/tile5.png");
+
+reset_points();
+rebuild_mesh();
+
+loop
+{
+    var dt = delta();
+
+    if (key_pressed(KEY_ESCAPE))
+    {
+        let_me_alone();
+        break;
+    }
+
+    update_camera(dt);
+    set_scroll(CAM_X, CAM_Y);
+    update_pointer();
+    update_editor();
+    draw_world();
+    draw_ui();
+
+    frame;
+}

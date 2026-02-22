@@ -169,6 +169,50 @@ All return an `Emitter`.
 - `load_graphics(filename)`
 - `set_graphics_point(graphics, x, y)`
 
+### Mesh (PolyMesh)
+
+- `create_mesh() -> meshId`
+- `mesh_clear(meshId)`
+- `mesh_add_point(meshId, x, y)`
+- `mesh_build_track(meshId, depth)`
+- `mesh_build_polygon(meshId, [uv_scale=0.01])`
+- `mesh_set_texture(meshId, graphId)`
+- `mesh_set_body_texture(meshId, graphId)`
+- `mesh_set_edge_texture(meshId, graphId)`
+- `mesh_set_scale_top(meshId, scaleX, scaleY)`
+- `mesh_set_scale_bottom(meshId, scaleX, scaleY)`
+- `mesh_draw(meshId, x, y, rotation, scale, [screen_space=false])`
+
+Aliases for scale (same behavior):
+- `set_scale_top(meshId, scaleX, scaleY)`
+- `set_scale_bottom(meshId, scaleX, scaleY)`
+- `set_scalke_top(meshId, scaleX, scaleY)` (legacy typo alias)
+- `set_sclae_bottom(meshId, scaleX, scaleY)` (legacy typo alias)
+
+`mesh_build_track(meshId, depth)` current fixed internal parameters (from bindings):
+- `body_u_scale = 0.010`
+- `edge_width = 26.0`
+- `edge_u_scale = 0.020`
+- `body_v_scale = 1.0`
+- `edge_v_scale = 1.0`
+
+ 
+
+Example:
+ 
+var m = create_mesh();
+mesh_add_point(m, 0, 340);
+mesh_add_point(m, 320, 300);
+mesh_add_point(m, 640, 360);
+
+mesh_set_scale_top(m, 1.0, 1.0);
+mesh_set_scale_bottom(m, 2.0, 10.0);
+mesh_build_track(m, 860);
+mesh_set_body_texture(m, BODY_TEX);
+mesh_set_edge_texture(m, EDGE_TEX);
+mesh_draw(m, 0, 0, 0, 1);
+ 
+
 ### Collision / Process Helpers
 
 - `proc(processId) -> processHandle|nil`
@@ -570,6 +614,11 @@ An in-memory representation of an image.
 - `save(path) -> bool`: Saves the image data to a file (e.g., ".png", ".bmp").
 - `to_graph([name]) -> graphId`: Creates a new drawable graphic from the image and returns its ID.
 - `update_graph(graphId) -> bool`: Updates the texture of an existing graphic with this image's data.
+- `blit(srcImage, dstX, dstY)` or `blit(srcImage, dstX, dstY, srcX, srcY, srcW, srcH)`: Copies pixels from another `Image`.
+- `crop(x, y, w, h)`: Crops this image in-place to the given rectangle.
+- `draw_rect(x, y, w, h, r, g, b[, a], [fill=true])`: Draws a rectangle into the image.
+- `draw_circle(x, y, radius, r, g, b[, a], [fill=true])`: Draws a circle into the image.
+- `draw_line(x1, y1, x2, y2, r, g, b[, a])`: Draws a line into the image.
 
 ### Global Image Functions
 

@@ -4,47 +4,8 @@
 //include "piano_helper.bu";
 //include "jam_reflection.bu";
 //include "winters_v2.bu";
-//include "winters_jam.bu";  
+include "winters_jam.bu";  
 //include "ice_hockey.bu";  
 
-var snow_y = [1.0, 2.0, 3.0];
-var snow_s = [0.5, 0.25, 0.125];
-var i = 1;
-var _dt = 2.0;
-snow_y[i] += snow_s[i] * _dt;
-print(snow_y[i]);
-
-
-var a = [10, 8, 3];
-a[0] += 5;
-a[1] -= 3;
-a[2] *= 4;
-a[2] /= 2;
-a[2] %= 5;
-print(a[0]);
-print(a[1]);
-print(a[2]);
-
-var m = {"x": 4, "y": 10};
-m["x"] += 6;
-m["y"] -= 7;
-print(m["x"]);
-print(m["y"]);
-
-
-var is_cpu = true;
-var PLAYER_ID = 11;
-var CPU_ID = 22;
-var other_id = is_cpu ? PLAYER_ID : CPU_ID;
-print(other_id);
-
-var a = false ? 1 : true ? 2 : 3;
-print(a);
-
-var b = true ? false ? 10 : 20 : 30;
-print(b);
-
-var x = 0;
-var y = true ? (x = 5) : 9;
-print(y);
-print(x);
+//include "mesh_points_demo.bu";
+//include "fun_hill_climb.bu";

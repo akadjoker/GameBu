@@ -15,6 +15,7 @@ add_subdirectory(libbu)
 add_subdirectory(graphics)
 
 add_subdirectory(main)
+add_subdirectory(runner)
 add_subdirectory(tests)
 
  

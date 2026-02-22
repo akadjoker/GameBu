@@ -20,7 +20,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 
 file(GLOB SOURCES "src/*.cpp")
-#add_executable(graphics   ${SOURCES})
+ 
 add_library(graphics STATIC ${SOURCES})
 
 
@@ -41,7 +41,7 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
     target_link_options(graphics PRIVATE -O3   -DNDEBUG )
 endif()
 
-target_link_libraries(graphics libbu raylib)
+target_link_libraries(graphics libbu raylib poly2tri)
 
 if (WIN32)
     target_link_libraries(graphics Winmm.lib)
@@ -51,4 +51,3 @@ endif()
 if (UNIX)
     target_link_libraries(graphics  m )
 endif()
-
