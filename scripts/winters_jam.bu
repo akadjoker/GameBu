@@ -1,10 +1,10 @@
-// === COZY WINTER DELIVERY ===
-// Cozy Winter Jam 2026 Edition - Theme: Reflection
+
+
 
 import math;
 import os;
 
-// --- Configuração ---
+
 var VIEW_W = 1024;
 var VIEW_H = 720;
 var WORLD_W = 3200;
@@ -12,63 +12,63 @@ var WORLD_H = 3200;
 var PLATFORM_NAME = os.platform;
 var IS_WEB = true;
 
-// --- Teclas ---
+
 var KEY_W = 87; var KEY_A = 65; var KEY_S = 83; var KEY_D = 68;
 var KEY_UP = 265; var KEY_LEFT = 263; var KEY_DOWN = 264; var KEY_RIGHT = 262;
 var KEY_ESCAPE = 256; var KEY_R = 82; var KEY_ENTER = 257; var KEY_SPACE = 32;
 var KEY_Y = 89; var KEY_N = 78;
 
-// --- Estados do Jogo ---
+
 var STATE_MENU = 0;
 var STATE_GAME = 1;
 var STATE_CREDITS = 2;
 var STATE_WIN = 3;
 
 
-var GAME_STATE = STATE_MENU; 
+var GAME_STATE = STATE_MENU;
 
-// --- Variáveis de Menu ---
-var menu_index = 0; // 0=Play, 1=Credits, 2=Exit
+
+var menu_index = 0;
 var MENU_INPUT_GUARD = 0.0;
 var REQUEST_WORLD_CLEAR = false;
 var QUIT_CONFIRM_TIMER = 0.0;
 
-// --- Popup de saída em jogo ---
-var EXIT_POPUP_OPEN = false;
-var EXIT_POPUP_INDEX = 1; // 0=YES, 1=NO
 
-// --- Ponteiro (mouse + touch) ---
+var EXIT_POPUP_OPEN = false;
+var EXIT_POPUP_INDEX = 1;
+
+
 var POINTER_X = 0.0;
 var POINTER_Y = 0.0;
 var POINTER_DOWN = false;
 var POINTER_PRESSED = false;
 var POINTER_WAS_DOWN = false;
 
-// --- UI hitboxes ---
+
 var BTN_MENU_X = 18;
 var BTN_MENU_Y = 14;
 var BTN_MENU_W = 94;
 var BTN_MENU_H = 34;
 
-// --- Globais de Jogo ---
+
 var CAM_X = 0.0;
 var CAM_Y = 0.0;
 var PLAYER_ID = -1;
 var DT = 0.016;
 
-// --- Tipos de Edifícios ---
+
 var TYPE_HOUSE = 0;
 var TYPE_RESTAURANT = 1;
 var TYPE_SHOP = 2;
 
-// --- Dados do Mapa (Para o Minimapa e Missões) ---
+
 var MAP_X = [];
 var MAP_Y = [];
 var MAP_TYPE = [];
 var MAP_COUNT = 0;
 
-// --- Sistema de Missões ---
-var MISSION_STATE = 0; // 0=Sem Missão, 1=Ir Buscar (Pickup), 2=Entregar (Delivery)
+
+var MISSION_STATE = 0;
 var MISSION_TARGET_X = 0.0;
 var MISSION_TARGET_Y = 0.0;
 var MISSION_TIMER = 0.0;
@@ -77,7 +77,7 @@ var MISSION_IS_VIP = false;
 var SCORE = 0;
 var DELIVERIES = 0;
 
-// --- Extra Gameplay (Jam Juice) ---
+
 var VIP_CHANCE_PERCENT = 24;
 var VIP_TIME_SCALE = 0.72;
 var VIP_BONUS = 160;
@@ -112,14 +112,14 @@ var SNOW_PUFF_MAX = 48;
 var SNOWFLAKE_ACTIVE = 0;
 var SNOWFLAKE_MAX = 72;
 
-// --- Budget de performance (web) para fumo ---
+
 var SMOKE_ENABLED = false;
 var SMOKE_MAX_EMITTERS = 10;
 var SMOKE_ACTIVE_EMITTERS = 0;
 var SMOKE_MAX_PARTICLES = 28;
 var SMOKE_ACTIVE_PARTICLES = 0;
 
-// --- Jam Flow (curto e claro) ---
+
 var JAM_TARGET_DELIVERIES = 5;
 var JAM_RUN_TIME = 180.0;
 var JAM_TIME_LEFT = 180.0;
@@ -132,7 +132,7 @@ var RESULT_CAUSE_CAR = 2;
 var JAM_RESULT_CAUSE = 0;
 var win_index = 0;
 
-// --- Áudio ---
+
 var SND_DELIVERY = -1;
 var SND_PICKUP = -1;
 var SND_CRASH = -1;
@@ -146,7 +146,7 @@ var SND_TRACTION = -1;
 var SND_DAMAGE_ALERT = -1;
 var SND_WRECK = -1;
 
-// --- Sprites pré-baked (Image API) ---
+
 var BUILDING_SPRITE_READY = false;
 var BUILDING_SPRITE_SIZE = 128;
 var BUILDING_ATLAS_SIZE = 512;
@@ -169,14 +169,14 @@ var ASSETS_PREWARMED = false;
 
 if (IS_WEB)
 {
-    // Menos custo inicial no browser (mantendo tamanho visual dos sprites)
+
     BUILDING_SPRITE_SIZE = 128;
     BUILDING_ATLAS_SIZE = 512;
     DRIFT_MARK_MAX = 110;
     SNOWFLAKE_MAX = 56;
 }
 
-// --- Funções Auxiliares ---
+
 def find_free_spot(_x, _y, _max_r)
 {
     if (place_free(_x, _y)) return (_x, _y, 1);
@@ -433,17 +433,17 @@ def bake_one_building_image(_type, _style)
         door_r = 42; door_g = 56; door_b = 74;
     }
 
-    // Sombra + volume base
+
     img.draw_rect(bx + 4, by + 5, bw, bh, 10, 14, 24, 90, 1);
     img.draw_rect(bx, by, bw, bh, body_r, body_g, body_b, 255, 1);
     img.draw_rect(bx, by, bw, bh, border_r, border_g, border_b, 255, 0);
 
-    // Faixa de telhado
+
     img.draw_rect(bx + 2, by + 2, bw - 4, roof_h, roof_r, roof_g, roof_b, 255, 1);
     img.draw_rect(bx + 2, by + 2, bw - 4, roof_h, border_r, border_g, border_b, 255, 0);
-    img.draw_rect(bx + 6, by + 4, bw - 12, 6, 236, 242, 252, 150, 1); // neve no topo
+    img.draw_rect(bx + 6, by + 4, bw - 12, 6, 236, 242, 252, 150, 1);
 
-    // Textura subtil horizontal
+
     var ln = by + roof_h + 6;
     while (ln < by + bh - 8)
     {
@@ -468,29 +468,29 @@ def bake_one_building_image(_type, _style)
     }
     elif (_type == TYPE_RESTAURANT)
     {
-        // montra e balcão
+
         img.draw_rect(bx + 14, by + 40, bw - 28, 26, glass_r, glass_g, glass_b, 235, 1);
         img.draw_rect(bx + 14, by + 40, bw - 28, 26, border_r, border_g, border_b, 255, 0);
-        img.draw_rect(bx + 16, by + 30, bw - 32, 10, accent_r, accent_g, accent_b, 255, 1); // letreiro
+        img.draw_rect(bx + 16, by + 30, bw - 32, 10, accent_r, accent_g, accent_b, 255, 1);
 
-        // porta lateral
+
         img.draw_rect(bx + bw - 28, by + bh - 34, 16, 24, door_r, door_g, door_b, 255, 1);
         img.draw_rect(bx + bw - 28, by + bh - 34, 16, 24, 28, 24, 22, 255, 0);
 
-        // luzes quentes
+
         img.draw_circle(bx + 22, by + 34, 3, 255, 216, 128, 255, 1);
         img.draw_circle(bx + bw - 22, by + 34, 3, 255, 216, 128, 255, 1);
     }
     else
     {
-        // loja: duas montras + placa
+
         img.draw_rect(bx + 14, by + 42, 26, 24, glass_r, glass_g, glass_b, 235, 1);
         img.draw_rect(bx + bw - 40, by + 42, 26, 24, glass_r, glass_g, glass_b, 235, 1);
         img.draw_rect(bx + 14, by + 42, 26, 24, border_r, border_g, border_b, 255, 0);
         img.draw_rect(bx + bw - 40, by + 42, 26, 24, border_r, border_g, border_b, 255, 0);
         img.draw_rect(bx + 20, by + 28, bw - 40, 10, accent_r, accent_g, accent_b, 255, 1);
 
-        // porta central
+
         img.draw_rect(bx + bw/2 - 9, by + bh - 34, 18, 24, door_r, door_g, door_b, 255, 1);
         img.draw_rect(bx + bw/2 - 9, by + bh - 34, 18, 24, 28, 32, 40, 255, 0);
     }
@@ -507,20 +507,20 @@ def bake_tree_image()
 
     var cx = size / 2;
 
-    // sombra suave
+
     img.draw_circle(cx + 7, size - 26, 22, 0, 0, 0, 90, 1);
 
-    // tronco
+
     img.draw_rect(cx - 7, size - 40, 14, 26, 66, 42, 24, 255, 1);
     img.draw_rect(cx - 7, size - 40, 14, 26, 44, 30, 18, 200, 0);
 
-    // copa (camadas)
+
     img.draw_circle(cx, size - 56, 30, 26, 96, 52, 255, 1);
     img.draw_circle(cx - 10, size - 68, 22, 22, 84, 44, 255, 1);
     img.draw_circle(cx + 11, size - 70, 20, 20, 76, 40, 255, 1);
     img.draw_circle(cx, size - 84, 17, 18, 70, 38, 255, 1);
 
-    // neve
+
     img.draw_circle(cx - 8, size - 78, 8, 235, 242, 252, 240, 1);
     img.draw_circle(cx + 9, size - 82, 7, 235, 242, 252, 235, 1);
     img.draw_circle(cx + 2, size - 64, 6, 235, 242, 252, 220, 1);
@@ -540,7 +540,7 @@ def bake_gift_image()
     var gw = 28;
     var gh = 28;
 
-    img.draw_circle(size / 2 + 4, size / 2 + 8, 20, 255, 218, 126, 95, 1); // brilho
+    img.draw_circle(size / 2 + 4, size / 2 + 8, 20, 255, 218, 126, 95, 1);
     img.draw_rect(gx, gy, gw, gh, 184, 62, 62, 255, 1);
     img.draw_rect(gx, gy, gw, gh, 126, 42, 42, 255, 0);
     img.draw_rect(gx + gw/2 - 2, gy, 4, gh, 246, 228, 186, 255, 1);
@@ -561,26 +561,26 @@ def bake_car_image()
     var cx = size / 2;
     var cy = size / 2;
 
-    // sombra da carroçaria
+
     img.draw_rect(cx - 30, cy - 14 + 3, 60, 28, 0, 0, 0, 95, 1);
 
-    // corpo
+
     img.draw_rect(cx - 30, cy - 14, 60, 28, 176, 62, 62, 255, 1);
     img.draw_rect(cx - 30, cy - 14, 60, 28, 112, 34, 34, 255, 0);
 
-    // teto/cabine
+
     img.draw_rect(cx - 18, cy - 10, 36, 20, 202, 82, 82, 255, 1);
     img.draw_rect(cx - 10, cy - 8, 20, 16, 46, 58, 78, 255, 1);
 
-    // frente e traseira (detalhe)
+
     img.draw_rect(cx + 25, cy - 10, 5, 20, 190, 84, 84, 255, 1);
     img.draw_rect(cx - 30, cy - 8, 4, 16, 144, 46, 46, 255, 1);
 
-    // faróis
+
     img.draw_circle(cx + 29, cy - 7, 2, 255, 246, 190, 255, 1);
     img.draw_circle(cx + 29, cy + 7, 2, 255, 246, 190, 255, 1);
 
-    // luzes traseiras
+
     img.draw_circle(cx - 30, cy - 7, 2, 182, 22, 22, 255, 1);
     img.draw_circle(cx - 30, cy + 7, 2, 182, 22, 22, 255, 1);
 
@@ -732,68 +732,68 @@ def spawn_black_ice_patch()
     road_ice_patch(px, py, math.rand(44, 68), math.rand(18.0, 30.0));
 }
 
-// ============================================
-//  
-// ============================================
+
+
+
 def build_city()
 {
     var house_size = 180;
     var gap = 10;
-    var border_offset = 100; // Margem das bordas
+    var border_offset = 100;
 
-    // Limpar dados antigos do mapa
+
     MAP_X.clear();
     MAP_Y.clear();
     MAP_TYPE.clear();
     MAP_COUNT = 0;
-    
-    // 1. BORDAS DO MUNDO (Paredes Limite)
-    // Topo e Fundo (Horizontal)
+
+
+
     var bx = 0;
     while (bx < WORLD_W)
     {
-        building(bx + house_size/2, house_size/2, house_size, house_size, TYPE_HOUSE); // Topo
+        building(bx + house_size/2, house_size/2, house_size, house_size, TYPE_HOUSE);
         MAP_X.push(bx + house_size/2); MAP_Y.push(house_size/2); MAP_TYPE.push(TYPE_HOUSE); MAP_COUNT += 1;
 
-        building(bx + house_size/2, WORLD_H - house_size/2, house_size, house_size, TYPE_HOUSE); // Fundo
+        building(bx + house_size/2, WORLD_H - house_size/2, house_size, house_size, TYPE_HOUSE);
         MAP_X.push(bx + house_size/2); MAP_Y.push(WORLD_H - house_size/2); MAP_TYPE.push(TYPE_HOUSE); MAP_COUNT += 1;
-        
+
         bx += house_size + gap;
     }
-    // Esquerda e Direita (Vertical)
+
     var by = house_size;
     while (by < WORLD_H - house_size)
     {
-        building(house_size/2, by + house_size/2, house_size, house_size, TYPE_HOUSE); // Esquerda
+        building(house_size/2, by + house_size/2, house_size, house_size, TYPE_HOUSE);
         MAP_X.push(house_size/2); MAP_Y.push(by + house_size/2); MAP_TYPE.push(TYPE_HOUSE); MAP_COUNT += 1;
 
-        building(WORLD_W - house_size/2, by + house_size/2, house_size, house_size, TYPE_HOUSE); // Direita
+        building(WORLD_W - house_size/2, by + house_size/2, house_size, house_size, TYPE_HOUSE);
         MAP_X.push(WORLD_W - house_size/2); MAP_Y.push(by + house_size/2); MAP_TYPE.push(TYPE_HOUSE); MAP_COUNT += 1;
 
         by += house_size + gap;
     }
 
-    // 2. FILAS CENTRAIS (3 Ruas de Casas Horizontais)
-    // Define as posições Y das 3 filas para dividir o mapa
+
+
     var rows_y = [WORLD_H * 0.25, WORLD_H * 0.5, WORLD_H * 0.75];
     var r = 0;
-    
+
     while (r < 3)
     {
         var cy = rows_y[r];
-        var cx = house_size * 2; // Começa depois da borda esquerda
+        var cx = house_size * 2;
 
         while (cx < WORLD_W - house_size * 2)
         {
-            // Lógica de Cruzamentos: A cada 1200px, deixa um buraco grande para estrada vertical
-            // E não constroi no spawn (meio exato) se for a linha do meio
-            
+
+
+
             var is_spawn = (r == 1 && abs(cx - WORLD_W/2) < 300);
-            var is_crossroad = (int(cx) % 1200 < 250); // Cria avenidas verticais largas
+            var is_crossroad = (int(cx) % 1200 < 250);
 
             if (!is_spawn && !is_crossroad)
             {
-                // Decide o tipo aleatoriamente
+
                 var _type = TYPE_HOUSE;
                 var chance = math.rand(0, 100);
                 if (chance > 85) _type = TYPE_RESTAURANT;
@@ -804,19 +804,19 @@ def build_city()
             }
             else
             {
-                // Adicionar Pinheiros nas bermas das estradas vazias
+
                 if (math.rand(0, 100) < 45) pine_tree(cx + house_size/2, cy + house_size/2);
             }
             cx += house_size + gap;
         }
-        
+
         r += 1;
     }
 }
 
 def stop_game_now()
 {
-    let_me_alone(); // Mata o player e a cidade quando sai para o menu
+    let_me_alone();
     PLAYER_ID = -1;
     SMOKE_ACTIVE_EMITTERS = 0;
     SMOKE_ACTIVE_PARTICLES = 0;
@@ -836,7 +836,7 @@ def stop_game_now()
 
 def stop_game()
 {
-     
+
     REQUEST_WORLD_CLEAR = true;
     PLAYER_ID = -1;
 }
@@ -844,7 +844,7 @@ def stop_game()
 def open_exit_popup()
 {
     EXIT_POPUP_OPEN = true;
-    EXIT_POPUP_INDEX = 1; // default seguro = NO
+    EXIT_POPUP_INDEX = 1;
 }
 
 def close_exit_popup()
@@ -893,35 +893,35 @@ def start_game()
     CAR_TRACTION_BOOST_TIMER = 0.0;
     WRECK_SEQUENCE_ACTIVE = false;
     WRECK_SEQUENCE_TIMER = 0.0;
-    
+
     level_renderer();
-    // Inicia o carro no meio do mundo
+
     var p = player_car(WORLD_W / 2, WORLD_H / 2);
-    if (p) 
+    if (p)
     {
         PLAYER_ID = p.id;
         CAM_X = p.x - VIEW_W / 2;
         CAM_Y = p.y - VIEW_H / 2;
     }
-    // 1. Inicia o renderizador do mundo (Fundo)
 
-    // 2. Constroi a Cidade
+
+
     build_city();
 
 
-    // 3. Inicia o HUD (Interface)
+
     hud_renderer();
-    
-    // 4. Inicia o Gestor de Missões
+
+
     mission_manager();
-    
-    // 5. Inicia o Sistema de Clima (Neve)
+
+
     weather_system();
 
-    // 6. Eventos dinâmicos de estrada (bónus + gelo negro)
+
     street_event_manager();
-    
-    // 7. Sistema de Reflexão (Narrativa)
+
+
     reflection_manager();
 
     set_draw_screen(false);
@@ -930,11 +930,11 @@ def start_game()
 
 def draw_menu_background()
 {
-    // Fundo noturno "Cozy"
-    set_color(15, 20, 35); 
+
+    set_color(15, 20, 35);
     draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
-    
-    // Simular estrelas de forma muito simples (sem criar processos)
+
+
     var t = time();
     set_alpha(100 + int(sin(t * 2) * 50));
     set_color(255, 255, 255);
@@ -1009,7 +1009,7 @@ def update_menu()
         }
         else
         {
-            // proteção contra clique residual: exige confirmação dupla no QUIT
+
             if (QUIT_CONFIRM_TIMER > 0) close_window();
             else
             {
@@ -1090,7 +1090,7 @@ def update_credits()
 
     set_color(255, 220, 100);
     draw_text("CREDITS", VIEW_W / 2 - 90, 150, 42);
-    
+
     set_color(200, 210, 255);
     draw_text("Code & Engine: djoker", VIEW_W / 2 - 180, 250, 28);
     draw_text("Made with Bulang Engine", VIEW_W / 2 - 190, 310, 28);
@@ -1219,10 +1219,10 @@ def update_win()
 
 process level_renderer()
 {
-    z = 0; // Garante que o fundo fica ATRÁS de tudo
+    z = 0;
     loop
     {
-        // 1. Atualizar Câmara
+
         var p = proc(PLAYER_ID);
         if (p)
         {
@@ -1235,11 +1235,11 @@ process level_renderer()
         }
         set_scroll(CAM_X, CAM_Y);
 
-   
-        set_color(40, 45, 55); // Cor de Asfalto Escuro (Estrada)
+
+        set_color(40, 45, 55);
         draw_rectangle(CAM_X, CAM_Y, VIEW_W, VIEW_H, true);
 
-        // Grelha suave
+
         set_alpha(20);
         set_color(100, 120, 200);
         var gx = int(CAM_X / 200) * 200;
@@ -1247,22 +1247,22 @@ process level_renderer()
         var gy = int(CAM_Y / 200) * 200;
         while (gy < CAM_Y + VIEW_H + 200) { draw_line(CAM_X, gy, CAM_X + VIEW_W, gy); gy += 200; }
         set_alpha(255);
-        
+
         frame;
     }
 }
 
 process hud_renderer()
 {
-    z = 100; // Garante que o HUD fica À FRENTE de tudo
+    z = 100;
     loop
     {
-        // 3. Desenhar UI do Jogo
-        set_draw_screen(true); 
+
+        set_draw_screen(true);
         set_color(165, 190, 220);
         draw_text("ESC opens menu", 20, 24, 16);
 
-        // --- PONTUAÇÃO ---
+
         set_color(255, 220, 100);
         draw_text(format("SCORE: {}", SCORE), VIEW_W / 2 - 60, 30, 32);
         set_color(180, 210, 240);
@@ -1314,12 +1314,12 @@ process hud_renderer()
         }
         draw_text("SPACE = handbrake drift   |   ESC = menu", 20, VIEW_H - 28, 16);
 
-        // --- TIMER DA MISSÃO (Apenas na fase de entrega) ---
+
         if (MISSION_STATE == 2)
         {
             var t_pct = math.max(0.0, safe_ratio(MISSION_TIMER, MISSION_MAX_TIME));
-            
-            // Cor muda de Verde -> Amarelo -> Vermelho
+
+
             var r = 255; var g = 255; var b = 0;
             if (t_pct > 0.5) { r = int(255 * (1.0 - t_pct) * 2); g = 255; }
             else             { r = 255; g = int(255 * t_pct * 2); }
@@ -1331,12 +1331,12 @@ process hud_renderer()
                 b = 90;
             }
 
-            // Barra Grande no Topo
+
             set_color(40, 40, 40);
             draw_rectangle(VIEW_W/2 - 200, 70, 400, 20, true);
             set_color(r, g, b);
             draw_rectangle(VIEW_W/2 - 196, 74, 392 * t_pct, 12, true);
-            
+
             if (MISSION_IS_VIP) draw_text("VIP TIMER!", VIEW_W/2 - 54, 95, 20);
             else draw_text("DELIVERY TIME!", VIEW_W/2 - 70, 95, 20);
         }
@@ -1351,40 +1351,40 @@ process hud_renderer()
             set_alpha(255);
         }
 
-        // Velocímetro e Barra de Velocidade
+
         var p = proc(PLAYER_ID);
         if (p)
         {
             var speed_kmh = int(sqrt(p.velx * p.velx + p.vely * p.vely) * 0.3);
-            
-            // Texto
+
+
             set_color(255, 255, 255);
             draw_text(format("{} km/h", speed_kmh), VIEW_W - 180, VIEW_H - 60, 28);
 
-            
-            // Barra de fundo
+
+
             var bar_x = VIEW_W - 190;
             var bar_y = VIEW_H - 30;
             set_color(40, 50, 60);
             draw_rectangle(bar_x, bar_y, 150, 10, true);
-            
-            // Barra de progresso
+
+
             var pct = math.min(speed_kmh / 120.0, 1.0);
             if (pct > 0.8) set_color(255, 80, 80); else set_color(80, 200, 255);
             draw_rectangle(bar_x, bar_y, 150 * pct, 10, true);
 
-            // --- MINIMAP (Canto Superior Direito) ---
+
             var map_size = 140;
             var map_x = VIEW_W - map_size - 20;
             var map_y = 20;
-            
-            // Fundo e Borda
+
+
             set_alpha(180); set_color(10, 15, 25);
             draw_rectangle(map_x, map_y, map_size, map_size, true);
             set_alpha(255); set_color(100, 120, 150);
             draw_rectangle(map_x, map_y, map_size, map_size, false);
 
-            // Edifícios no Minimapa
+
             var i = 0;
             while (i < MAP_COUNT)
             {
@@ -1396,11 +1396,11 @@ process hud_renderer()
                     var mx = map_x + safe_ratio(wx, WORLD_W) * map_size;
                     var my = map_y + safe_ratio(wy, WORLD_H) * map_size;
 
-                    if (mtype == TYPE_RESTAURANT)   set_color(255, 200, 50); // Amarelo (Pizza)
-                    elif (mtype == TYPE_SHOP)       set_color(100, 255, 150); // Verde (Loja)
-                    else                            set_color(60, 70, 80);   // Cinza Escuro (Casas)
+                    if (mtype == TYPE_RESTAURANT)   set_color(255, 200, 50);
+                    elif (mtype == TYPE_SHOP)       set_color(100, 255, 150);
+                    else                            set_color(60, 70, 80);
 
-                    // Casas são pontos pequenos, Lojas/Restaurantes são maiores
+
                     var msize = 3;
                     if (mtype == TYPE_HOUSE) msize = 2;
                     draw_circle(mx, my, msize, true);
@@ -1408,54 +1408,54 @@ process hud_renderer()
                 i += 1;
             }
 
-            // Player (Ponto Vermelho)
+
             var px_map = map_x + safe_ratio(p.x, WORLD_W) * map_size;
             var py_map = map_y + safe_ratio(p.y, WORLD_H) * map_size;
             set_color(255, 60, 60);
             draw_circle(px_map, py_map, 3, true);
-            //draw_fps(10,60);
 
-            // --- ALVO NO MINIMAPA (GPS & ÍCONE) ---
+
+
             if (MISSION_STATE > 0)
             {
                 var tx_map = map_x + safe_ratio(MISSION_TARGET_X, WORLD_W) * map_size;
                 var ty_map = map_y + safe_ratio(MISSION_TARGET_Y, WORLD_H) * map_size;
 
-                // Linha GPS do Player ao Alvo
+
                 set_alpha(120);
                 if (MISSION_STATE == 2 && MISSION_IS_VIP) set_color(255, 220, 120);
-                elif (MISSION_STATE == 2) set_color(255, 80, 80); // Vermelho (Entrega)
-                else set_color(255, 255, 80); // Amarelo (Pickup)
+                elif (MISSION_STATE == 2) set_color(255, 80, 80);
+                else set_color(255, 255, 80);
                 draw_line(px_map, py_map, tx_map, ty_map);
                 set_alpha(255);
 
-                // Ícone a Piscar (Sobreposto a tudo)
-                if (int(time() * 15) % 2 == 0) 
+
+                if (int(time() * 15) % 2 == 0)
                 {
                     set_color(255, 255, 255);
-                    draw_circle(tx_map, ty_map, 4, true); // Ponto branco
+                    draw_circle(tx_map, ty_map, 4, true);
                     if (MISSION_STATE == 2 && MISSION_IS_VIP) set_color(255, 215, 110);
                     elif (MISSION_STATE == 2) set_color(255, 50, 50);
                     else set_color(255, 220, 0);
-                    draw_circle(tx_map, ty_map, 7, false); // Anel colorido
+                    draw_circle(tx_map, ty_map, 7, false);
                 }
             }
 
-            // --- SETA DE NAVEGAÇÃO 3D (HUD) ---
+
             if (MISSION_STATE > 0)
             {
                 var ang_to_target = get_angle(p.x, p.y, MISSION_TARGET_X, MISSION_TARGET_Y);
-                
-                // Desenhar seta à volta do carro (centro do ecrã)
+
+
                 var arrow_dist = 120;
                 var ax = VIEW_W/2 + get_distx(ang_to_target, arrow_dist);
                 var ay = VIEW_H/2 + get_disty(ang_to_target, arrow_dist);
 
                 set_color(255, 200, 50);
                 if (MISSION_STATE == 2 && MISSION_IS_VIP) set_color(255, 220, 120);
-                elif (MISSION_STATE == 2) set_color(255, 80, 80); // Vermelho se for entrega
+                elif (MISSION_STATE == 2) set_color(255, 80, 80);
 
-                // Desenha Seta (Triângulo)
+
                 var t_size = 14;
                 var t_x1 = ax + get_distx(ang_to_target, t_size);
                 var t_y1 = ay + get_disty(ang_to_target, t_size);
@@ -1463,13 +1463,13 @@ process hud_renderer()
                 var t_y2 = ay + get_disty(ang_to_target + 140, t_size);
                 var t_x3 = ax + get_distx(ang_to_target - 140, t_size);
                 var t_y3 = ay + get_disty(ang_to_target - 140, t_size);
-                
+
                 draw_line(t_x1, t_y1, t_x2, t_y2);
                 draw_line(t_x1, t_y1, t_x3, t_y3);
                 draw_line(t_x2, t_y2, t_x3, t_y3);
             }
 
-            // Área da Câmara (Retângulo)
+
             set_color(200, 200, 200);
             draw_rectangle(map_x + safe_ratio(CAM_X, WORLD_W) * map_size, map_y + safe_ratio(CAM_Y, WORLD_H) * map_size, safe_ratio(VIEW_W, WORLD_W) * map_size, safe_ratio(VIEW_H, WORLD_H) * map_size, false);
         }
@@ -1523,7 +1523,7 @@ process hud_renderer()
             set_color(178, 188, 210);
             draw_text("ENTER confirms, ESC/NO cancels", pop_x + 96, pop_y + pop_h - 28, 16);
         }
-        set_draw_screen(false); 
+        set_draw_screen(false);
 
         if (WRECK_SEQUENCE_ACTIVE)
         {
@@ -1620,13 +1620,13 @@ process mission_manager()
             break;
         }
 
-        // --- ESTADO 0: ESPERAR NOVA MISSÃO ---
+
         if (MISSION_STATE == 0)
         {
             wait_timer -= DT;
             if (wait_timer <= 0 && MAP_COUNT > 0)
             {
-                // Escolher um Restaurante ou Loja aleatório
+
                 var found = false;
                 while (!found)
                 {
@@ -1636,43 +1636,43 @@ process mission_manager()
                         MISSION_TARGET_X = MAP_X[idx];
                         MISSION_TARGET_Y = MAP_Y[idx];
                         MISSION_IS_VIP = false;
-                        MISSION_STATE = 1; // Ir buscar
+                        MISSION_STATE = 1;
                         floating_text(p.x, p.y - 50, "NEW ORDER!", 255, 255, 0);
-                        if (SND_PICKUP != -1) play_sound(SND_PICKUP, 1.0, 1.2); // Pitch alto para alerta
+                        if (SND_PICKUP != -1) play_sound(SND_PICKUP, 1.0, 1.2);
                         found = true;
                     }
                 }
             }
         }
-        // --- ESTADO 1: IR BUSCAR (PICKUP) ---
+
         elif (MISSION_STATE == 1)
         {
-            // Desenhar marcador no chão do alvo
+
             set_color(255, 255, 0);
             draw_circle(MISSION_TARGET_X, MISSION_TARGET_Y, 60 + sin(time()*10)*10, false);
 
-            // Verificar chegada
+
             if (get_dist(p.x, p.y, MISSION_TARGET_X, MISSION_TARGET_Y) < 260)
             {
-                // Escolher Casa Aleatória para Entrega
+
                 var found_h = false;
                 while (!found_h)
                 {
                     var h_idx = math.rand(0, MAP_COUNT - 1);
                     if (MAP_TYPE[h_idx] == TYPE_HOUSE)
                     {
-                        // Calcular distância para dar tempo justo
+
                         var dist = get_dist(MISSION_TARGET_X, MISSION_TARGET_Y, MAP_X[h_idx], MAP_Y[h_idx]);
-                        if (dist > 1000) // Garantir que não é demasiado perto
+                        if (dist > 1000)
                         {
                             MISSION_TARGET_X = MAP_X[h_idx];
                             MISSION_TARGET_Y = MAP_Y[h_idx];
-                            
-                            // Dificuldade progressiva: Começa fácil, fica difícil
-                            var diff = math.min(DELIVERIES * 0.1, 1.0); // Max dificuldade após 10 entregas
-                            var speed_req = 400.0 + (250.0 * diff);     // 400 -> 650 px/s (Exige mais velocidade)
-                            var time_bonus = 15.0 - (8.0 * diff);       // 15s -> 7s extra (Menos tempo de folga)
-                            
+
+
+                            var diff = math.min(DELIVERIES * 0.1, 1.0);
+                            var speed_req = 400.0 + (250.0 * diff);
+                            var time_bonus = 15.0 - (8.0 * diff);
+
                             MISSION_MAX_TIME = (dist / speed_req) + time_bonus;
                             MISSION_IS_VIP = (math.rand(0, 100) < VIP_CHANCE_PERCENT);
                             if (MISSION_IS_VIP)
@@ -1681,7 +1681,7 @@ process mission_manager()
                                 if (MISSION_MAX_TIME < 8.0) MISSION_MAX_TIME = 8.0;
                             }
                             MISSION_TIMER = MISSION_MAX_TIME;
-                            MISSION_STATE = 2; // Entregar
+                            MISSION_STATE = 2;
                             if (MISSION_IS_VIP)
                             {
                                 floating_text(p.x, p.y - 50, "VIP ORDER!", 255, 230, 110);
@@ -1698,16 +1698,16 @@ process mission_manager()
                 }
             }
         }
-        // --- ESTADO 2: ENTREGAR (DELIVERY) ---
+
         elif (MISSION_STATE == 2)
         {
             MISSION_TIMER -= DT;
 
-            // Desenhar marcador no chão do alvo
+
             set_color(255, 50, 50);
             draw_circle(MISSION_TARGET_X, MISSION_TARGET_Y, 60 + sin(time()*15)*15, false);
 
-            // Falhou?
+
             if (MISSION_TIMER <= 0)
             {
                 floating_text(p.x, p.y - 50, "TOO LATE...", 150, 150, 150);
@@ -1717,7 +1717,7 @@ process mission_manager()
                 MISSION_STATE = 0;
                 wait_timer = 2.0;
             }
-            // Chegou?
+
             elif (get_dist(p.x, p.y, MISSION_TARGET_X, MISSION_TARGET_Y) < 260)
             {
                 var bonus = int(MISSION_TIMER * 10);
@@ -1746,10 +1746,10 @@ process mission_manager()
                 }
 
                 if (SND_DELIVERY != -1) play_sound(SND_DELIVERY, 1.0, 1.0);
-                firework(p.x, p.y - 100); // CELEBRAÇÃO!
+                firework(p.x, p.y - 100);
                 MISSION_IS_VIP = false;
                 MISSION_STATE = 0;
-                wait_timer = 1.0; // Próxima missão mais rápida
+                wait_timer = 1.0;
 
                 if (DELIVERIES >= JAM_TARGET_DELIVERIES)
                 {
@@ -1769,15 +1769,15 @@ process mission_manager()
     }
 }
 
-// ============================================
-// PROCESSOS (Os Atores)
-// ============================================
+
+
+
 
 process player_car(start_x, start_y)
 {
     x = start_x;
     y = start_y;
-    z = 0; // Carro no plano principal
+    z = 0;
     angle = 90;
     if (CAR_GRAPH >= 0) graph = CAR_GRAPH;
     else graph = -1;
@@ -1794,7 +1794,7 @@ process player_car(start_x, start_y)
 
     loop
     {
-        // Guardar estado anterior para desenhar o rasto
+
         xold = x;
         yold = y;
         angle_old = angle;
@@ -1831,15 +1831,15 @@ process player_car(start_x, start_y)
             frame;
             continue;
         }
-        
-        // --- VISUAL REFLECTION (Theme) ---
-        // Desenha o reflexo do carro no gelo (antes do carro real)
+
+
+
         var draw_ang = -angle;
-        set_alpha(40); // Transparente
-        draw_rotated_rectangle(x, y + 12, 36, 22, draw_ang, true); // Offset vertical simulando profundidade
+        set_alpha(40);
+        draw_rotated_rectangle(x, y + 12, 36, 22, draw_ang, true);
         set_alpha(255);
 
-        // Inputs
+
         var throttle = 0.0;
         if (key_down(KEY_W) || key_down(KEY_UP)) throttle += 1;
         var braking = (key_down(KEY_S) || key_down(KEY_DOWN));
@@ -1850,10 +1850,10 @@ process player_car(start_x, start_y)
         if (key_down(KEY_A) || key_down(KEY_LEFT)) steer -= 1;
         if (key_down(KEY_D) || key_down(KEY_RIGHT)) steer += 1;
 
-        // Math
+
         var fx = get_distx(angle, 1);
         var fy = get_disty(angle, 1);
-        var rx = get_distx(angle + 90, 1); 
+        var rx = get_distx(angle + 90, 1);
         var ry = get_disty(angle + 90, 1);
 
         var forward_v = velx * fx + vely * fy;
@@ -1880,8 +1880,8 @@ process player_car(start_x, start_y)
         if (throttle > 0) { velx += fx * accel * DT; vely += fy * accel * DT; }
         if (throttle < 0) { velx -= fx * (accel * 0.8) * DT; vely -= fy * (accel * 0.8) * DT; }
 
-        // Aderência ao gelo
-        var grip = 1.2; 
+
+        var grip = 1.2;
         if (handbrake) grip = 0.55;
         if (traction_active) grip *= 1.22;
         if (on_black_ice)
@@ -1895,37 +1895,37 @@ process player_car(start_x, start_y)
         velx *= (1.0 - DT * 0.4);
         vely *= (1.0 - DT * 0.4);
 
-        // --- COLISÃO ROBUSTA (SLIDING) ---
-        
-        // 1. Tentar mover em X
+
+
+
         var next_x = x + velx * DT;
         next_x = math.clamp(next_x, 40, WORLD_W - 40);
-        
+
         if (place_free(next_x, y)) x = next_x;
-        else 
+        else
         {
             var hit_x = abs(velx);
-            velx *= -0.3; // Batida X
-            if (hit_x > 50 && SND_CRASH != -1) play_sound(SND_CRASH, 0.3, 1.0); // Batida leve
+            velx *= -0.3;
+            if (hit_x > 50 && SND_CRASH != -1) play_sound(SND_CRASH, 0.3, 1.0);
             apply_car_damage(hit_x);
-            // Shake visual
+
         }
 
-        // 2. Tentar mover em Y
+
         var next_y = y + vely * DT;
         next_y = math.clamp(next_y, 40, WORLD_H - 40);
-        
+
         if (place_free(x, next_y)) y = next_y;
-        else 
+        else
         {
             var hit_y = abs(vely);
-            vely *= -0.3; // Batida Y
-            if (hit_y > 50 && SND_CRASH != -1) play_sound(SND_CRASH, 0.3, 1.0); // Batida leve
+            vely *= -0.3;
+            if (hit_y > 50 && SND_CRASH != -1) play_sound(SND_CRASH, 0.3, 1.0);
             apply_car_damage(hit_y);
-          // Shake visual
+
         }
 
-        // 3. Failsafe: Se ficar preso (rotação/spawn), empurra para fora
+
         if (!place_free(x, y))
         {
             var (out_x, out_y, out_ok) = find_free_spot(x, y, 40);
@@ -1933,28 +1933,28 @@ process player_car(start_x, start_y)
             else { x = xold; y = yold; velx = 0; vely = 0; apply_car_damage(140); }
         }
 
-        // DEBUG: Visualizar onde o código "pensa" que as rodas estão
-        // var dbg_r = 14;
-        // var dbg_w = 8;
-        // var dbg_lx = x - get_distx(angle, dbg_r) + get_distx(angle - 90, dbg_w);
-        // var dbg_ly = y - get_disty(angle, dbg_r) + get_disty(angle - 90, dbg_w);
-        // var dbg_rx = x - get_distx(angle, dbg_r) + get_distx(angle + 90, dbg_w);
-        // var dbg_ry = y - get_disty(angle, dbg_r) + get_disty(angle + 90, dbg_w);
-        // // set_color(255, 0, 255); // Magenta
-        // // draw_circle(dbg_lx, dbg_ly, 4, true);
-        // // draw_circle(dbg_rx, dbg_ry, 4, true);
 
-        // Efeito de Drift (apenas marcas no chão)
+
+
+
+
+
+
+
+
+
+
+
         if (abs(side_v) > 100)
         {
             drift_emit_timer -= DT;
             if (drift_emit_timer < 0) drift_emit_timer = 0;
 
-            // Calcular posição das rodas traseiras (offset do centro)
-            var r_off = 14; // Distância para trás
-            var w_off = 8;  // Distância para os lados (track)
-            
-            // Calcular posições antigas e novas das rodas traseiras
+
+            var r_off = 14;
+            var w_off = 8;
+
+
             var old_rx = xold - get_distx(angle_old, r_off);
             var old_ry = yold - get_disty(angle_old, r_off);
             var new_rx = x - get_distx(angle, r_off);
@@ -1964,7 +1964,7 @@ process player_car(start_x, start_y)
             {
                 drift_emit_timer = 0.045;
 
-                // Desenhar rasto (Esquerda e Direita)
+
                 if (DRIFT_MARK_ACTIVE < DRIFT_MARK_MAX)
                 {
                     drift_mark(old_rx + get_distx(angle_old - 90, w_off), old_ry + get_disty(angle_old - 90, w_off),
@@ -1980,20 +1980,20 @@ process player_car(start_x, start_y)
             }
         }
 
-        // Render Carro
 
-        // Luzes Travão
+
+
         var tail_w = 10;
         var bx = x - get_distx(angle, 16);
         var by = y - get_disty(angle, 16);
-        if (braking) { set_alpha(200); set_color(255, 20, 20); } 
+        if (braking) { set_alpha(200); set_color(255, 20, 20); }
         else { set_alpha(120); set_color(150, 0, 0); }
         draw_circle(bx + get_distx(angle - 90, tail_w), by + get_disty(angle - 90, tail_w), 6, true);
         draw_circle(bx + get_distx(angle + 90, tail_w), by + get_disty(angle + 90, tail_w), 6, true);
         set_alpha(255);
 
 
-        // Faróis (Headlights)
+
         var fx_light = x + get_distx(angle, 20);
         var fy_light = y + get_disty(angle, 20);
 
@@ -2002,7 +2002,7 @@ process player_car(start_x, start_y)
         draw_circle(fx_light + get_distx(angle, 80), fy_light + get_disty(angle, 80), 90, true);
         set_alpha(50);
         draw_circle(fx_light + get_distx(angle, 40), fy_light + get_disty(angle, 40), 50, true);
-        
+
         set_alpha(200);
         draw_circle(fx_light + get_distx(angle - 90, 10), fy_light + get_disty(angle - 90, 10), 4, true);
         draw_circle(fx_light + get_distx(angle + 90, 10), fy_light + get_disty(angle + 90, 10), 4, true);
@@ -2024,26 +2024,26 @@ process player_car(start_x, start_y)
 
 process snow_puff(px, py, car_angle)
 {
-    // Nasce na posição exata da roda com ligeira variação
+
     x = px + math.rand(-4, 4);
     y = py + math.rand(-4, 4);
-    z = 5; // Partículas ligeiramente acima do chão
+    z = 5;
     SNOW_PUFF_ACTIVE += 1;
-    
-    var is_mud = math.rand(0, 100) < 40; // 40% de chance de ser lama
-    life = 0.6; // Usa variável nativa 'life'
-    size = math.rand(4, 8); // Usa variável nativa 'size'
-    
+
+    var is_mud = math.rand(0, 100) < 40;
+    life = 0.6;
+    size = math.rand(4, 8);
+
     loop
     {
         life -= DT;
         if (life <= 0) break;
-        
+
         set_alpha(int(200 * (life / 0.6)));
-        
-        if (is_mud) set_color(100, 85, 70); // Cor de Lama
-        else        set_color(220, 230, 240); // Cor de Neve
-        
+
+        if (is_mud) set_color(100, 85, 70);
+        else        set_color(220, 230, 240);
+
         draw_circle(x, y, size * (life / 0.6), true);
         set_alpha(255);
         frame;
@@ -2059,7 +2059,7 @@ process drift_mark(x1, y1, x2, y2)
     z = -10;
     DRIFT_MARK_ACTIVE += 1;
 
-    life = 0.85; // rasto mais curto
+    life = 0.85;
     var max_life = life;
 
     var dx = x2 - x1;
@@ -2073,16 +2073,16 @@ process drift_mark(x1, y1, x2, y2)
     {
         life -= DT;
         if (life <= 0) break;
-  
+
         var t = life / max_life;
         set_alpha(int(180 * t));
         set_color(200, 210, 225);
 
-        // Usa offsets relativos a x,y
+
         draw_line(x, y, x + dx, y + dy);
         draw_line(x + nx, y + ny, x + dx + nx, y + dy + ny);
         draw_line(x - nx, y - ny, x + dx - nx, y + dy - ny);
- 
+
 
         set_alpha(255);
         frame;
@@ -2100,13 +2100,13 @@ process building(bx, by, max_w, max_h, _type)
     var w = max_w - math.rand(0, 16);
     var h = max_h - math.rand(0, 16);
     var style = math.rand(0, 2);
-  
+
     if (BUILDING_SPRITE_READY)
     {
         var gidx = building_graph_slot(_type, style);
         if (gidx >= 0 && gidx < len(BUILDING_GRAPH)) graph = BUILDING_GRAPH[gidx];
 
-        // Casas especiais (arte externa), com chance controlada.
+
         if (_type == TYPE_HOUSE && len(KID_HOUSE_GRAPH) > 0 && math.rand(0, 99) < KID_HOUSE_CHANCE)
         {
             if (KID_HOUSE_NEXT < 0 || KID_HOUSE_NEXT >= len(KID_HOUSE_GRAPH)) KID_HOUSE_NEXT = 0;
@@ -2153,10 +2153,10 @@ process building(bx, by, max_w, max_h, _type)
 
     loop
     {
-    
-         
 
-        // Feedback do alvo da missão
+
+
+
         if (MISSION_STATE > 0 && abs(x - MISSION_TARGET_X) < 2.0 && abs(y - MISSION_TARGET_Y) < 2.0)
         {
             var t = time() * 8.0;
@@ -2169,28 +2169,28 @@ process building(bx, by, max_w, max_h, _type)
             set_alpha(255);
         }
 
-        // Top-down simples: sombra + corpo + contorno + detalhe
+
         set_alpha(90);
         set_color(12, 16, 24);
         draw_rectangle(x - w/2 + 3, y - h/2 + 4, w, h, true);
         set_alpha(255);
 
-      
-     
- 
+
+
+
         frame;
     }
 }
 
 process ground_lot(gx, gy, gw, gh)
 {
-    // Deprecated: lote agora é desenhado dentro de `building`
+
 }
 
 process chimney_smoke(sx, sy)
 {
     x = sx; y = sy;
-    z = 25; // Acima do telhado
+    z = 25;
     SMOKE_ACTIVE_EMITTERS += 1;
     var spawn_cd = math.rand(0.10, 0.40);
     loop
@@ -2217,18 +2217,18 @@ process smoke_particle(sx, sy)
     life = 2.0;
     var start_x = x;
     var sway_freq = math.rand(2, 5);
-    
+
     loop
     {
         life -= DT;
         if (life <= 0) break;
-        
-        y -= 20 * DT; // Sobe
-        x = start_x + sin(time() * sway_freq) * 5; // Oscila
-        
+
+        y -= 20 * DT;
+        x = start_x + sin(time() * sway_freq) * 5;
+
         set_alpha(int(150 * (life / 2.0)));
         set_color(200, 200, 200);
-        draw_circle(x, y, 4 + (2.0 - life) * 4, true); // Cresce
+        draw_circle(x, y, 4 + (2.0 - life) * 4, true);
         set_alpha(255);
         frame;
     }
@@ -2238,37 +2238,37 @@ process smoke_particle(sx, sy)
 process pine_tree(tx, ty)
 {
     x = tx; y = ty;
-    z = 25; // Acima das casas
+    z = 25;
     var scale = math.rand(0.9, 1.5);
 
         graph = TREE_GRAPH;
         size = int(scale * 100);
-    
 
-    set_circle_shape(10); // Colisão pequena no tronco
+
+    set_circle_shape(10);
 
     loop
     {
-       
+
             frame;
     }
-    
+
 }
 
 process floating_text(tx, ty, msg, r, g, b)
 {
     x = tx; y = ty;
-    z = 500;  
-    life = 1.5;  
-    
+    z = 500;
+    life = 1.5;
+
     loop
     {
         life -= DT;
         if (life <= 0) break;
-        
-        y -= 30 * DT; // Subir
 
-        // Overlay em screen-space: nunca fica escondido por casas/árvores.
+        y -= 30 * DT;
+
+
         var sx = x - CAM_X;
         var sy = y - CAM_Y;
         set_draw_screen(true);
@@ -2280,24 +2280,24 @@ process floating_text(tx, ty, msg, r, g, b)
     }
 }
 
-// --- EFEITOS DE CELEBRAÇÃO ---
+
 process firework(px, py)
 {
     x = px; y = py;
     z = 200;
- 
+
     var r = math.rand(150, 255);
     var g = math.rand(150, 255);
     var b = math.rand(150, 255);
-    
- 
+
+
     var i = 0;
     while (i < 16)
     {
         confetti(x, y, r, g, b);
         i += 1;
     }
-    frame;  
+    frame;
 }
 
 process confetti(px, py, r, g, b)
@@ -2308,18 +2308,18 @@ process confetti(px, py, r, g, b)
     var spd = math.rand(100, 300);
     var vx = get_distx(ang, spd);
     var vy = get_disty(ang, spd);
-    life = math.rand(0.5, 1.2);  
-    
+    life = math.rand(0.5, 1.2);
+
     loop
     {
         life -= DT;
         if (life <= 0) break;
-        
+
         x += vx * DT;
         y += vy * DT;
-        vy += 400 * DT; // Gravidade
-        vx *= 0.95; // Resistência do ar
-        
+        vy += 400 * DT;
+        vx *= 0.95;
+
         set_alpha(int(255 * life));
         set_color(r, g, b);
         draw_circle(x, y, 4, true);
@@ -2330,7 +2330,7 @@ process confetti(px, py, r, g, b)
 
 process street_event_manager()
 {
-  
+
     set_circle_shape(14);
 
     var gift_timer = 2.6;
@@ -2382,7 +2382,7 @@ process bonus_gift(gx, gy)
     life = 20.0;
     var phase = math.rand(0, 360);
     var gift_roll = math.rand(0, 99);
-    var gift_type = 0; // 0=time/score, 1=repair, 2=traction
+    var gift_type = 0;
     if (gift_roll >= 45 && gift_roll < 85) gift_type = 1;
     elif (gift_roll >= 85) gift_type = 2;
 
@@ -2513,7 +2513,7 @@ process road_ice_patch(ix, iy, radius, duration)
     if (ROAD_ICE_ACTIVE < 0) ROAD_ICE_ACTIVE = 0;
 }
 
-// --- SISTEMA DE CLIMA (NEVE GLOBAL) ---
+
 process weather_system()
 {
     var flake_timer = 0.0;
@@ -2525,11 +2525,11 @@ process weather_system()
         if (flake_timer <= 0)
         {
             flake_timer = 0.085;
-            // Spawna flocos de neve à volta da câmara com limite global
+
             if (SNOWFLAKE_ACTIVE < SNOWFLAKE_MAX)
             {
                 var sx = CAM_X + math.rand(0, VIEW_W);
-                var sy = CAM_Y - 10; // Começa no topo
+                var sy = CAM_Y - 10;
                 falling_snowflake(sx, sy);
             }
         }
@@ -2540,18 +2540,18 @@ process weather_system()
 process falling_snowflake(sx, sy)
 {
     x = sx; y = sy;
-    z = 300; // Acima de tudo (UI layer ou perto)
+    z = 300;
     SNOWFLAKE_ACTIVE += 1;
     var spd = math.rand(50, 100);
     var sway = math.rand(0, 100);
-    
+
     loop
     {
         y += spd * DT;
-        x += sin(time() * 2 + sway) * 20 * DT; // Movimento lateral
-        
-        if (y > CAM_Y + VIEW_H) break; // Morre quando sai do ecrã
-        
+        x += sin(time() * 2 + sway) * 20 * DT;
+
+        if (y > CAM_Y + VIEW_H) break;
+
         set_alpha(180); set_color(255, 255, 255);
         draw_circle(x, y, 2, true);
         set_alpha(255);
@@ -2561,7 +2561,7 @@ process falling_snowflake(sx, sy)
     if (SNOWFLAKE_ACTIVE < 0) SNOWFLAKE_ACTIVE = 0;
 }
 
-// --- SISTEMA DE REFLEXÃO (NARRATIVA) ---
+
 process reflection_manager()
 {
     var thoughts = [
@@ -2575,9 +2575,9 @@ process reflection_manager()
         "I wonder who ordered this pizza...",
         "Cold hands, warm heart."
     ];
-    
+
     var timer = 5.0;
-    
+
     loop
     {
         timer -= DT;
@@ -2592,15 +2592,15 @@ process reflection_manager()
                     floating_text(p.x, p.y - 80, thoughts[idx], 180, 220, 255);
                 }
             }
-            timer = math.rand(15.0, 30.0); // Pensamentos ocasionais
+            timer = math.rand(15.0, 30.0);
         }
         frame;
     }
 }
 
-// ============================================
-// MAIN SETUP & LOOP MESTRE
-// ============================================
+
+
+
 
 set_window_size(VIEW_W, VIEW_H);
 set_window_title("Cozy Winter Delivery - Jam");
@@ -2608,11 +2608,11 @@ set_design_resolution(VIEW_W, VIEW_H);
 set_virtual_screen_enabled(true);
 init_collision(0, 0, WORLD_W, WORLD_H);
 
-// Preload global de assets no boot para evitar hitch no primeiro start.
+
 prewarm_assets();
 
 
-if (GAME_STATE == STATE_GAME) 
+if (GAME_STATE == STATE_GAME)
 {
     start_game();
 }
@@ -2642,6 +2642,6 @@ loop
         update_win();
     }
 
-    
+
     frame;
 }
