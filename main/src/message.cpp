@@ -45,7 +45,7 @@ namespace BindingsMessage
             for (size_t i = 0; i < alive.size(); i++)
             {
                 Process *toProc = alive[i];
-                if (toProc && toProc->blueprint == target && toProc->state != FiberState::DEAD)
+                if (toProc && toProc->blueprint == target && toProc->state != ProcessState::DEAD)
                 {
                     messages[toProc->id].push_back({proc->id, args[1], args[2]});
                     delivered = true;

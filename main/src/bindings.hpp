@@ -1,6 +1,11 @@
 #pragma once
 
 #include "interpreter.hpp"
+#include "renderer.hpp"
+#include "sound.hpp"
+
+struct Shader;
+class b2Draw;
 
 namespace Bindings
 {
@@ -9,9 +14,30 @@ namespace Bindings
 namespace BindingsInput
 {
     void registerAll(Interpreter &vm);
+    void update();
+    void drawVirtualKeys();
+}
+
+namespace BindingsImage
+{
+    void registerAll(Interpreter &vm);
 }
 
 namespace BindingsProcess
+{
+    void registerAll(Interpreter &vm);
+}
+
+namespace BindingsBox2D
+{
+    void registerAll(Interpreter &vm);
+    void onProcessDestroy(Process *proc);
+    void shutdownPhysics();
+    void renderDebug();
+    b2Draw *getDebugDraw();
+}
+
+namespace BindingsPoly2Tri
 {
     void registerAll(Interpreter &vm);
 }
@@ -22,6 +48,7 @@ namespace BindingsDraw
     void RenderWorldCommands();
     void RenderScreenCommands();
     void resetDrawCommands();
+    Shader* getLoadedShader(int shaderId);
     void unloadFonts();
    
     void addLineCommand(int x1, int y1, int x2, int y2, bool screenSpace);
@@ -49,4 +76,5 @@ namespace BindingsMessage
 {
     void registerAll(Interpreter &vm);
     void clearAllMessages();
+
 }

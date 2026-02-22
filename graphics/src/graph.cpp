@@ -414,7 +414,7 @@ bool GraphLib::savePak(const char *pakFile)
 
     // Header
     PakHeader header;
-    strcpy(header.magic, PAK_MAGIC);
+    memcpy(header.magic, PAK_MAGIC, sizeof(header.magic));
     header.version = PAK_VERSION;
     header.textureCount = (int)textures.size();
     header.graphCount = (int)graphs.size();
@@ -435,7 +435,7 @@ bool GraphLib::savePak(const char *pakFile)
 
         // Texture header
         PakTextureHeader texHeader;
-        snprintf(texHeader.name, MAXNAME, "tex_%ld", texIdx);
+        snprintf(texHeader.name, MAXNAME, "tex_%zu", texIdx);
         texHeader.width = img.width;
         texHeader.height = img.height;
         texHeader.size = img.width * img.height * 4;
@@ -513,7 +513,7 @@ bool GraphLib::loadPak(const char *pakFile)
     }
 
     // Verifica
-    if (strncmp(header.magic, PAK_MAGIC, 4) != 0 || header.version != PAK_VERSION)
+    if (memcmp(header.magic, PAK_MAGIC, sizeof(header.magic)) != 0 || header.version != PAK_VERSION)
     {
         fclose(f);
         return false;

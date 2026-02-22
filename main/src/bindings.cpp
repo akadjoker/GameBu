@@ -3,8 +3,8 @@
 #include "math.hpp"
 #include <cmath>
 extern GraphLib gGraphLib;
-extern SoundLib gSoundLib;
 extern Scene gScene;
+
 
 namespace Bindings
 {
@@ -557,6 +557,308 @@ namespace Bindings
         return 1;
     }
 
+    static int native_create_mesh(Interpreter *vm, int argCount, Value *args)
+    {
+        (void)args;
+        if (argCount != 0)
+        {
+            Error("create_mesh expects no arguments");
+            return 0;
+        }
+
+        int meshId = gMeshLib.create();
+        vm->pushInt(meshId);
+        return 1;
+    }
+
+    static int native_mesh_clear(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("mesh_clear expects 1 number argument (mesh_id)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_clear invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        mesh->clear();
+        return 0;
+    }
+
+    static int native_mesh_add_point(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
+        {
+            Error("mesh_add_point expects 3 number arguments (mesh_id, x, y)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_add_point invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        mesh->addPoint((float)args[1].asNumber(), (float)args[2].asNumber());
+        return 0;
+    }
+
+    static int native_mesh_build_track(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("mesh_build_track expects 2 number args (mesh_id, depth)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_build_track invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        const float depth = (float)args[1].asNumber();
+        const float bodyUScale = 0.010f;
+        const float edgeWidth = 26.0f;
+        const float edgeUScale = 0.020f;
+        const float bodyVScale = 1.0f;
+        const float edgeVScale = 1.0f;
+
+        mesh->buildTrackLayered(depth, edgeWidth, bodyUScale, edgeUScale, bodyVScale, edgeVScale);
+        return 0;
+    }
+
+    static int native_mesh_build_polygon(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount < 1 || argCount > 2)
+        {
+            Error("mesh_build_polygon expects 1 or 2 args (mesh_id, [uv_scale])");
+            return 0;
+        }
+        if (!args[0].isNumber())
+        {
+            Error("mesh_build_polygon expects numeric mesh_id");
+            return 0;
+        }
+        if (argCount == 2 && !args[1].isNumber())
+        {
+            Error("mesh_build_polygon optional uv_scale must be number");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_build_polygon invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        float uvScale = (argCount >= 2) ? (float)args[1].asNumber() : 0.01f;
+        mesh->buildPolygon(uvScale);
+        return 0;
+    }
+
+    static bool resolve_texture_from_graph(int graphId, Texture2D *outTex)
+    {
+        if (!outTex) return false;
+        if (graphId < 0 || graphId >= gGraphLib.getGraphCount()) return false;
+        Graph *g = gGraphLib.getGraph(graphId);
+        if (!g) return false;
+        if (g->texture < 0 || g->texture >= gGraphLib.getTextureCount()) return false;
+        Texture2D *tex = gGraphLib.getTexture(g->texture);
+        if (!tex) return false;
+        if (tex->id == 0) return false;
+        *outTex = *tex;
+        return true;
+    }
+
+    static int native_mesh_set_texture(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("mesh_set_texture expects 2 number arguments (mesh_id, graph_id)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        int graphId = (int)args[1].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_set_texture invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        Texture2D tex = {0};
+        if (!resolve_texture_from_graph(graphId, &tex))
+        {
+            Error("mesh_set_texture invalid graph_id: %d", graphId);
+            return 0;
+        }
+
+        mesh->setTexture(tex);
+        return 0;
+    }
+
+    static int native_mesh_set_body_texture(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("mesh_set_body_texture expects 2 number arguments (mesh_id, graph_id)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        int graphId = (int)args[1].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_set_body_texture invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        Texture2D tex = {0};
+        if (!resolve_texture_from_graph(graphId, &tex))
+        {
+            Error("mesh_set_body_texture invalid graph_id: %d", graphId);
+            return 0;
+        }
+
+        mesh->setBodyTexture(tex);
+        return 0;
+    }
+
+    static int native_mesh_set_edge_texture(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 2 || !args[0].isNumber() || !args[1].isNumber())
+        {
+            Error("mesh_set_edge_texture expects 2 number arguments (mesh_id, graph_id)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        int graphId = (int)args[1].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_set_edge_texture invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        Texture2D tex = {0};
+        if (!resolve_texture_from_graph(graphId, &tex))
+        {
+            Error("mesh_set_edge_texture invalid graph_id: %d", graphId);
+            return 0;
+        }
+
+        mesh->setEdgeTexture(tex);
+        return 0;
+    }
+
+    static int native_mesh_set_scale_top(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
+        {
+            Error("mesh_set_scale_top expects 3 number arguments (mesh_id, x, y)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_set_scale_top invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        float sx = (float)args[1].asNumber();
+        float sy = (float)args[2].asNumber();
+        mesh->setTopScale(sx, sy);
+        return 0;
+    }
+
+    static int native_mesh_set_scale_bottom(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
+        {
+            Error("mesh_set_scale_bottom expects 3 number arguments (mesh_id, x, y)");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_set_scale_bottom invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        float sx = (float)args[1].asNumber();
+        float sy = (float)args[2].asNumber();
+        mesh->setBottomScale(sx, sy);
+        return 0;
+    }
+
+    static int native_mesh_draw(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount < 5 || argCount > 6)
+        {
+            Error("mesh_draw expects 5 or 6 args (mesh_id, x, y, rotation, scale, [screen_space])");
+            return 0;
+        }
+        if (!args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber() ||
+            !args[3].isNumber() || !args[4].isNumber())
+        {
+            Error("mesh_draw expects numeric args (mesh_id, x, y, rotation, scale, [screen_space])");
+            return 0;
+        }
+
+        int meshId = (int)args[0].asNumber();
+        PolyMesh *mesh = gMeshLib.get(meshId);
+        if (!mesh)
+        {
+            Error("mesh_draw invalid mesh_id: %d", meshId);
+            return 0;
+        }
+
+        bool screenSpace = false;
+        if (argCount == 6)
+        {
+            if (!args[5].isBool() && !args[5].isNumber())
+            {
+                Error("mesh_draw optional screen_space must be bool/number");
+                return 0;
+            }
+            screenSpace = args[5].isBool() ? args[5].asBool() : (args[5].asNumber() != 0.0);
+        }
+
+        float x = (float)args[1].asNumber();
+        float y = (float)args[2].asNumber();
+        float rot = (float)args[3].asNumber();
+        float scale = (float)args[4].asNumber();
+
+        if (!screenSpace)
+        {
+            x -= (float)gScene.scroll_x;
+            y -= (float)gScene.scroll_y;
+        }
+
+        mesh->draw(x, y, rot, scale, WHITE);
+        return 0;
+    }
+
     static int native_load_graph(Interpreter *vm, int argCount, Value *args)
     {
         if (argCount != 1)
@@ -828,24 +1130,247 @@ namespace Bindings
         vm->pushString("nil");
         return 1;
     }
+
+    static Process *resolve_debug_process(Interpreter *vm, int argCount, Value *args, bool *badArgs)
+    {
+        if (badArgs)
+            *badArgs = false;
+
+        if (argCount == 0)
+        {
+            return vm->getCurrentProcess();
+        }
+
+        if (argCount != 1)
+        {
+            if (badArgs)
+                *badArgs = true;
+            return nullptr;
+        }
+
+        if (args[0].isProcessInstance())
+        {
+            return args[0].asProcess();
+        }
+
+        if (args[0].isNumber())
+        {
+            uint32 id = (uint32)args[0].asNumber();
+            return vm->findProcessById(id);
+        }
+
+        if (badArgs)
+            *badArgs = true;
+        return nullptr;
+    }
+
+    int native_debug_stack(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_stack expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        Value arrValue = vm->makeArray();
+        ArrayInstance *arr = arrValue.as.array;
+
+        for (Value *slot = exec->stackTop; slot > exec->stack;)
+        {
+            --slot; // top to bottom, same order as debugger output
+            arr->values.push(*slot);
+        }
+
+        vm->push(arrValue);
+        return 1;
+    }
+
+    int native_debug_locals(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_locals expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        if (exec->frameCount <= 0)
+        {
+            vm->push(vm->makeArray());
+            return 1;
+        }
+
+        CallFrame *frame = &exec->frames[exec->frameCount - 1];
+        Value *start = frame->slots;
+        if (!start || start < exec->stack || start > exec->stackTop)
+        {
+            start = exec->stack;
+        }
+
+        Value arrValue = vm->makeArray();
+        ArrayInstance *arr = arrValue.as.array;
+        for (Value *slot = start; slot < exec->stackTop; ++slot)
+        {
+            arr->values.push(*slot);
+        }
+
+        vm->push(arrValue);
+        return 1;
+    }
+
+    int native_debug_frames(Interpreter *vm, int argCount, Value *args)
+    {
+        bool badArgs = false;
+        Process *target = resolve_debug_process(vm, argCount, args, &badArgs);
+        if (badArgs)
+        {
+            Error("debug_frames expects 0 or 1 argument (process|id)");
+            vm->pushNil();
+            return 1;
+        }
+        if (!target || target->state == ProcessState::DEAD)
+        {
+            vm->pushNil();
+            return 1;
+        }
+
+        ProcessExec *exec = target;
+        Value outValue = vm->makeArray();
+        ArrayInstance *out = outValue.as.array;
+
+        for (int i = exec->frameCount - 1; i >= 0; --i)
+        {
+            CallFrame *frame = &exec->frames[i];
+            Function *func = frame->func;
+
+            Value frameMapValue = vm->makeMap();
+            MapInstance *frameMap = frameMapValue.as.map;
+
+            frameMap->table.set(vm->makeString("index").asString(), vm->makeInt(i));
+
+            const char *funcName = "<script>";
+            if (func && func->name)
+            {
+                funcName = func->name->chars();
+            }
+            frameMap->table.set(vm->makeString("func").asString(), vm->makeString(funcName));
+
+            int ipOffset = 0;
+            int line = -1;
+            if (func && func->chunk && frame->ip && func->chunk->count > 0)
+            {
+                ptrdiff_t offset = frame->ip - func->chunk->code;
+                if (offset > 0)
+                {
+                    offset -= 1;
+                }
+                if (offset < 0)
+                {
+                    offset = 0;
+                }
+                if ((size_t)offset >= func->chunk->count)
+                {
+                    offset = (ptrdiff_t)(func->chunk->count - 1);
+                }
+
+                ipOffset = (int)offset;
+                line = func->chunk->lines[offset];
+            }
+
+            frameMap->table.set(vm->makeString("ip").asString(), vm->makeInt(ipOffset));
+            frameMap->table.set(vm->makeString("line").asString(), vm->makeInt(line));
+
+            int slotStart = 0;
+            if (frame->slots && frame->slots >= exec->stack && frame->slots <= exec->stackTop)
+            {
+                slotStart = (int)(frame->slots - exec->stack);
+            }
+            frameMap->table.set(vm->makeString("slot").asString(), vm->makeInt(slotStart));
+
+            out->values.push(frameMapValue);
+        }
+
+        vm->push(outValue);
+        return 1;
+    }
+
+    int native_debug_processes(Interpreter *vm, int argCount, Value *args)
+    {
+        (void)args;
+        if (argCount != 0)
+        {
+            Error("debug_processes expects no arguments");
+            vm->pushNil();
+            return 1;
+        }
+
+        Value outValue = vm->makeArray();
+        ArrayInstance *out = outValue.as.array;
+
+        const auto &alive = vm->getAliveProcesses();
+        for (size_t i = 0; i < alive.size(); i++)
+        {
+            Process *proc = alive[i];
+            if (!proc)
+                continue;
+
+            Value procMapValue = vm->makeMap();
+            MapInstance *procMap = procMapValue.as.map;
+
+            procMap->table.set(vm->makeString("id").asString(), vm->makeInt((int)proc->id));
+            procMap->table.set(vm->makeString("blueprint").asString(), vm->makeInt(proc->blueprint));
+            procMap->table.set(vm->makeString("state").asString(), vm->makeInt((int)proc->state));
+            procMap->table.set(vm->makeString("frames").asString(), vm->makeInt(proc->frameCount));
+            procMap->table.set(vm->makeString("stack").asString(), vm->makeInt((int)(proc->stackTop - proc->stack)));
+
+            const char *name = "<unnamed>";
+            if (proc->name)
+                name = proc->name->chars();
+            procMap->table.set(vm->makeString("name").asString(), vm->makeString(name));
+            procMap->table.set(vm->makeString("process").asString(), vm->makeProcessInstance(proc));
+
+            out->values.push(procMapValue);
+        }
+
+        vm->push(outValue);
+        return 1;
+    }
+
     static void applySignal(Process *proc, int signalType)
     {
         switch (signalType)
         {
         case 0: // S_KILL
-            proc->state = FiberState::DEAD;
+            proc->state = ProcessState::DEAD;
             break;
         case 1: // S_FREEZE
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 2: // S_HIDE - freeze + hide (same as freeze for now)
-            if (proc->state == FiberState::RUNNING || proc->state == FiberState::SUSPENDED)
-                proc->state = FiberState::FROZEN;
+            if (proc->state == ProcessState::RUNNING || proc->state == ProcessState::SUSPENDED)
+                proc->state = ProcessState::FROZEN;
             break;
         case 3: // S_SHOW - wakeup from frozen
-            if (proc->state == FiberState::FROZEN)
-                proc->state = FiberState::RUNNING;
+            if (proc->state == ProcessState::FROZEN)
+                proc->state = ProcessState::RUNNING;
             break;
         }
     }
@@ -867,7 +1392,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            if (proc && proc->state != FiberState::DEAD)
+            if (proc && proc->state != ProcessState::DEAD)
                 applySignal(proc, signalType);
             return 0;
         }
@@ -913,7 +1438,7 @@ namespace Bindings
         if (args[0].isProcessInstance())
         {
             Process *proc = args[0].asProcess();
-            vm->pushBool(proc && proc->state != FiberState::DEAD);
+            vm->pushBool(proc && proc->state != ProcessState::DEAD);
             return 1;
         }
 
@@ -925,7 +1450,7 @@ namespace Bindings
             for (size_t i = 0; i < alive.size(); i++)
             {
                 Process *proc = alive[i];
-                if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+                if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 {
                     vm->pushBool(true);
                     return 1;
@@ -963,7 +1488,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 count++;
         }
 
@@ -987,7 +1512,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
                 array->values.push(vm->makeProcessInstance(proc));
         }
 
@@ -1009,7 +1534,7 @@ namespace Bindings
         for (size_t i = 0; i < alive.size(); i++)
         {
             Process *proc = alive[i];
-            if (proc && proc->blueprint == targetBlueprint && proc->state != FiberState::DEAD)
+            if (proc && proc->blueprint == targetBlueprint && proc->state != ProcessState::DEAD)
             {
                 vm->push(vm->makeProcessInstance(proc));
                 return 1;
@@ -1018,129 +1543,6 @@ namespace Bindings
 
         vm->pushNil();
         return 1;
-    }
-
-    int native_load_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("load_sound expects 1 string argument (path)");
-            return 0;
-        }
-        if (!args[0].isString())
-        {
-            Error("load_sound expects 1 string argument (path)");
-            return 0;
-        }
-
-        const char *path = args[0].asStringChars();
-        int soundId = gSoundLib.load(GetFileNameWithoutExt(path), path);
-        if (soundId < 0)
-        {
-            Error("Failed to load sound from path: %s", path);
-            return 0;
-        }
-
-        vm->pushInt(soundId);
-
-        return 1;
-    }
-
-    int native_play_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 3)
-        {
-            Error("play_sound expects 3 arguments (soundId, volume, pitch)");
-            return 0;
-        }
-        if (!args[0].isInt() || !args[1].isNumber() || !args[2].isNumber())
-        {
-            Error("play_sound expects 3 arguments (soundId, volume, pitch)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        float volume = (float)args[1].asNumber();
-        float pitch = (float)args[2].asNumber();
-
-        gSoundLib.play(soundId, volume, pitch);
-
-        return 0;
-    }
-
-    int native_stop_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("stop_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("stop_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.stop(soundId);
-        return 0;
-    }
-
-    int native_is_sound_playing(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("is_sound_playing expects 1 argument (soundId)");
-            vm->pushBool(false);
-            return 1;
-        }
-        if (!args[0].isInt())
-        {
-            Error("is_sound_playing expects 1 int argument (soundId)");
-            vm->pushBool(false);
-            return 1;
-        }
-
-        int soundId = (int)args[0].asInt();
-        bool playing = gSoundLib.isSoundPlaying(soundId);
-        vm->pushBool(playing);
-        return 1;
-    }
-
-    int native_pause_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("pause_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("pause_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.pause(soundId);
-        return 0;
-    }
-
-    int native_resume_sound(Interpreter *vm, int argCount, Value *args)
-    {
-        if (argCount != 1)
-        {
-            Error("resume_sound expects 1 argument (soundId)");
-            return 0;
-        }
-        if (!args[0].isInt())
-        {
-            Error("resume_sound expects 1 int argument (soundId)");
-            return 0;
-        }
-
-        int soundId = (int)args[0].asInt();
-        gSoundLib.resume(soundId);
-        return 0;
     }
 
     int native_set_layer_mode(Interpreter *vm, int argCount, Value *args)
@@ -1753,6 +2155,40 @@ namespace Bindings
         return 1;
     }
 
+    // slerp_angle(from, to, t) -> shortest-path angular interpolation
+    // t is clamped to [0, 1], result normalized to [0, 360)
+    static int native_slerp_angle(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 3 || !args[0].isNumber() || !args[1].isNumber() || !args[2].isNumber())
+        {
+            Error("slerp_angle expects 3 number arguments (from, to, t)");
+            vm->pushDouble(0);
+            return 1;
+        }
+
+        double from = args[0].asNumber();
+        double to = args[1].asNumber();
+        double t = args[2].asNumber();
+        if (t < 0.0)
+            t = 0.0;
+        if (t > 1.0)
+            t = 1.0;
+
+        double diff = fmod(to - from, 360.0);
+        if (diff > 180.0)
+            diff -= 360.0;
+        if (diff < -180.0)
+            diff += 360.0;
+
+        double angle = from + diff * t;
+        angle = fmod(angle, 360.0);
+        if (angle < 0.0)
+            angle += 360.0;
+
+        vm->pushDouble(angle);
+        return 1;
+    }
+
     void registerAll(Interpreter &vm)
     {
         NativeClassDef *mask = vm.registerNativeClass(
@@ -1785,17 +2221,27 @@ namespace Bindings
         vm.registerNative("save_graphics", native_save_graphics, 1);
         vm.registerNative("load_graphics", native_load_graphics, 1);
         vm.registerNative("set_graphics_point", native_set_graphics_pointer, 3);
+        vm.registerNative("create_mesh", native_create_mesh, 0);
+        vm.registerNative("mesh_clear", native_mesh_clear, 1);
+        vm.registerNative("mesh_add_point", native_mesh_add_point, 3);
+        vm.registerNative("mesh_build_track", native_mesh_build_track, -1);
+        vm.registerNative("mesh_build_polygon", native_mesh_build_polygon, -1);
+        vm.registerNative("mesh_set_texture", native_mesh_set_texture, 2);
+        vm.registerNative("mesh_set_body_texture", native_mesh_set_body_texture, 2);
+        vm.registerNative("mesh_set_edge_texture", native_mesh_set_edge_texture, 2);
+        vm.registerNative("mesh_set_scale_top", native_mesh_set_scale_top, 3);
+        vm.registerNative("mesh_set_scale_bottom", native_mesh_set_scale_bottom, 3);
+        // aliases (incluindo typos pedidos)
+        vm.registerNative("set_scale_top", native_mesh_set_scale_top, 3);
+        vm.registerNative("set_scale_bottom", native_mesh_set_scale_bottom, 3);
+        vm.registerNative("set_scalke_top", native_mesh_set_scale_top, 3);
+        vm.registerNative("set_sclae_bottom", native_mesh_set_scale_bottom, 3);
+        vm.registerNative("mesh_draw", native_mesh_draw, -1);
         vm.registerNative("init_collision", native_init_collision, 4);
         vm.registerNative("signal", native_signal, 2);
         vm.registerNative("exists", native_exists, 1);
         vm.registerNative("count_processes", native_get_count, 1);
         vm.registerNative("get_ids", native_get_ids, 1);
-        vm.registerNative("play_sound", native_play_sound, 3);
-        vm.registerNative("stop_sound", native_stop_sound, 1);
-        vm.registerNative("load_sound", native_load_sound, 1);
-        vm.registerNative("is_sound_playing", native_is_sound_playing, 1);
-        vm.registerNative("pause_sound", native_pause_sound, 1);
-        vm.registerNative("resume_sound", native_resume_sound, 1);
         vm.registerNative("set_layer_mode", native_set_layer_mode, 2);
         vm.registerNative("set_layer_clip", native_set_layer_clip, 1);
 
@@ -1832,6 +2278,12 @@ namespace Bindings
         vm.registerNative("angle_delta", native_angle_delta, 2);
         vm.registerNative("near_angle", native_near_angle, 3);
         vm.registerNative("normalize_angle", native_normalize_angle, 1);
+        vm.registerNative("slerp_angle", native_slerp_angle, 3);
+        vm.registerNative("slerp", native_slerp_angle, 3);
+        vm.registerNative("debug_stack", native_debug_stack, -1);
+        vm.registerNative("debug_locals", native_debug_locals, -1);
+        vm.registerNative("debug_frames", native_debug_frames, -1);
+        vm.registerNative("debug_processes", native_debug_processes, 0);
 
         vm.addGlobal("SKILL", vm.makeInt(0));
         vm.addGlobal("SFREEZE", vm.makeInt(1));
@@ -1844,10 +2296,17 @@ namespace Bindings
         vm.addGlobal("PF_OCTILE", vm.makeInt((int)PF_OCTILE));
         vm.addGlobal("PF_CHEBYSHEV", vm.makeInt((int)PF_CHEBYSHEV));
 
+      
+   
+
         BindingsInput::registerAll(vm);
+        BindingsImage::registerAll(vm);
         BindingsProcess::registerAll(vm);
+        BindingsBox2D::registerAll(vm);
+        BindingsPoly2Tri::registerAll(vm);
         BindingsDraw::registerAll(vm);
         BindingsParticles::registerAll(vm);
+        BindingsSound::registerAll(vm);
         BindingsEase::registerAll(vm);
         BindingsMessage::registerAll(vm);
     }
