@@ -140,34 +140,3 @@ while (i < len(inimigos))
 }
 ```
 
-## 6. Built-ins Úteis
-*   `print(msg)`: Imprime na consola.
-*   `math.rand(min, max)`: Número aleatório.
-*   `delta()`: Tempo passado desde o último frame (DT).
-*   `time()`: Tempo total de execução.
-*   `collision(type, x, y)`: Verifica colisão com um tipo de processo.
-*   `proc(id)`: Obtém a instância de um processo pelo ID.
-*   `include "ficheiro.bu"`: Inclui outro script.
-
-## 7. Classes e Structs
-A Bulang não possui palavras-chave explícitas `class` ou `struct`. A funcionalidade de Orientação a Objetos é obtida através dos **Processos**.
-
-### Processos como Classes
-*   Cada definição de `process` atua como uma **Classe**.
-*   Ao chamar um processo (ex: `var p = player(10, 10);`), cria-se uma **Instância** (Objeto).
-*   O valor retornado é uma referência (handle) para essa instância, permitindo acesso às suas propriedades.
-
-### Membros e Propriedades
-*   **Propriedades Nativas**: (`x`, `y`, `angle`, etc.) são públicas e acessíveis via `instancia.x`.
-*   **Membros Personalizados**: Variáveis atribuídas dentro do processo (sem a palavra-chave `var`) tornam-se propriedades de instância acessíveis externamente.
-    *   *Exemplo*: `velx = 10;` dentro do processo permite ler `p.velx` fora dele.
-    *   *Privado*: Variáveis declaradas com `var` (ex: `var timer = 0;`) são locais e privadas ao processo.
-
-### Structs (Dados)
-Para estruturas de dados simples (sem lógica de entidade), recomenda-se o uso de **Listas (Arrays)**.
-
-```bulang
-// Exemplo de "Struct" usando Array
-var ponto = [10, 20]; // x, y
-var x = ponto[0];
-```
