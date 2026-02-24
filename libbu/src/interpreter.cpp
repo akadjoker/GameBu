@@ -1381,6 +1381,82 @@ String *Interpreter::getTypeName(Value typeVal)
   return nullptr;
 }
 
+// ── Binding helper utilities ──────────────────────────────────────────
+
+NativeClassDef *Interpreter::requireNativeClassDef(const char *className)
+{
+  NativeClassDef *klass = nullptr;
+  if (!tryGetNativeClassDef(className, &klass) || !klass)
+  {
+    Error("%s class is not registered!", className);
+    return nullptr;
+  }
+  return klass;
+}
+
+bool Interpreter::pushNativeClassInstance(const char *className, void *userData, bool persistent)
+{
+  NativeClassDef *klass = requireNativeClassDef(className);
+  if (!klass || !userData)
+  {
+    pushNil();
+    return false;
+  }
+  return pushNativeClassInstance(klass, userData, persistent);
+}
+
+bool Interpreter::pushNativeClassInstance(NativeClassDef *klass, void *userData, bool persistent)
+{
+  if (!klass || !userData)
+  {
+    pushNil();
+    return false;
+  }
+  Value value = makeNativeClassInstance(persistent);
+  NativeClassInstance *instance = value.asNativeClassInstance();
+  instance->klass = klass;
+  instance->userData = userData;
+  push(value);
+  return true;
+}
+
+NativeClassInstance *Interpreter::requireNativeInstance(const Value &value, const char *className, const char *funcName)
+{
+  if (!value.isNativeClassInstance())
+  {
+    if (funcName)
+      Error("%s expects %s instance", funcName, className);
+    else
+      Error("Expected %s instance", className);
+    return nullptr;
+  }
+
+  NativeClassDef *klass = requireNativeClassDef(className);
+  if (!klass)
+    return nullptr;
+
+  NativeClassInstance *instance = value.asNativeClassInstance();
+  if (!instance || instance->klass != klass)
+  {
+    if (funcName)
+      Error("%s expects %s instance", funcName, className);
+    else
+      Error("Expected %s instance", className);
+    return nullptr;
+  }
+
+  if (!instance->userData)
+  {
+    if (funcName)
+      Error("%s: %s instance has null userData", funcName, className);
+    else
+      Error("%s instance has null userData", className);
+    return nullptr;
+  }
+
+  return instance;
+}
+
 void Interpreter::addFunctionsClasses(Function *fun)
 {
   if (!fun)

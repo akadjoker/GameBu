@@ -1089,6 +1089,20 @@ public:
   // Get the name of a type from its Value (NativeStruct, NativeClass, Class, Struct)
   String *getTypeName(Value typeVal);
 
+  // ── Binding helper utilities ──────────────────────────────────────────
+  // Resolve a NativeClassDef by name, returns nullptr + Error() on failure
+  NativeClassDef *requireNativeClassDef(const char *className);
+
+  // Create a NativeClassInstance wrapping userData, push it on stack.
+  // Returns true on success, pushes nil on failure.
+  bool pushNativeClassInstance(const char *className, void *userData, bool persistent = false);
+  // Same but with an already-resolved NativeClassDef*
+  bool pushNativeClassInstance(NativeClassDef *klass, void *userData, bool persistent = false);
+
+  // Validate that a Value is a NativeClassInstance of the expected class,
+  // returns the NativeClassInstance* or nullptr + Error() on failure.
+  NativeClassInstance *requireNativeInstance(const Value &value, const char *className, const char *funcName = nullptr);
+
   uint32 getTotalProcesses() const;
   uint32 getTotalAliveProcesses() const;
   Process *findProcessById(uint32 id);
