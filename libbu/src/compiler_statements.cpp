@@ -516,6 +516,38 @@ void Compiler::variable(bool canAssign)
     }
 
     // =====================================================
+    // PASSO 2.5: Generic call syntax: identifier<Type>(args)
+    // Desugars foo<Type>(a, b) into foo(Type, a, b)
+    // where Type is resolved as a class/struct/native class value
+    // =====================================================
+    if (check(TOKEN_LESS) &&
+        peek(0).type == TOKEN_IDENTIFIER &&
+        peek(1).type == TOKEN_GREATER &&
+        peek(2).type == TOKEN_LPAREN)
+    {
+        // Push the callable (function/class/struct) on stack
+        namedVariable(name, false);
+
+        // Consume <Type>
+        advance(); // consume <
+        consume(TOKEN_IDENTIFIER, "Expect type name after '<'");
+        Token typeName = previous;
+        consume(TOKEN_GREATER, "Expect '>' after type name");
+
+        // Consume ( and arguments
+        consume(TOKEN_LPAREN, "Expect '(' after generic type");
+
+        // Push the Type as first argument — resolved as a real class/struct value
+        namedVariable(typeName, false);
+
+        callDepth++;
+        uint8 argCount = argumentList();
+        emitBytes(OP_CALL, argCount + 1); // +1 for the type argument
+        callDepth--;
+        return;
+    }
+
+    // =====================================================
     // PASSO 3: Variável normal (local ou global)
     // =====================================================
     namedVariable(name, canAssign);
@@ -2311,8 +2343,34 @@ void Compiler::dot(bool canAssign)
 
     uint16_t nameIdx = identifierConstant(propName);
 
+    //  GENERIC METHOD CALL: obj.method<Type>(args)
+    //  Desugars obj.method<Type>(a, b) into obj.method(Type, a, b)
+    //  where Type is resolved as a real class/struct/native class value
+    if (check(TOKEN_LESS) &&
+        peek(0).type == TOKEN_IDENTIFIER &&
+        peek(1).type == TOKEN_GREATER &&
+        peek(2).type == TOKEN_LPAREN)
+    {
+        // Consume <Type>
+        advance(); // consume <
+        consume(TOKEN_IDENTIFIER, "Expect type name after '<'");
+        Token typeName = previous;
+        consume(TOKEN_GREATER, "Expect '>' after type name");
+
+        // Consume ( and arguments
+        consume(TOKEN_LPAREN, "Expect '(' after generic type");
+
+        // Push the Type as first argument — resolved as a real class/struct value
+        namedVariable(typeName, false);
+
+        uint8_t argCount = argumentList();
+
+        emitByte(OP_INVOKE);
+        emitShort(nameIdx);
+        emitByte(argCount + 1); // +1 for type argument
+    }
     //  METHOD CALL
-    if (match(TOKEN_LPAREN))
+    else if (match(TOKEN_LPAREN))
     {
         uint8_t argCount = argumentList();
         if (propName.lexeme == "push" && argCount == 1)

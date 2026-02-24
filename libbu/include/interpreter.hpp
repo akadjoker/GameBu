@@ -1083,6 +1083,12 @@ public:
   Value createClassInstanceRaw(const char *className);
   Value createClassInstanceRaw(ClassDef *klass);
 
+  // Generic type utilities — used by component systems with <Type> syntax
+  // Instantiate any type (NativeStruct, NativeClass, Class, Struct) from a type Value
+  Value instantiateType(Value typeVal, int argc, Value *args);
+  // Get the name of a type from its Value (NativeStruct, NativeClass, Class, Struct)
+  String *getTypeName(Value typeVal);
+
   uint32 getTotalProcesses() const;
   uint32 getTotalAliveProcesses() const;
   Process *findProcessById(uint32 id);

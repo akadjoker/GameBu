@@ -1293,6 +1293,94 @@ Value Interpreter::createClassInstanceRaw(ClassDef *klass)
   return value;
 }
 
+// ============================================================
+// Generic type utilities for <Type> syntax / component systems
+// ============================================================
+
+Value Interpreter::instantiateType(Value typeVal, int argc, Value *args)
+{
+  if (typeVal.isNativeStruct())
+  {
+    return createNativeStruct(typeVal.asNativeStructId(), argc, args);
+  }
+
+  if (typeVal.isNativeClass())
+  {
+    int classId = typeVal.asClassNativeId();
+    NativeClassDef *klass = nativeClasses[classId];
+
+    if (!klass->constructor)
+    {
+      runtimeError("Native class '%s' has no constructor", klass->name->chars());
+      return makeNil();
+    }
+
+    void *userData = klass->constructor(this, argc, args);
+    if (!userData)
+    {
+      runtimeError("Failed to create native '%s' instance", klass->name->chars());
+      return makeNil();
+    }
+
+    Value lit = makeNativeClassInstance(klass->persistent);
+    NativeClassInstance *inst = lit.asNativeClassInstance();
+    inst->klass = klass;
+    inst->userData = userData;
+    return lit;
+  }
+
+  if (typeVal.isStruct())
+  {
+    int index = typeVal.asStructId();
+    StructDef *def = structs[index];
+
+    Value value = makeStructInstance();
+    StructInstance *instance = value.asStructInstance();
+    instance->def = def;
+    instance->values.reserve(def->argCount);
+
+    for (int i = 0; i < argc && i < def->argCount; i++)
+    {
+      instance->values.push(args[i]);
+    }
+    for (int i = argc; i < def->argCount; i++)
+    {
+      instance->values.push(makeNil());
+    }
+    return value;
+  }
+
+  if (typeVal.isClass())
+  {
+    int classId = typeVal.asClassId();
+    return createClassInstance(classes[classId], argc, args);
+  }
+
+  runtimeError("instantiateType: value is not a type");
+  return makeNil();
+}
+
+String *Interpreter::getTypeName(Value typeVal)
+{
+  if (typeVal.isNativeStruct())
+  {
+    return nativeStructs[typeVal.asNativeStructId()]->name;
+  }
+  if (typeVal.isNativeClass())
+  {
+    return nativeClasses[typeVal.asClassNativeId()]->name;
+  }
+  if (typeVal.isClass())
+  {
+    return classes[typeVal.asClassId()]->name;
+  }
+  if (typeVal.isStruct())
+  {
+    return structs[typeVal.asStructId()]->name;
+  }
+  return nullptr;
+}
+
 void Interpreter::addFunctionsClasses(Function *fun)
 {
   if (!fun)

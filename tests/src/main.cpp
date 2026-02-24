@@ -460,6 +460,190 @@ static int native_proc_ping(Interpreter *vm, Process *proc, int argCount, Value 
 }
 
 // ============================================================
+// Entity Component System (ECS-lite) — Native class
+// Supports addComponent<Type>(args), getComponent<Type>(), etc.
+// ============================================================
+
+struct ComponentEntry
+{
+    String *typeName;  // Key: name of the type (e.g. "Point")
+    Value   instance;  // The component instance (NativeStruct, NativeClass, etc.)
+};
+
+struct EntityData
+{
+    std::vector<ComponentEntry> components;
+};
+
+// --- Helper: get type name from a type Value ---
+static String *getTypeNameFromValue(Interpreter *vm, Value typeVal)
+{
+    return vm->getTypeName(typeVal);
+}
+
+// --- Helper: instantiate a type with args from C++ ---
+static Value instantiateType(Interpreter *vm, Value typeVal, int argc, Value *args)
+{
+    return vm->instantiateType(typeVal, argc, args);
+}
+
+// Constructor
+static void *entity_ctor(Interpreter *vm, int argCount, Value *args)
+{
+    return new EntityData();
+}
+
+// Destructor
+static void entity_dtor(Interpreter *vm, void *instance)
+{
+    delete static_cast<EntityData *>(instance);
+}
+
+// addComponent(Type, ...args) -> component instance
+static int entity_addComponent(Interpreter *vm, void *data, int argCount, Value *args)
+{
+    EntityData *entity = static_cast<EntityData *>(data);
+
+    if (argCount < 1)
+    {
+        vm->runtimeError("addComponent expects at least 1 argument (type)");
+        return 0;
+    }
+
+    Value typeVal = args[0];
+    String *typeName = getTypeNameFromValue(vm, typeVal);
+    if (!typeName)
+    {
+        vm->runtimeError("addComponent: first argument must be a type (class/struct)");
+        return 0;
+    }
+
+    // Check if already has this component
+    for (auto &c : entity->components)
+    {
+        if (c.typeName == typeName)
+        {
+            vm->runtimeError("Entity already has component '%s'", typeName->chars());
+            return 0;
+        }
+    }
+
+    // Instantiate with remaining args
+    Value instance = instantiateType(vm, typeVal, argCount - 1, args + 1);
+    if (instance.isNil())
+    {
+        vm->runtimeError("Failed to instantiate component '%s'", typeName->chars());
+        return 0;
+    }
+
+    entity->components.push_back({typeName, instance});
+    vm->push(instance);
+    return 1;
+}
+
+// getComponent(Type) -> component instance or nil
+static int entity_getComponent(Interpreter *vm, void *data, int argCount, Value *args)
+{
+    EntityData *entity = static_cast<EntityData *>(data);
+
+    if (argCount < 1)
+    {
+        vm->runtimeError("getComponent expects 1 argument (type)");
+        return 0;
+    }
+
+    String *typeName = getTypeNameFromValue(vm, args[0]);
+    if (!typeName)
+    {
+        vm->runtimeError("getComponent: argument must be a type");
+        return 0;
+    }
+
+    for (auto &c : entity->components)
+    {
+        if (c.typeName == typeName)
+        {
+            vm->push(c.instance);
+            return 1;
+        }
+    }
+
+    vm->pushNil();
+    return 1;
+}
+
+// hasComponent(Type) -> bool
+static int entity_hasComponent(Interpreter *vm, void *data, int argCount, Value *args)
+{
+    EntityData *entity = static_cast<EntityData *>(data);
+
+    if (argCount < 1)
+    {
+        vm->runtimeError("hasComponent expects 1 argument (type)");
+        return 0;
+    }
+
+    String *typeName = getTypeNameFromValue(vm, args[0]);
+    if (!typeName)
+    {
+        vm->pushInt(0);
+        return 1;
+    }
+
+    for (auto &c : entity->components)
+    {
+        if (c.typeName == typeName)
+        {
+            vm->pushInt(1);
+            return 1;
+        }
+    }
+
+    vm->pushInt(0);
+    return 1;
+}
+
+// removeComponent(Type) -> removed instance or nil
+static int entity_removeComponent(Interpreter *vm, void *data, int argCount, Value *args)
+{
+    EntityData *entity = static_cast<EntityData *>(data);
+
+    if (argCount < 1)
+    {
+        vm->runtimeError("removeComponent expects 1 argument (type)");
+        return 0;
+    }
+
+    String *typeName = getTypeNameFromValue(vm, args[0]);
+    if (!typeName)
+    {
+        vm->pushNil();
+        return 1;
+    }
+
+    for (auto it = entity->components.begin(); it != entity->components.end(); ++it)
+    {
+        if (it->typeName == typeName)
+        {
+            Value removed = it->instance;
+            entity->components.erase(it);
+            vm->push(removed);
+            return 1;
+        }
+    }
+
+    vm->pushNil();
+    return 1;
+}
+
+// count property (read-only)
+static Value entity_get_count(Interpreter *vm, void *instance)
+{
+    EntityData *entity = static_cast<EntityData *>(instance);
+    return vm->makeInt((int)entity->components.size());
+}
+
+// ============================================================
 // Register all test native bindings
 // ============================================================
 static void registerTestBindings(Interpreter &vm)
@@ -495,6 +679,14 @@ static void registerTestBindings(Interpreter &vm)
     vm.addNativeMethod(accum, "get_stats", accum_get_stats);
     vm.addNativeProperty(accum, "value", accum_get_value, accum_set_value);
     vm.addNativeProperty(accum, "count", accum_get_count); // read-only (no setter)
+
+    // --- Native Class: Entity (component system) ---
+    auto *entity = vm.registerNativeClass("Entity", entity_ctor, entity_dtor, 0);
+    vm.addNativeMethod(entity, "addComponent", entity_addComponent);
+    vm.addNativeMethod(entity, "getComponent", entity_getComponent);
+    vm.addNativeMethod(entity, "hasComponent", entity_hasComponent);
+    vm.addNativeMethod(entity, "removeComponent", entity_removeComponent);
+    vm.addNativeProperty(entity, "count", entity_get_count);
 }
 
 // ============================================================

@@ -1,0 +1,65 @@
+// Test: Generic <Type> syntax — basic
+// foo<Type>(args) compiles as foo(Type, args)
+// Now passes the actual type value, not a string
+
+// ============================================================
+// Test 1: Free function with generic syntax (using known types)
+// ============================================================
+def create(Type, a, b)
+{
+    var obj = Type(a, b);
+    return obj;
+}
+
+var p = create<Point>(10.0, 20.0);
+print(format("Point: {}, {}", p.x, p.y));
+
+// ============================================================
+// Test 2: Free function with generic, no extra args
+// ============================================================
+def makeDefault(Type)
+{
+    return Type(0.0, 0.0);
+}
+
+var p2 = makeDefault<Point>();
+print(format("Default point: {}, {}", p2.x, p2.y));
+
+// ============================================================
+// Test 3: Class method with generic syntax
+// ============================================================
+class Container
+{
+    var items;
+
+    def init()
+    {
+        self.items = [];
+    }
+
+    def add(Type, a, b)
+    {
+        var obj = Type(a, b);
+        self.items.push(obj);
+        return obj;
+    }
+}
+
+var c = Container();
+var pt = c.add<Point>(5.0, 15.0);
+print(format("Container point: {}, {}", pt.x, pt.y));
+
+// ============================================================
+// Test 4: Normal < > comparison still works
+// ============================================================
+var a = 10;
+var b = 20;
+if (a < b)
+{
+    print(format("Comparison OK: {} < {}", a, b));
+}
+
+var z = 5 > 3;
+print(format("5 > 3 = {}", z));
+
+print("All generic tests passed!");

@@ -1,0 +1,71 @@
+// Test: Entity Component System with generic <Type> syntax
+// Uses C++ native Entity class + native Point/Rect/Accumulator types
+
+// ============================================================
+// Test 1: Create entity and add native struct components
+// ============================================================
+var e = Entity();
+
+var pos = e.addComponent<Point>(100.0, 200.0);
+print(format("pos: {}, {}", pos.x, pos.y));
+
+var rect = e.addComponent<Rect>(10.0, 20.0, 320.0, 240.0);
+print(format("rect: {}, {}, {}, {}", rect.x, rect.y, rect.w, rect.h));
+
+// ============================================================
+// Test 2: Add native class component
+// ============================================================
+var hp = e.addComponent<Accumulator>(100.0);
+print(format("hp: {}", hp.value));
+hp.add(50.0);
+print(format("hp after heal: {}", hp.value));
+
+// ============================================================
+// Test 3: getComponent<Type>() 
+// ============================================================
+var p2 = e.getComponent<Point>();
+print(format("getComponent Point: {}, {}", p2.x, p2.y));
+
+var hp2 = e.getComponent<Accumulator>();
+print(format("getComponent Accumulator: {}", hp2.value));
+
+// ============================================================
+// Test 4: hasComponent<Type>()
+// ============================================================
+print(format("has Point: {}", e.hasComponent<Point>()));
+print(format("has Rect: {}", e.hasComponent<Rect>()));
+print(format("has Accumulator: {}", e.hasComponent<Accumulator>()));
+
+// ============================================================
+// Test 5: count property
+// ============================================================
+print(format("count: {}", e.count));
+
+// ============================================================
+// Test 6: removeComponent<Type>()
+// ============================================================
+var removed = e.removeComponent<Rect>();
+print(format("removed Rect: {}, {}", removed.x, removed.y));
+print(format("has Rect after remove: {}", e.hasComponent<Rect>()));
+print(format("count after remove: {}", e.count));
+
+// ============================================================
+// Test 7: Modify component through reference
+// ============================================================
+var myPos = e.getComponent<Point>();
+myPos.x = 999.0;
+myPos.y = 888.0;
+var check = e.getComponent<Point>();
+print(format("modified pos: {}, {}", check.x, check.y));
+
+// ============================================================
+// Test 8: Normal comparison operators still work
+// ============================================================
+var a = 10;
+var b = 20;
+if (a < b)
+{
+    print(format("{} < {} OK", a, b));
+}
+
+print("All ECS tests passed!");

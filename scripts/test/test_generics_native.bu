@@ -1,0 +1,72 @@
+// Test: Generic <Type> syntax with native C++ classes
+// The type between <> is resolved as the actual class/struct value
+// foo<Type>(args) compiles as foo(Type, args) where Type is the real class
+
+// ============================================================
+// Test 1: Factory function using generic to create native structs
+// ============================================================
+def create(Type, a, b)
+{
+    var obj = Type(a, b);
+    return obj;
+}
+
+var p = create<Point>(10.0, 20.0);
+print(format("Point: {}, {}", p.x, p.y));
+
+var r = create<Rect>(1.0, 2.0);
+print(format("Rect: {}, {}", r.x, r.y));
+
+// ============================================================
+// Test 2: Factory with native class (Accumulator)
+// ============================================================
+def makeAccum(Type, initial)
+{
+    var obj = Type(initial);
+    return obj;
+}
+
+var acc = makeAccum<Accumulator>(42.0);
+print(format("Accumulator value: {}", acc.value));
+acc.add(8.0);
+print(format("After add(8): {}", acc.value));
+
+// ============================================================
+// Test 3: Native Entity component system with generic syntax
+// ============================================================
+var e = Entity();
+var pos = e.addComponent<Point>(100.0, 200.0);
+print(format("Entity Point: {}, {}", pos.x, pos.y));
+
+var rect = e.addComponent<Rect>(10.0, 20.0, 320.0, 240.0);
+print(format("Entity Rect: {}, {}, {}, {}", rect.x, rect.y, rect.w, rect.h));
+
+var got = e.getComponent<Point>();
+print(format("getComponent<Point>: {}, {}", got.x, got.y));
+
+var has = e.hasComponent<Point>();
+print(format("hasComponent<Point>: {}", has));
+
+// ============================================================
+// Test 4: Generic that just passes the type through
+// ============================================================
+def getType(Type)
+{
+    return Type;
+}
+
+var pointClass = getType<Point>();
+var p2 = pointClass(5.0, 15.0);
+print(format("p2 via getType: {}, {}", p2.x, p2.y));
+
+// ============================================================
+// Test 5: Normal comparisons still work alongside generics
+// ============================================================
+var a = 10;
+var b = 20;
+if (a < b)
+{
+    print(format("Comparison OK: {} < {}", a, b));
+}
+
+print("All native generic tests passed!");
