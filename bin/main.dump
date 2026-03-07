@@ -5673,7 +5673,7 @@ GLOBAL FUNCTIONS
     1381 2646 OP_CONSTANT            48 '100'
     1384    | OP_FRAME            
     1385 2647 OP_LOOP              1385 -> 1281
-    1388   12 OP_NIL              
+    1388   14 OP_NIL              
     1389    | OP_RETURN           
 
 
