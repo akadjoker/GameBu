@@ -4,10 +4,14 @@
 //include "piano_helper.bu";
 //include "jam_reflection.bu";
 //include "winters_v2.bu";
-include "winters_jam.bu";
+//include "winters_jam.bu";
 //include "ice_hockey.bu";
 //include "pong_nn_demo.bu";
 //include "flappy_ai_demo.bu";
 
 //include "mesh_points_demo.bu";
 //include "fun_hill_climb.bu";
+
+
+//include "test_z_layer_order.bu";
+include "test_draw_new_api.bu";

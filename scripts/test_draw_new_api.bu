@@ -1,0 +1,119 @@
+// Teste das novas funcoes de draw:
+// - draw_ellipse
+// - draw_ring
+// - draw_graph_part
+// - draw_graph_part_ex
+//
+// Teclas:
+// SPACE: pausa/continua animacao
+// F: alterna flip horizontal no draw_graph_part_ex
+// R: reset tempo
+
+var VIEW_W = 960;
+var VIEW_H = 540;
+
+var KEY_SPACE = 32;
+var KEY_F = 70;
+var KEY_R = 82;
+
+var G = -1;
+var t = 0.0;
+var paused = false;
+var flip_h = false;
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Test draw new API");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+G = load_graph("assets/tile24.png");
+if (G < 0) G = load_graph("assets/tile5.png");
+if (G < 0) G = load_graph("assets/tile2.png");
+if (G < 0) G = load_graph("../assets/tile24.png");
+if (G < 0) G = load_graph("../assets/tile5.png");
+if (G < 0) G = load_graph("../assets/tile2.png");
+
+loop
+{
+    if (key_pressed(KEY_SPACE)) paused = !paused;
+    if (key_pressed(KEY_F)) flip_h = !flip_h;
+    if (key_pressed(KEY_R)) t = 0.0;
+    if (!paused) t += delta();
+
+    // Fundo
+    set_draw_screen(true);
+    set_color(20, 24, 32);
+    set_alpha(255);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    // ---- draw_ellipse ----
+    var erx = 80 + int((sin(t * 2.0) + 1.0) * 18);
+    var ery = 45 + int((cos(t * 2.7) + 1.0) * 10);
+
+    set_color(70, 180, 240);
+    set_alpha(120);
+    draw_ellipse(160, 210, erx, ery, true);
+
+    set_color(220, 245, 255);
+    set_alpha(255);
+    draw_ellipse(160, 210, erx, ery, false);
+
+    // ---- draw_ring ----
+    var inner_r = 28 + (sin(t * 2.1) + 1.0) * 10.0;
+    var outer_r = 58 + (cos(t * 1.9) + 1.0) * 14.0;
+    var a0 = t * 85.0;
+    var a1 = a0 + 280.0;
+
+    set_color(255, 160, 60);
+    set_alpha(130);
+    draw_ring(410, 210, inner_r, outer_r, a0, a1, true);
+
+    set_color(255, 230, 180);
+    set_alpha(255);
+    draw_ring(410, 210, inner_r, outer_r, a0, a1, false);
+
+    // ---- draw_graph_part / draw_graph_part_ex ----
+    if (G >= 0)
+    {
+        var gw = get_graph_width(G);
+        var gh = get_graph_height(G);
+        if (gw > 2 && gh > 2)
+        {
+            var sw = int(gw / 2);
+            var sh = int(gh / 2);
+            if (sw < 1) sw = 1;
+            if (sh < 1) sh = 1;
+
+            var sx = int(((sin(t * 1.4) + 1.0) * 0.5) * (gw - sw));
+            var sy = int(((cos(t * 1.1) + 1.0) * 0.5) * (gh - sh));
+
+            set_alpha(255);
+            set_color(255, 255, 255);
+            draw_graph_part(G, sx, sy, sw, sh, 620, 150);
+
+            var ang = t * 95.0;
+            var sxx = 1 + (sin(t * 2.0) * 35.0);
+            var syy = 1 + (cos(t * 1.7) * 25.0);
+            draw_graph_part_ex(G, sx, sy, sw, sh, 800, 210, ang, sxx, syy, flip_h, false);
+
+            set_color(190, 220, 255);
+            draw_text(format("src: {},{}  {}x{}", sx, sy, sw, sh), 560, 286, 20);
+            draw_text(format("part_ex angle: {}  flip_h: {}", int(ang), flip_h), 560, 312, 20);
+        }
+    }
+    else
+    {
+        set_color(255, 120, 120);
+        set_alpha(255);
+        draw_text("Nao consegui carregar um graph de teste (tile24/tile5/tile2).", 520, 210, 20);
+    }
+
+    // UI
+    set_color(255, 255, 255);
+    set_alpha(255);
+    draw_text("TESTE DRAW API NOVA", 24, 20, 34);
+    draw_text("draw_ellipse | draw_ring | draw_graph_part | draw_graph_part_ex", 24, 58, 20);
+    draw_text("SPACE pausa | F flip | R reset", 24, 88, 20);
+
+    frame;
+}

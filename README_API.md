@@ -641,6 +641,8 @@ Drawing functions can operate in world space (affected by camera and scroll) or 
 - `draw_line(x1, y1, x2, y2)`
 - `draw_line_ex(x1, y1, x2, y2, thickness)`
 - `draw_circle(centerX, centerY, radius, fill)`
+- `draw_ellipse(centerX, centerY, radiusX, radiusY, fill)`
+- `draw_ring(centerX, centerY, innerRadius, outerRadius, startAngle, endAngle, fill)`
 - `draw_rectangle(x, y, width, height, fill)`
 - `draw_rotated_rectangle(x, y, width, height, rotation, fill)`
 - `draw_rotated_rectangle_ex(x, y, width, height, rotation, fill, originX, originY)`
@@ -658,6 +660,8 @@ Drawing functions can operate in world space (affected by camera and scroll) or 
 ### Graphics
 - `draw_graph(graphId, x, y)`
 - `draw_graph_ex(graphId, x, y, angle, sizeX, sizeY, flipX, flipY)`
+- `draw_graph_part(graphId, srcX, srcY, srcW, srcH, x, y)`
+- `draw_graph_part_ex(graphId, srcX, srcY, srcW, srcH, x, y, angle, sizeX, sizeY, flipX, flipY)`
 - `get_graph_width(graphId) -> width`
 - `get_graph_height(graphId) -> height`
 

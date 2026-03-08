@@ -1,0 +1,144 @@
+// Test script for render ordering by z + layer switching.
+// Controls:
+// Q/A = z +1 / -1
+// E/D = z +10 / -10
+// W   = toggle layer 0 <-> 1
+// R   = reset control box
+
+var VIEW_W = 960;
+var VIEW_H = 540;
+
+var G_BOX = -1;
+
+var KEY_Q = 81;
+var KEY_A = 65;
+var KEY_W = 87;
+var KEY_E = 69;
+var KEY_D = 68;
+var KEY_R = 82;
+
+var CONTROL_LAYER = 0;
+var CONTROL_Z = 5;
+
+process static_box(px, py, z0, r, g, b, a)
+{
+    x = px;
+    y = py;
+    z = z0;
+    graph = G_BOX;
+    size = 40;
+    red = r;
+    green = g;
+    blue = b;
+    alpha = a;
+
+    set_layer(0);
+    update_order();
+
+    loop
+    {
+        x = get_mouse_x();
+        y = get_mouse_y();
+        frame;
+    }
+}
+
+process control_box(px, py)
+{
+    x = px;
+    y = py;
+    z = CONTROL_Z;
+    graph = G_BOX;
+    size = 80;
+    red = 255;
+    green = 240;
+    blue = 80;
+    alpha = 220;
+
+    CONTROL_LAYER = 0;
+    set_layer(CONTROL_LAYER);
+    update_order();
+
+    loop
+    {
+        if (key_pressed(KEY_Q))
+        {
+            z += 1;
+            update_order();
+        }
+        if (key_pressed(KEY_A))
+        {
+            z -= 1;
+            update_order();
+        }
+        if (key_pressed(KEY_E))
+        {
+            z += 10;
+            update_order();
+        }
+        if (key_pressed(KEY_D))
+        {
+            z -= 10;
+            update_order();
+        }
+
+        if (key_pressed(KEY_W))
+        {
+            if (CONTROL_LAYER == 0)
+                CONTROL_LAYER = 1;
+            else
+                CONTROL_LAYER = 0;
+
+            set_layer(CONTROL_LAYER);
+            update_order();
+        }
+
+        if (key_pressed(KEY_R))
+        {
+            CONTROL_LAYER = 0;
+            z = 5;
+            set_layer(CONTROL_LAYER);
+            update_order();
+        }
+
+        CONTROL_Z = z;
+        frame;
+    }
+}
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Test z/layer order");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+G_BOX = load_graph("../assets/tile24.png");
+if (G_BOX < 0) G_BOX = load_graph("../assets/tile5.png");
+if (G_BOX < 0) G_BOX = load_graph("../assets/tile2.png");
+
+if (G_BOX < 0)
+{
+    print("Could not load test graph from assets/tile24.png|tile5.png|tile2.png");
+}
+
+// Base stack in layer 0: red back, blue middle, green front.
+static_box(VIEW_W / 2, VIEW_H / 2, -10, 220, 60, 60, 190);
+static_box(VIEW_W / 2, VIEW_H / 2,   0,  70, 90, 230, 190);
+static_box(VIEW_W / 2, VIEW_H / 2,  10,  70, 200, 100, 190);
+
+// Control box (yellow): move by z and switch layer.
+var ctrl = control_box(VIEW_W / 2, VIEW_H / 2);
+
+loop
+{
+    set_color(18, 22, 28);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    set_color(255, 255, 255);
+    draw_text("z/layer order test", 24, 20, 34);
+    draw_text("Q/A: z +1/-1  |  E/D: z +10/-10  |  W: toggle layer 0/1  |  R: reset", 24, 62, 22);
+    draw_text(format("control z: {}   control layer: {}", CONTROL_Z, CONTROL_LAYER), 24, 98, 24);
+    draw_text("Expected: in layer 0, yellow changes front/back as z changes.", 24, 132, 20);
+    draw_text("When layer=1, yellow should appear above all layer 0 boxes.", 24, 158, 20);
+
+    frame;
+}

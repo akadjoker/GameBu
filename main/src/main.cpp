@@ -329,6 +329,7 @@ void onCreate(Interpreter *vm, Process *proc)
     entity->blueprint = proc->blueprint;
     entity->ready = false;
     entity->layer = 0;
+    entity->z = 0;
     entity->flags = B_VISIBLE | B_COLLISION;
 }
 
@@ -374,17 +375,10 @@ void onStart(Interpreter *vm, Process *proc)
         // Warning("Process %d has no associated entity!", proc->id);
         return;
     }
-    int safeLayer = z;
-    if (safeLayer < 0 || safeLayer >= MAX_LAYERS)
-        safeLayer = 0;
-
-    if (entity->layer != safeLayer)
-    {
-
-        gScene.moveEntityToLayer(entity, safeLayer);
-    }
+ 
 
     entity->graph = graph;
+    entity->z = z;
     entity->procID = proc->id;
     entity->setPosition(x, y);
     entity->setAngle(angle);
@@ -440,15 +434,9 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
     else if (proc->privates[(int)PrivateIndex::iALPHA].isNumber())
         alpha = proc->privates[12].asNumber();
 
-    int safeLayer = z;
-    if (safeLayer < 0 || safeLayer >= MAX_LAYERS)
-        safeLayer = 0;
-
-    if (entity->layer != safeLayer)
-    {
-        gScene.moveEntityToLayer(entity, safeLayer);
-    }
+   
     entity->graph = graph;
+    entity->z = z;
     entity->setPosition(x, y);
     entity->setAngle(angle);
     entity->setSize(size);
