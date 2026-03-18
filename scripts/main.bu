@@ -14,5 +14,7 @@
 //include "fun_hill_climb.bu";
 
 
-include "test_z_layer_order.bu";
+//include "test_z_layer_order.bu";
 //include "test_draw_new_api.bu";
+//include "nn_digit_playground.bu";
+include "nn_digit_teacher.bu";

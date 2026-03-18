@@ -1,0 +1,510 @@
+import nn;
+import math;
+
+var VIEW_W = 1200;
+var VIEW_H = 720;
+
+var GRID_N = 8;
+var GRID_CELL = 44;
+var GRID_X = 70;
+var GRID_Y = 150;
+
+var MOUSE_LEFT = 0;
+var MOUSE_RIGHT = 1;
+
+var KEY_C = 67;
+var KEY_R = 82;
+var KEY_S = 83;
+var KEY_SPACE = 32;
+
+var MODEL = nil;
+var CANVAS = [];
+var DIGIT_BASE = [];
+var DIGIT_SEGMENTS = [
+    [1, 1, 1, 0, 1, 1, 1],
+    [0, 0, 1, 0, 0, 1, 0],
+    [1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 1, 1, 0, 1, 1],
+    [0, 1, 1, 1, 0, 1, 0],
+    [1, 1, 0, 1, 0, 1, 1],
+    [1, 1, 0, 1, 1, 1, 1],
+    [1, 0, 1, 0, 0, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 0, 1, 1]
+];
+
+var PREDICTION = [];
+var PREDICTED_DIGIT = -1;
+var BASE_SCORE = 0;
+var STATUS_TEXT = "Treina a rede no arranque e desenha na grelha.";
+var STATUS_TIMER = 0.0;
+var LAST_RANDOM_DIGIT = -1;
+var EXPORT_PATH = "bu_nn_digit.bmp";
+
+def clamp01(v)
+{
+    if (v < 0.0) return 0.0;
+    if (v > 1.0) return 1.0;
+    return v;
+}
+
+def make_blank_sample()
+{
+    var sample = [];
+    for (var i = 0; i < GRID_N * GRID_N; i = i + 1)
+        sample.push(0.0);
+    return sample;
+}
+
+def clone_sample(src)
+{
+    var out = [];
+    for (var i = 0; i < len(src); i = i + 1)
+        out.push(src[i]);
+    return out;
+}
+
+def sample_index(x, y)
+{
+    return y * GRID_N + x;
+}
+
+def get_cell(sample, x, y)
+{
+    if (x < 0 || x >= GRID_N || y < 0 || y >= GRID_N) return 0.0;
+    return sample[sample_index(x, y)];
+}
+
+def set_cell(sample, x, y, value)
+{
+    if (x < 0 || x >= GRID_N || y < 0 || y >= GRID_N) return;
+    sample[sample_index(x, y)] = clamp01(value);
+}
+
+def paint_rect(sample, px, py, pw, ph, value)
+{
+    for (var yy = py; yy < py + ph; yy = yy + 1)
+    {
+        for (var xx = px; xx < px + pw; xx = xx + 1)
+            set_cell(sample, xx, yy, value);
+    }
+}
+
+def has_lit_neighbor(sample, x, y)
+{
+    for (var oy = -1; oy <= 1; oy = oy + 1)
+    {
+        for (var ox = -1; ox <= 1; ox = ox + 1)
+        {
+            if (ox == 0 && oy == 0) {}
+            elif (get_cell(sample, x + ox, y + oy) > 0.5) return true;
+        }
+    }
+    return false;
+}
+
+def draw_segment(sample, seg, value)
+{
+    if (seg == 0) paint_rect(sample, 2, 0, 4, 1, value);
+    elif (seg == 1) paint_rect(sample, 1, 1, 1, 2, value);
+    elif (seg == 2) paint_rect(sample, 6, 1, 1, 2, value);
+    elif (seg == 3) paint_rect(sample, 2, 3, 4, 1, value);
+    elif (seg == 4) paint_rect(sample, 1, 4, 1, 2, value);
+    elif (seg == 5) paint_rect(sample, 6, 4, 1, 2, value);
+    elif (seg == 6) paint_rect(sample, 2, 6, 4, 1, value);
+}
+
+def make_digit_sample(digit)
+{
+    var sample = make_blank_sample();
+    var segs = DIGIT_SEGMENTS[digit];
+
+    for (var i = 0; i < 7; i = i + 1)
+    {
+        if (segs[i] == 1) draw_segment(sample, i, 1.0);
+    }
+
+    var softened = clone_sample(sample);
+    for (var y = 0; y < GRID_N; y = y + 1)
+    {
+        for (var x = 0; x < GRID_N; x = x + 1)
+        {
+            if (get_cell(sample, x, y) > 0.5) {}
+            elif (has_lit_neighbor(sample, x, y))
+                set_cell(softened, x, y, 0.18);
+        }
+    }
+
+    return softened;
+}
+
+def make_one_hot(digit)
+{
+    var targetVec = [];
+    for (var i = 0; i < 10; i = i + 1)
+    {
+        if (i == digit) targetVec.push(1.0);
+        else targetVec.push(0.0);
+    }
+    return targetVec;
+}
+
+def make_variant(base, dx, dy)
+{
+    var sample = make_blank_sample();
+
+    for (var y = 0; y < GRID_N; y = y + 1)
+    {
+        for (var x = 0; x < GRID_N; x = x + 1)
+        {
+            var sourceValue = get_cell(base, x - dx, y - dy);
+            var value = 0.0;
+
+            if (sourceValue > 0.5)
+            {
+                value = 0.80 + math.rand(0.0, 0.20);
+                if (math.rand(0.0, 1.0) < 0.07)
+                    value = 0.35 + math.rand(0.0, 0.20);
+            }
+            elif (has_lit_neighbor(base, x - dx, y - dy))
+            {
+                value = 0.10 + math.rand(0.0, 0.18);
+            }
+            else
+            {
+                value = math.rand(0.0, 0.04);
+                if (math.rand(0.0, 1.0) < 0.02)
+                    value = 0.15 + math.rand(0.0, 0.12);
+            }
+
+            set_cell(sample, x, y, value);
+        }
+    }
+
+    return sample;
+}
+
+def argmax(values)
+{
+    var best = 0;
+    var bestValue = values[0];
+    for (var i = 1; i < len(values); i = i + 1)
+    {
+        if (values[i] > bestValue)
+        {
+            bestValue = values[i];
+            best = i;
+        }
+    }
+    return best;
+}
+
+def clear_canvas()
+{
+    CANVAS = make_blank_sample();
+}
+
+def load_digit_to_canvas(digit)
+{
+    CANVAS = clone_sample(DIGIT_BASE[digit]);
+    LAST_RANDOM_DIGIT = digit;
+    STATUS_TEXT = format("Canvas carregado com o prototipo do numero {}", digit);
+    STATUS_TIMER = 2.4;
+}
+
+def load_random_variant()
+{
+    var digit = math.irand(0, 9);
+    var dx = math.irand(-1, 1);
+    var dy = math.irand(-1, 1);
+    CANVAS = make_variant(DIGIT_BASE[digit], dx, dy);
+    LAST_RANDOM_DIGIT = digit;
+    STATUS_TEXT = format("Amostra sintetica do numero {} (dx={}, dy={})", digit, dx, dy);
+    STATUS_TIMER = 2.8;
+}
+
+def export_canvas()
+{
+    var pixels = [];
+    for (var i = 0; i < len(CANVAS); i = i + 1)
+    {
+        var v = clamp01(CANVAS[i]);
+        pixels.push(v);
+        pixels.push(v);
+        pixels.push(v);
+    }
+
+    var ok = nn.saveImage(EXPORT_PATH, GRID_N, GRID_N, 3, pixels);
+    if (ok)
+        STATUS_TEXT = "Canvas guardado em " + EXPORT_PATH;
+    else
+        STATUS_TEXT = "Falha ao guardar BMP do canvas";
+    STATUS_TIMER = 2.8;
+}
+
+def point_in_rect(px, py, rx, ry, rw, rh)
+{
+    return px >= rx && px < rx + rw && py >= ry && py < ry + rh;
+}
+
+def paint_canvas_at(mx, my, erase)
+{
+    if (!point_in_rect(mx, my, GRID_X, GRID_Y, GRID_CELL * GRID_N, GRID_CELL * GRID_N)) return;
+
+    var gx = int((mx - GRID_X) / GRID_CELL);
+    var gy = int((my - GRID_Y) / GRID_CELL);
+    var value = 0.0;
+    if (!erase)
+    {
+        value = 1.0;
+        var oldValue = get_cell(CANVAS, gx, gy);
+        if (value < oldValue) value = oldValue;
+    }
+    set_cell(CANVAS, gx, gy, value);
+}
+
+def update_prediction()
+{
+    PREDICTION = MODEL.predict(CANVAS);
+    PREDICTED_DIGIT = argmax(PREDICTION);
+}
+
+def train_model()
+{
+    DIGIT_BASE = [];
+    for (var digit = 0; digit < 10; digit = digit + 1)
+        DIGIT_BASE.push(make_digit_sample(digit));
+
+    var X = [];
+    var Y = [];
+
+    for (var digit = 0; digit < 10; digit = digit + 1)
+    {
+        for (var dy = -1; dy <= 1; dy = dy + 1)
+        {
+            for (var dx = -1; dx <= 1; dx = dx + 1)
+            {
+                for (var pass = 0; pass < 3; pass = pass + 1)
+                {
+                    X.push(make_variant(DIGIT_BASE[digit], dx, dy));
+                    Y.push(make_one_hot(digit));
+                }
+            }
+        }
+    }
+
+    MODEL = Network();
+    MODEL.input(GRID_N, GRID_N, 1);
+    MODEL.add(64, 48, "relu");
+    MODEL.add(48, 24, "relu");
+    MODEL.add(24, 10, "softmax");
+    MODEL.compile("adam", "cross_entropy", 0.01);
+    MODEL.fit(X, Y, 120, 12);
+
+    BASE_SCORE = 0;
+    for (var digit = 0; digit < 10; digit = digit + 1)
+    {
+        var pred = MODEL.predict(DIGIT_BASE[digit]);
+        if (argmax(pred) == digit) BASE_SCORE = BASE_SCORE + 1;
+    }
+
+    STATUS_TEXT = format("Rede pronta. Acerto nos prototipos base: {}/10", BASE_SCORE);
+    STATUS_TIMER = 4.0;
+    print(format("nn_digit_playground base score: {}/10\n", BASE_SCORE));
+}
+
+def draw_sample(sample, px, py, cellSize, bright)
+{
+    for (var y = 0; y < GRID_N; y = y + 1)
+    {
+        for (var x = 0; x < GRID_N; x = x + 1)
+        {
+            var v = get_cell(sample, x, y);
+            var r0 = 22;
+            var g0 = 28;
+            var b0 = 36;
+            if (bright)
+            {
+                r0 = 24;
+                g0 = 34;
+                b0 = 48;
+            }
+
+            set_color(r0, g0, b0);
+            draw_rectangle(px + x * cellSize, py + y * cellSize, cellSize - 1, cellSize - 1, true);
+
+            if (v > 0.01)
+            {
+                var rr = 70 + int(v * 135);
+                var gg = 140 + int(v * 80);
+                var bb = 220 + int(v * 35);
+                set_color(rr, gg, bb);
+                draw_rectangle(px + x * cellSize + 2, py + y * cellSize + 2, cellSize - 5, cellSize - 5, true);
+            }
+        }
+    }
+}
+
+def draw_button(textLabel, bx, by, bw, bh, hot)
+{
+    if (hot) set_color(72, 102, 156);
+    else set_color(40, 58, 92);
+    draw_rectangle(bx, by, bw, bh, true);
+
+    if (hot) set_color(214, 230, 255);
+    else set_color(136, 160, 204);
+    draw_rectangle(bx, by, bw, bh, false);
+
+    set_color(242, 246, 255);
+    draw_text(textLabel, bx + 18, by + 11, 22);
+}
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("NN Digit Playground");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+train_model();
+clear_canvas();
+load_random_variant();
+
+loop
+{
+    var dt = delta();
+    var mx = get_mouse_x();
+    var my = get_mouse_y();
+    var clickLeft = mouse_pressed(MOUSE_LEFT);
+
+    if (STATUS_TIMER > 0.0) STATUS_TIMER -= dt;
+
+    if (key_pressed(KEY_C)) clear_canvas();
+    if (key_pressed(KEY_R) || key_pressed(KEY_SPACE)) load_random_variant();
+    if (key_pressed(KEY_S)) export_canvas();
+
+    if (mouse_down(MOUSE_LEFT))
+        paint_canvas_at(mx, my, false);
+    if (mouse_down(MOUSE_RIGHT))
+        paint_canvas_at(mx, my, true);
+
+    var buttonY = 565;
+    var clearHot = point_in_rect(mx, my, 470, buttonY, 120, 48);
+    var randomHot = point_in_rect(mx, my, 610, buttonY, 170, 48);
+    var saveHot = point_in_rect(mx, my, 800, buttonY, 160, 48);
+
+    if (clickLeft && clearHot)
+    {
+        clear_canvas();
+        STATUS_TEXT = "Canvas limpo";
+        STATUS_TIMER = 1.6;
+    }
+    if (clickLeft && randomHot) load_random_variant();
+    if (clickLeft && saveHot) export_canvas();
+
+    for (var digit = 0; digit < 10; digit = digit + 1)
+    {
+        var col = digit % 5;
+        var row = int(digit / 5);
+        var bx = 824 + col * 66;
+        var by = 142 + row * 110;
+        if (clickLeft && point_in_rect(mx, my, bx, by, 58, 96))
+            load_digit_to_canvas(digit);
+    }
+
+    update_prediction();
+
+    set_draw_screen(true);
+    set_alpha(255);
+
+    set_color(13, 18, 26);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    for (var band = 0; band < 5; band = band + 1)
+    {
+        var k = 16 + band * 6;
+        set_color(k, k + 8, k + 18);
+        draw_rectangle(0, band * 150, VIEW_W, 150, true);
+    }
+
+    set_color(230, 238, 252);
+    draw_text("NN Digit Playground", 52, 38, 42);
+    set_color(160, 178, 208);
+    draw_text("Loop top-level, sem process, com treino sintetico 8x8 no arranque", 54, 82, 22);
+
+    set_color(18, 24, 36);
+    draw_rectangle(40, 124, 392, 472, true);
+    set_color(90, 118, 168);
+    draw_rectangle(40, 124, 392, 472, false);
+    set_color(242, 246, 255);
+    draw_text("Desenha aqui", 68, 132, 30);
+    set_color(156, 174, 206);
+    draw_text("Mouse esquerdo pinta | direito apaga", 68, 170, 18);
+
+    draw_sample(CANVAS, GRID_X, GRID_Y, GRID_CELL, true);
+
+    set_color(28, 36, 50);
+    draw_rectangle(470, 84, 690, 480, true);
+    set_color(88, 114, 160);
+    draw_rectangle(470, 84, 690, 480, false);
+
+    set_color(238, 244, 255);
+    draw_text("Palpite", 492, 98, 30);
+    set_color(255, 212, 116);
+    draw_text(format("{}", PREDICTED_DIGIT), 504, 144, 88);
+
+    set_color(172, 192, 224);
+    draw_text(format("Conf: {}%", int(PREDICTION[PREDICTED_DIGIT] * 100.0)), 500, 236, 22);
+    draw_text(format("Base score: {}/10", BASE_SCORE), 500, 264, 22);
+    if (LAST_RANDOM_DIGIT >= 0)
+        draw_text(format("Ultima amostra random: {}", LAST_RANDOM_DIGIT), 500, 292, 22);
+
+    for (var i = 0; i < 10; i = i + 1)
+    {
+        var py = 326 + i * 21;
+        var barW = int(PREDICTION[i] * 250);
+        set_color(170, 188, 220);
+        draw_text(format("{}", i), 500, py - 3, 20);
+        set_color(36, 48, 68);
+        draw_rectangle(526, py, 260, 14, true);
+        if (i == PREDICTED_DIGIT) set_color(255, 196, 92);
+        else set_color(92, 156, 236);
+        draw_rectangle(526, py, barW, 14, true);
+    }
+
+    set_color(206, 220, 242);
+    draw_text("Prototipos clicaveis", 824, 102, 24);
+    for (var digit = 0; digit < 10; digit = digit + 1)
+    {
+        var col = digit % 5;
+        var row = int(digit / 5);
+        var bx = 824 + col * 66;
+        var by = 142 + row * 110;
+        var hot = point_in_rect(mx, my, bx, by, 58, 96);
+
+        if (hot) set_color(62, 88, 134);
+        else set_color(34, 48, 74);
+        draw_rectangle(bx, by, 58, 96, true);
+
+        if (digit == PREDICTED_DIGIT) set_color(255, 208, 110);
+        elif (hot) set_color(190, 214, 252);
+        else set_color(108, 136, 184);
+        draw_rectangle(bx, by, 58, 96, false);
+
+        set_color(240, 246, 255);
+        draw_text(format("{}", digit), bx + 18, by + 8, 18);
+        draw_sample(DIGIT_BASE[digit], bx + 9, by + 28, 5, false);
+    }
+
+    draw_button("Limpar", 470, buttonY, 120, 48, clearHot);
+    draw_button("Random", 610, buttonY, 170, 48, randomHot);
+    draw_button("Guardar BMP", 800, buttonY, 160, 48, saveHot);
+
+    set_color(170, 188, 214);
+    draw_text("R/SPACE gera variante | C limpa | S exporta BMP 8x8", 474, 626, 20);
+    draw_text("Isto usa samples sinteticos para provar que a NN e o draw estao vivos.", 474, 652, 20);
+
+    set_color(255, 236, 176);
+    if (STATUS_TIMER > 0.0) draw_text(STATUS_TEXT, 54, 676, 20);
+    else draw_text("Experimenta desenhar 0-9, ou clica nos prototipos para comparar.", 54, 676, 20);
+
+    frame;
+}
