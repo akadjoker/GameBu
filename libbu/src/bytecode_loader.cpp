@@ -1860,6 +1860,7 @@ bool Interpreter::loadBytecode(const char *filename)
 
     currentProcess = mainProcess;
     run_process(mainProcess);
+    currentProcess = nullptr;
     if (hasFatalError_)
     {
       safetimeError("loadBytecode: fatal error while bootstrapping '%s'", filename);

@@ -1,0 +1,47 @@
+var VIEW_W = 960;
+var VIEW_H = 540;
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Top-Level Draw Test");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+var t = 0.0;
+
+loop
+{
+    var dt = delta();
+    if (dt < 0.0) dt = 0.0;
+    t += dt;
+
+    set_draw_screen(true);
+    set_alpha(255);
+
+    set_color(20, 28, 46);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    set_color(52, 82, 126);
+    draw_rectangle(60, 70, 840, 400, true);
+
+    set_color(214, 228, 248);
+    draw_rectangle(60, 70, 840, 400, false);
+
+    var cx = 480 + int(sin(t * 2.0) * 160);
+    var cy = 270 + int(cos(t * 1.7) * 90);
+
+    set_color(255, 210, 110);
+    draw_circle(cx, cy, 42, true);
+
+    set_color(255, 246, 220);
+    draw_circle(cx, cy, 42, false);
+
+    set_color(240, 246, 255);
+    draw_text("TOP-LEVEL DRAW TEST", 250, 120, 36);
+
+    set_color(188, 208, 236);
+    draw_text("Este demo nao usa process.", 300, 170, 22);
+    draw_text("Se isto nao aparecer, o draw top-level esta quebrado.", 172, 206, 22);
+    draw_text(format("t = {}", int(t * 100) / 100.0), 390, 350, 24);
+
+    frame;
+}

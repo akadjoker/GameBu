@@ -962,6 +962,7 @@ bool Interpreter::run(const char *source, bool _dump)
 
   //  Debug::disassembleChunk(*mainProcess->frames[0].func->chunk,"#main");
   run_process(mainProcess);
+  currentProcess = nullptr;
 
   return !hasFatalError_;
 #endif

@@ -1,2 +1,38 @@
-/build
-/TMP
+/bin/
+/build/
+/build-*/
+/cmake-build-*/
+/TMP/
+
+# Legacy local build dirs
+/build-check/
+/build-check-static/
+/build-check-dynamic/
+
+# Common CMake/Ninja outputs
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+build.ninja
+.ninja_*
+compile_commands.json
+
+# Build/test artifacts
+*.a
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+*.app
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.pyc
+*.pyo

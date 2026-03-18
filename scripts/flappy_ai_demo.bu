@@ -1082,6 +1082,87 @@ def draw_panel()
     }
 }
 
+process flappy_app()
+{
+    loop
+    {
+        var dt = delta();
+        if (dt <= 0.0) dt = SIM_DT;
+        if (dt > 0.05) dt = 0.05;
+
+        if (key_pressed(KEY_ESCAPE)) close_window();
+
+        if (key_pressed(KEY_SPACE))
+        {
+            if (RUNNER_MODE) set_status("Runner mode ON (P to disable)");
+            elif (OFFLINE_ACTIVE) set_status("Offline training running...");
+            else TRAINING_ACTIVE = !TRAINING_ACTIVE;
+        }
+
+        if (key_pressed(KEY_G)) save_best_weights();
+        if (key_pressed(KEY_L)) load_best_weights();
+
+        if (key_pressed(KEY_P))
+        {
+            RUNNER_MODE = !RUNNER_MODE;
+            if (RUNNER_MODE)
+            {
+                TRAINING_ACTIVE = false;
+                OFFLINE_ACTIVE = false;
+                set_status("Runner mode ON");
+            }
+            else
+            {
+                set_status("Runner mode OFF");
+            }
+        }
+
+        if (key_pressed(KEY_I))
+        {
+            instant_train(220);
+            set_status("Instant train +220 evals");
+        }
+
+        if (key_pressed(KEY_O))
+        {
+            if (OFFLINE_ACTIVE) cancel_offline_training();
+            else start_offline_training(OFFLINE_MAX_EVALS, OFFLINE_TARGET_FIT);
+        }
+
+        if (key_pressed(KEY_R))
+        {
+            reset_training();
+            live_reset_world();
+            RUNNER_MODE = false;
+            OFFLINE_ACTIVE = false;
+            set_status("Population reset");
+        }
+
+        if (key_pressed(KEY_T))
+        {
+            TURBO_MODE = !TURBO_MODE;
+            if (TURBO_MODE) TRAIN_GENOMES_PER_FRAME = 12;
+            else TRAIN_GENOMES_PER_FRAME = 4;
+        }
+
+        if (!RUNNER_MODE && TRAINING_ACTIVE) update_training();
+        update_offline_training();
+        update_live_world(dt);
+
+        if (STATUS_TIMER > 0)
+        {
+            STATUS_TIMER -= dt;
+            if (STATUS_TIMER < 0) STATUS_TIMER = 0;
+        }
+
+        set_draw_screen(true);
+        draw_field();
+        draw_panel();
+        set_draw_screen(false);
+        frame;
+    }
+}
+
 // ============================================
 // Main
 // ============================================
@@ -1101,81 +1182,4 @@ if (auto_load_weights())
     set_status("Loaded weights: runner mode");
 }
 
-loop
-{
-    var dt = delta();
-    if (dt <= 0.0) dt = SIM_DT;
-    if (dt > 0.05) dt = 0.05;
-
-    if (key_pressed(KEY_ESCAPE)) close_window();
-
-    if (key_pressed(KEY_SPACE))
-    {
-        if (RUNNER_MODE) set_status("Runner mode ON (P to disable)");
-        elif (OFFLINE_ACTIVE) set_status("Offline training running...");
-        else TRAINING_ACTIVE = !TRAINING_ACTIVE;
-    }
-
-    if (key_pressed(KEY_G)) save_best_weights();
-    if (key_pressed(KEY_L)) load_best_weights();
-
-    if (key_pressed(KEY_P))
-    {
-        RUNNER_MODE = !RUNNER_MODE;
-        if (RUNNER_MODE)
-        {
-            TRAINING_ACTIVE = false;
-            OFFLINE_ACTIVE = false;
-            set_status("Runner mode ON");
-        }
-        else
-        {
-            set_status("Runner mode OFF");
-        }
-    }
-
-    if (key_pressed(KEY_I))
-    {
-        instant_train(220);
-        set_status("Instant train +220 evals");
-    }
-
-    if (key_pressed(KEY_O))
-    {
-        if (OFFLINE_ACTIVE) cancel_offline_training();
-        else start_offline_training(OFFLINE_MAX_EVALS, OFFLINE_TARGET_FIT);
-    }
-
-    if (key_pressed(KEY_R))
-    {
-        reset_training();
-        live_reset_world();
-        RUNNER_MODE = false;
-        OFFLINE_ACTIVE = false;
-        set_status("Population reset");
-    }
-
-    if (key_pressed(KEY_T))
-    {
-        TURBO_MODE = !TURBO_MODE;
-        if (TURBO_MODE) TRAIN_GENOMES_PER_FRAME = 12;
-        else TRAIN_GENOMES_PER_FRAME = 4;
-    }
-
-    if (!RUNNER_MODE && TRAINING_ACTIVE) update_training();
-    update_offline_training();
-    update_live_world(dt);
-
-    if (STATUS_TIMER > 0)
-    {
-        STATUS_TIMER -= dt;
-        if (STATUS_TIMER < 0) STATUS_TIMER = 0;
-    }
-
-    set_draw_screen(true);
-    draw_field();
-    draw_panel();
-    set_draw_screen(false);
-    frame;
-}
-
+flappy_app();

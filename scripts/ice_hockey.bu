@@ -99,6 +99,9 @@ def reset_game()
 
 def draw_arena()
 {
+    set_draw_screen(true);
+    set_alpha(255);
+
     // Ice Surface
     set_color(230, 240, 255);
     draw_rectangle(ARENA_X, ARENA_Y, ARENA_W, ARENA_H, true);
@@ -139,6 +142,8 @@ process goal_effect(gx, gy, msg)
         timer -= delta();
         if (timer <= 0) break;
         
+        set_draw_screen(true);
+        set_alpha(255);
         set_color(255, 220, 0);
         draw_text(msg, x - 60, y - 50 - (2.0-timer)*20, 40);
         frame;
@@ -190,6 +195,8 @@ process puck(start_x, start_y)
         }
         
         // Render Puck
+        set_draw_screen(true);
+        set_alpha(255);
         set_color(20, 20, 20);
         draw_circle(x, y, state, true);
         set_color(80, 80, 80);
@@ -204,7 +211,6 @@ process player(is_cpu)
     // Use 'state' for radius
     state = PLAYER_R;
     set_circle_shape(state);
-    
     velx = 0.0; vely = 0.0;
     var speed = 25.0; // Acceleration
     var max_speed = 500.0;
@@ -212,6 +218,7 @@ process player(is_cpu)
     // Initial Position
     if (is_cpu) { x = ARENA_X + ARENA_W - 150; y = ARENA_Y + ARENA_H/2; }
     else        { x = ARENA_X + 150; y = ARENA_Y + ARENA_H/2; }
+    set_layer(2);
 
     loop
     {
@@ -288,6 +295,8 @@ process player(is_cpu)
         if (other) resolve_circle_collision(me, other);
 
         // Render Cap
+        set_draw_screen(true);
+        set_alpha(255);
         if (is_cpu) set_color(220, 60, 60); // Red (CPU)
         else        set_color(60, 100, 220); // Blue (Player)
         
@@ -308,11 +317,36 @@ process player(is_cpu)
     }
 }
 
+process game_renderer()
+{
+    loop
+    {
+        // Background + arena + UI precisam correr num processo ativo por frame.
+        set_draw_screen(true);
+        set_alpha(255);
+        set_color(30, 35, 45);
+        draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+        draw_arena();
+
+        set_color(255, 255, 255);
+        draw_text(format("PLAYER: {}", SCORE_P1), ARENA_X, ARENA_Y - 40, 24);
+        draw_text(format("CPU: {}", SCORE_CPU), ARENA_X + ARENA_W - 120, ARENA_Y - 40, 24);
+        draw_text("WASD to Move | R to Reset", VIEW_W/2 - 100, VIEW_H - 30, 16);
+
+        if (key_pressed(KEY_R)) reset_game();
+
+        frame;
+    }
+}
+
 // --- Main Execution ---
 set_window_size(VIEW_W, VIEW_H);
 set_window_title("Ice Caps Arena - Winter Jam");
 set_design_resolution(VIEW_W, VIEW_H);
 set_virtual_screen_enabled(true);
+
+game_renderer();
 
 // Init Entities
 var p = player(false);
@@ -323,23 +357,3 @@ CPU_ID = c.id;
 
 var pk = puck(ARENA_X + ARENA_W/2, ARENA_Y + ARENA_H/2);
 PUCK_ID = pk.id;
-
-loop
-{
-    // Background
-    set_color(30, 35, 45);
-    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
-    
-    draw_arena();
-    
-    // UI Scoreboard
-    set_color(255, 255, 255);
-    draw_text(format("PLAYER: {}", SCORE_P1), ARENA_X, ARENA_Y - 40, 24);
-    draw_text(format("CPU: {}", SCORE_CPU), ARENA_X + ARENA_W - 120, ARENA_Y - 40, 24);
-    
-    draw_text("WASD to Move | R to Reset", VIEW_W/2 - 100, VIEW_H - 30, 16);
-
-    if (key_pressed(KEY_R)) reset_game();
-    
-    frame;
-}

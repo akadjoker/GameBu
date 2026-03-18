@@ -931,8 +931,19 @@ def start_game()
 def draw_menu_background()
 {
 
-    set_color(15, 20, 35);
+    set_color(24, 34, 56);
     draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    set_color(34, 52, 82);
+    draw_rectangle(0, VIEW_H - 180, VIEW_W, 180, true);
+
+    set_alpha(90);
+    set_color(210, 228, 255);
+    draw_circle(160, 110, 58, true);
+    set_alpha(255);
+
+    set_color(188, 208, 236);
+    draw_circle(146, 96, 58, true);
 
 
     var t = time();
@@ -943,6 +954,9 @@ def draw_menu_background()
     draw_circle(400, 300, 1, true);
     draw_circle(900, 400, 2, true);
     set_alpha(255);
+
+    set_color(196, 214, 240);
+    draw_text("Snowy night delivery shift", VIEW_W / 2 - 150, VIEW_H - 86, 22);
 }
 
 def update_menu()
@@ -2598,6 +2612,35 @@ process reflection_manager()
     }
 }
 
+process winters_jam_app()
+{
+    loop
+    {
+        DT = delta();
+        update_pointer();
+
+        if (REQUEST_WORLD_CLEAR)
+        {
+            stop_game_now();
+            REQUEST_WORLD_CLEAR = false;
+        }
+
+        if (GAME_STATE == STATE_MENU)
+        {
+            update_menu();
+        }
+        elif (GAME_STATE == STATE_CREDITS)
+        {
+            update_credits();
+        }
+        elif (GAME_STATE == STATE_WIN)
+        {
+            update_win();
+        }
+
+        frame;
+    }
+}
 
 
 
@@ -2617,31 +2660,4 @@ if (GAME_STATE == STATE_GAME)
     start_game();
 }
 
-loop
-{
-    DT = delta();
-    update_pointer();
-
-    if (REQUEST_WORLD_CLEAR)
-    {
-        stop_game_now();
-        REQUEST_WORLD_CLEAR = false;
-    }
-
-
-    if (GAME_STATE == STATE_MENU)
-    {
-        update_menu();
-    }
-    elif (GAME_STATE == STATE_CREDITS)
-    {
-        update_credits();
-    }
-    elif (GAME_STATE == STATE_WIN)
-    {
-        update_win();
-    }
-
-
-    frame;
-}
+winters_jam_app();
