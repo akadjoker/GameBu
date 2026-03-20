@@ -21,12 +21,7 @@ void Entity::setAngle(double newAngle)
     bounds_dirty = true;
 }
 
-void Entity::setSize(double newSize)
-{
-    size = newSize;
-    markTransformDirty();
-    bounds_dirty = true;
-}
+// setSize removed: use size_x / size_y (percentage, 100 = original)
 
 void Entity::setCenter(float cx, float cy)
 {
@@ -64,8 +59,8 @@ double Entity::getAngle()
 
 Vector2 Entity::getLocalPoint(double px, double py)
 {
-    float scale_final_x = ((float)size / 100.0f) * (float)size_x;
-    float scale_final_y = ((float)size / 100.0f) * (float)size_y;
+    float scale_final_x = (float)size_x / 100.0f;
+    float scale_final_y = (float)size_y / 100.0f;
 
     Matrix2D mat = GetRelativeTransformation(
         (float)x, (float)y,
@@ -119,9 +114,8 @@ Entity::Entity()
     flip_x = false;
     flip_y = false;
     angle = 0;
-    size = 100;
-    size_x = 1.0;
-    size_y = 1.0;
+    size_x = 100.0;
+    size_y = 100.0;
 
     center_x = -1; // POINT_UNDEFINED
     center_y = -1; // POINT_UNDEFINED
@@ -270,8 +264,8 @@ Matrix2D Entity::GetAbsoluteTransformation() const
     Layer &l = gScene.layers[layer];
     float finalX = (float)(x - l.scroll_x);
     float finalY = (float)(y - l.scroll_y);
-    float scale_final_x = ((float)size / 100.0f) * (float)size_x;
-    float scale_final_y = ((float)size / 100.0f) * (float)size_y;
+    float scale_final_x = (float)size_x / 100.0f;
+    float scale_final_y = (float)size_y / 100.0f;
 
    // Info("Entity %d absolute transformation: pos=(%f, %f) scroll=(%f, %f) size=%f", id, finalX, finalY, l.scroll_x, l.scroll_y, scale_final);
  
@@ -340,7 +334,7 @@ void Entity::render()
     }
 
     // Renderizar este entity
-    RenderTransformFlipClip(tex, g->clip, flip_x, flip_y, color, &matrix, 0);
+    RenderTransformFlipClip(tex, g->clip, flip_x, flip_y, color, &matrix, blend);
   
 
 //   Vec2 offset;

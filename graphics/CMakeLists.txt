@@ -42,6 +42,10 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
 endif()
 
 target_link_libraries(graphics libbu raylib poly2tri)
+target_include_directories(graphics PRIVATE ${CMAKE_SOURCE_DIR}/vendor/raylib/src/external)
+
+# miniaudio uses intentional integer overflow in its LCG random generator
+set_source_files_properties(src/bugl_audio.cpp PROPERTIES COMPILE_FLAGS "-fno-sanitize=signed-integer-overflow")
 
 if (WIN32)
     target_link_libraries(graphics Winmm.lib)

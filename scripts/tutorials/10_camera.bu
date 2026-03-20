@@ -1,0 +1,305 @@
+// ============================================================
+// TUTORIAL 10: Camera (Raylib Camera2D)
+// ============================================================
+// Aprende:
+//   - set_camera_target(x, y) para seguir um ponto
+//   - set_camera_offset(x, y) para definir o centro do ecrã
+//   - set_camera_zoom(zoom) para ampliar/reduzir
+//   - set_camera_rotation(degrees) para rodar a vista
+//   - start_camera_shake(ampX, ampY, freq, cycles)
+//   - Diferença entre Camera e Scroll
+// ============================================================
+// O sistema de CAMERA é do raylib (Camera2D):
+//   - Transforma TODO o rendering via matriz 2D
+//   - Suporta zoom e rotação (scroll NÃO suporta)
+//   - target = ponto do mundo que a câmara segue
+//   - offset = posição no ecrã desse ponto (centro)
+//   - NÃO afecta parallax por layer (scroll faz isso)
+//   - Ideal para: zoom in/out, rotação, screen shake
+// ============================================================
+// QUANDO USAR O QUÊ:
+//   SCROLL: parallax multi-layer, side-scrollers,
+//           backgrounds com velocidades diferentes
+//   CAMERA: zoom, rotação, shake, seguir player suave,
+//           efeitos cinematográficos
+//   AMBOS:  podem ser combinados! scroll para parallax
+//           + camera para zoom/shake
+// ============================================================
+
+import math;
+
+// --- Constantes ---
+var SCREEN_W = 800;
+var SCREEN_H = 600;
+var WORLD_W = 2400;
+var WORLD_H = 1800;
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+var KEY_UP = 265;
+var KEY_DOWN = 264;
+var KEY_W = 87;
+var KEY_S = 83;
+var KEY_A = 65;
+var KEY_D = 68;
+var KEY_Q = 81;
+var KEY_E = 69;
+var KEY_R = 82;
+var KEY_SPACE = 32;
+var KEY_ONE = 49;
+var KEY_TWO = 50;
+
+// --- Setup ---
+set_window_size(SCREEN_W, SCREEN_H);
+set_window_title("Tutorial 10: Camera (Raylib Camera2D)");
+set_design_resolution(SCREEN_W, SCREEN_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+// ============================================================
+// Graficos procedurais
+// ============================================================
+
+// --- Chão (grid pattern) ---
+var img_floor = Image(64, 64);
+img_floor.fill(50, 55, 60, 255);
+img_floor.draw_rect(0, 0, 64, 1, 70, 75, 80, 255, true);
+img_floor.draw_rect(0, 0, 1, 64, 70, 75, 80, 255, true);
+var graph_floor = img_floor.to_graph("floor");
+
+// --- Player ---
+var img_player = Image(32, 32);
+img_player.fill(0, 0, 0, 0);
+// Triângulo apontando para cima (nave)
+img_player.draw_circle(16, 16, 14, 60, 150, 230, 255, true);
+img_player.draw_circle(16, 16, 10, 80, 180, 255, 255, true);
+img_player.draw_circle(16, 12, 4, 220, 240, 255, 255, true);
+var graph_player = img_player.to_graph("player");
+
+// --- Estrela (collectable) ---
+var img_star = Image(20, 20);
+img_star.fill(0, 0, 0, 0);
+img_star.draw_circle(10, 10, 8, 255, 220, 50, 255, true);
+img_star.draw_circle(10, 10, 4, 255, 255, 150, 255, true);
+var graph_star = img_star.to_graph("star");
+
+// --- Bloco (obstáculo) ---
+var img_block = Image(48, 48);
+img_block.fill(140, 60, 60, 255);
+img_block.draw_rect(2, 2, 44, 44, 180, 80, 80, 255, true);
+img_block.draw_rect(4, 4, 40, 40, 160, 70, 70, 255, true);
+var graph_block = img_block.to_graph("block");
+
+// ============================================================
+// Estado da camera
+// ============================================================
+var cam_zoom = 1.0;
+var cam_rotation = 0.0;
+var player_x = WORLD_W / 2;
+var player_y = WORLD_H / 2;
+var cam_mode = 1;  // 1 = seguir player, 2 = livre
+
+// Configurar camera inicial
+set_camera_offset(SCREEN_W / 2, SCREEN_H / 2);
+set_camera_target(player_x, player_y);
+
+// ============================================================
+// Processes
+// ============================================================
+
+// --- Chão tiles ---
+process FloorTile(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_floor;
+    z = -100;
+    loop { frame; }
+}
+
+// --- Estrelas collectáveis ---
+process Star(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_star;
+    z = 5;
+
+    var t = math.rand(0, 628) / 100.0;
+    loop
+    {
+        // Movimento suave flutuante
+        t += delta() * 2;
+        y = start_y + sin(t) * 5;
+        frame;
+    }
+}
+
+// --- Blocos ---
+process Block(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_block;
+    z = 1;
+    loop { frame; }
+}
+
+// --- Player ---
+process Player(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_player;
+    z = 50;
+
+    var speed = 250;
+
+    loop
+    {
+        // Movimento
+        if (key_down(KEY_LEFT))  x -= speed * delta();
+        if (key_down(KEY_RIGHT)) x += speed * delta();
+        if (key_down(KEY_UP))    y -= speed * delta();
+        if (key_down(KEY_DOWN))  y += speed * delta();
+
+        // Limitar ao mundo
+        if (x < 16) x = 16;
+        if (x > WORLD_W - 16) x = WORLD_W - 16;
+        if (y < 16) y = 16;
+        if (y > WORLD_H - 16) y = WORLD_H - 16;
+
+        // Actualizar globais para a camera
+        player_x = x;
+        player_y = y;
+
+        // Rotação do player segue a rotação da câmara? Não, player é independente
+        angle = 0;
+
+        frame;
+    }
+}
+
+// ============================================================
+// Criar mundo
+// ============================================================
+
+// Grid de chão
+var tx = 32;
+while (tx < WORLD_W)
+{
+    var ty = 32;
+    while (ty < WORLD_H)
+    {
+        FloorTile(tx, ty);
+        ty += 64;
+    }
+    tx += 64;
+}
+
+// Estrelas espalhadas
+i = 0;
+while (i < 25)
+{
+    Star(math.rand(100, WORLD_W - 100), math.rand(100, WORLD_H - 100));
+    i += 1;
+}
+
+// Blocos espalhados
+i = 0;
+while (i < 15)
+{
+    Block(math.rand(200, WORLD_W - 200), math.rand(200, WORLD_H - 200));
+    i += 1;
+}
+
+// Player no centro
+Player(player_x, player_y);
+
+// ============================================================
+// Game Loop principal - controla a câmara
+// ============================================================
+loop
+{
+    // --- Zoom com W/S ---
+    if (key_down(KEY_W))
+    {
+        cam_zoom += 1.0 * delta();
+    }
+    if (key_down(KEY_S))
+    {
+        cam_zoom -= 1.0 * delta();
+    }
+    // Limitar zoom
+    if (cam_zoom < 0.3) cam_zoom = 0.3;
+    if (cam_zoom > 3.0) cam_zoom = 3.0;
+
+    // --- Rotação com Q/E ---
+    if (key_down(KEY_Q))
+    {
+        cam_rotation -= 60 * delta();
+    }
+    if (key_down(KEY_E))
+    {
+        cam_rotation += 60 * delta();
+    }
+
+    // --- Reset com R ---
+    if (key_pressed(KEY_R))
+    {
+        cam_zoom = 1.0;
+        cam_rotation = 0.0;
+    }
+
+    // --- Camera shake com SPACE ---
+    if (key_pressed(KEY_SPACE))
+    {
+        start_camera_shake(8, 8, 25, 20);
+    }
+
+    // --- Modo: 1=seguir, 2=livre ---
+    if (key_pressed(KEY_ONE)) cam_mode = 1;
+    if (key_pressed(KEY_TWO)) cam_mode = 2;
+
+    // --- Aplicar câmara ---
+    set_camera_zoom(cam_zoom);
+    set_camera_rotation(cam_rotation);
+
+    if (cam_mode == 1)
+    {
+        // Modo seguir: câmara segue o player suavemente
+        var (cx, cy) = get_camera_target();
+        var lerp_speed = 5.0;
+        var new_cx = cx + (player_x - cx) * lerp_speed * delta();
+        var new_cy = cy + (player_y - cy) * lerp_speed * delta();
+        set_camera_target(new_cx, new_cy);
+    }
+
+    // --- HUD (não afectado pela câmara) ---
+    set_draw_screen(true);
+    set_color(255, 255, 255);
+    draw_text("Tutorial 10: Camera (Raylib Camera2D)", 10, 10, 18);
+    draw_text("Setas: mover player", 10, 35, 14);
+    draw_text("W/S: zoom in/out", 10, 52, 14);
+    draw_text("Q/E: rodar câmara", 10, 69, 14);
+    draw_text("SPACE: camera shake!", 10, 86, 14);
+    draw_text("R: reset zoom/rotação", 10, 103, 14);
+
+    set_color(200, 200, 100);
+    draw_text(format("zoom: {:.2f}", cam_zoom), SCREEN_W - 180, 10, 14);
+    draw_text(format("rotation: {:.1f}", cam_rotation), SCREEN_W - 180, 27, 14);
+    draw_text(format("player: {:.0f}, {:.0f}", player_x, player_y), SCREEN_W - 180, 44, 14);
+
+    set_color(100, 200, 255);
+    var mode_text = "Modo: Seguir Player";
+    if (cam_mode == 2) mode_text = "Modo: Livre";
+    draw_text(mode_text, SCREEN_W - 180, 65, 14);
+
+    // --- Diferenças explicadas ---
+    set_color(120, 120, 120);
+    draw_text("Camera raylib: zoom + rotação + shake", 10, SCREEN_H - 50, 12);
+    draw_text("Scroll engine: parallax multi-layer (ver tutorial 9)", 10, SCREEN_H - 35, 12);
+    draw_text("Ambos podem ser combinados!", 10, SCREEN_H - 20, 12);
+
+    set_draw_screen(false);
+    frame;
+}

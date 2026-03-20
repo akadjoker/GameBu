@@ -452,7 +452,7 @@ def draw_menu()
     draw_background();
 
     set_color(235, 242, 255);
-    draw_text("ICE COINS", VIEW_W / 2 - 170, 110, 68);
+    draw_text("ICE COINS 2", VIEW_W / 2 - 170, 110, 68);
     set_color(148, 196, 228);
     draw_text("Cozy Winter Arena", VIEW_W / 2 - 130, 196, 34);
 

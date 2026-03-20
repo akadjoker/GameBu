@@ -148,7 +148,7 @@ struct Entity
     double x, y;
     double angle;
     bool flip_x, flip_y;
-    double size_x,size_y,size;
+    double size_x,size_y;
     bool ready = false;
 
     uint32 collision_layer; // Em que layer esta entity está
@@ -158,6 +158,7 @@ struct Entity
     double center_y;
 
     int64 flags;
+    int blend = 0;
 
     Rectangle bounds;
     bool bounds_dirty;
@@ -239,8 +240,6 @@ struct Entity
 
     void setPosition(double newX, double newY);
     void setAngle(double newAngle);
-
-    void setSize(double newSize);
 
     void setCenter(float cx, float cy);
 };
@@ -814,59 +813,9 @@ public:
                                   PathHeuristic heur = PF_MANHATTAN);
 };
 
-struct SoundData
-{
-    Sound sound;
-    int id;
-    char name[MAXNAME];
-};
-struct MusicData
-{
-    Music music;
-    int id;
-    char name[MAXNAME];
-};
+#include "bugl_audio.hpp"
 
-struct SoundLib
-{
-
-    std::vector<SoundData> sounds;
-    std::vector<MusicData> musics;
-
-
-    int load(const char *name, const char *soundPath);
-
-    int loadMusic(const char *name, const char *musicPath);
-
-    Sound *getSound(int id);
-    SoundData *getSoundData(int id);
-
-    Music *getMusic(int id);
-    MusicData *getMusicData(int id);
-
-    // Play direto pelo ID
-    void play(int id, float volume = 1.0f, float pitch = 1.0f);
-    void stop(int id);
-    void pause(int id);
-    void resume(int id);
-
-    // Music control
-    void playMusic(int id);
-    void stopMusic(int id);
-    void pauseMusic(int id);
-    void resumeMusic(int id);
-    void setMusicVolume(int id, float volume);
-    bool isMusicPlaying(int id);
-    void updateMusicStreams();
-    void destroyMusic();
-
-    // Info
-    bool isSoundPlaying(int id);
-    int getSoundCount() const { return sounds.size(); }
-    int getMusicCount() const { return musics.size(); }
-    // Cleanup
-    void destroy();
-};
+extern bugl::audio::Engine gAudioEngine;
 
 // --- Procedural Mesh Generation ---
 struct PolyMesh

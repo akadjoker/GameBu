@@ -1,0 +1,1298 @@
+// === BU AI Lunar Lander ===
+// Genetic Algorithm + Neural Network learning to land a rocket.
+// Watch the AI evolve from crashing to soft landings!
+
+import math;
+import fs;
+import json;
+
+// --- Window ---
+var VIEW_W = 1440;
+var VIEW_H = 840;
+
+// --- Layout ---
+var FIELD_X = 24;
+var FIELD_Y = 70;
+var FIELD_W = 900;
+var FIELD_H = 740;
+
+var PANEL_X = 952;
+var PANEL_W = VIEW_W - PANEL_X - 20;
+
+// --- Keys ---
+var KEY_ESCAPE = 256;
+var KEY_SPACE = 32;
+var KEY_T = 84;
+var KEY_R = 82;
+var KEY_H = 72;
+var KEY_G = 71;
+var KEY_L = 76;
+var KEY_I = 73;
+var KEY_O = 79;
+var KEY_P = 80;
+
+// --- Physics ---
+var GRAVITY = 40.0;
+var THRUST_POWER = 120.0;
+var ROTATE_SPEED = 2.5;
+var MAX_VEL = 250.0;
+var MAX_ANGULAR = 3.5;
+
+var SAFE_VY = 45.0;
+var SAFE_VX = 30.0;
+var SAFE_ANGLE = 0.4;
+
+var SIM_DT = 1.0 / 60.0;
+
+// --- Lander dimensions ---
+var LANDER_W = 24;
+var LANDER_H = 36;
+
+// --- Landing pad ---
+var PAD_W = 180;
+var PAD_H = 8;
+var PAD_X = 0;
+var PAD_Y = 0;
+
+// --- Terrain ---
+var TERRAIN_POINTS = [];
+var TERRAIN_COUNT = 20;
+
+// --- NN topology ---
+var NN_IN = 8;
+var NN_H = 10;
+var NN_OUT = 3;
+
+var OFF_W1 = 0;
+var OFF_B1 = NN_IN * NN_H;
+var OFF_W2 = OFF_B1 + NN_H;
+var OFF_B2 = OFF_W2 + NN_H * NN_OUT;
+var GENE_COUNT = OFF_B2 + NN_OUT;
+
+// --- GA setup ---
+var POP_SIZE = 48;
+var ELITE_KEEP = 8;
+var PARENT_POOL = 16;
+var MUT_RATE = 0.10;
+var MUT_MAG = 0.50;
+
+var EPISODES_PER_GENOME = 2;
+var STEPS_PER_EPISODE = 900;
+
+var TRAIN_GENOMES_PER_FRAME = 4;
+var TRAINING_ACTIVE = true;
+var TURBO_MODE = false;
+var RUNNER_MODE = false;
+var HUMAN_MODE = false;
+
+var INSTANT_TRAIN_EVALS = 200;
+var OFFLINE_ACTIVE = false;
+var OFFLINE_BUDGET = 0;
+var OFFLINE_DONE = 0;
+var OFFLINE_TARGET = 0.0;
+var OFFLINE_BATCH_PER_FRAME = 120;
+var OFFLINE_MAX_EVALS = 16000;
+var OFFLINE_TARGET_FIT = 8.0;
+
+var WEIGHTS_FILE = "lander_best_genome.json";
+
+// --- GA state ---
+var POPULATION = [];
+var FITNESS = [];
+var TOP_IDX = [];
+
+var GENERATION = 1;
+var TRAIN_INDEX = 0;
+var GEN_BEST_FIT = -999999.0;
+var GEN_BEST_INDEX = -1;
+
+var BEST_FIT_ALL = -999999.0;
+var BEST_GENOME = [];
+var BEST_FROM_GEN = 0;
+
+// --- Live state ---
+var LIVE_X = 0.0;
+var LIVE_Y = 0.0;
+var LIVE_VX = 0.0;
+var LIVE_VY = 0.0;
+var LIVE_ANGLE = 0.0;
+var LIVE_ANG_VEL = 0.0;
+var LIVE_FUEL = 1.0;
+var LIVE_THRUST = false;
+var LIVE_THRUST_LEFT = false;
+var LIVE_THRUST_RIGHT = false;
+var LIVE_LANDED = false;
+var LIVE_CRASHED = false;
+var LIVE_SCORE = 0;
+var LIVE_BEST_SCORE = 0;
+var LIVE_LAST_ACTION = 0;
+
+// --- Visualization ---
+var LAST_IN = [];
+var LAST_H = [];
+var LAST_O = [];
+var STATUS_TEXT = "";
+var STATUS_TIMER = 0.0;
+
+// --- Particles (exhaust) ---
+var PARTICLES_X = [];
+var PARTICLES_Y = [];
+var PARTICLES_VX = [];
+var PARTICLES_VY = [];
+var PARTICLES_LIFE = [];
+
+// --- Stars background ---
+var STARS_X = [];
+var STARS_Y = [];
+var STARS_BRIGHT = [];
+
+// ============================================
+// Helpers
+// ============================================
+
+def clampf(v, a, b)
+{
+    if (v < a) return a;
+    if (v > b) return b;
+    return v;
+}
+
+def safe_ratio(n, d)
+{
+    if (!d) return 0.0;
+    return n / d;
+}
+
+def randf(a, b) { return math.rand(a, b); }
+
+def sigmoid(x) { return 1.0 / (1.0 + exp(-x)); }
+
+def set_status(msg)
+{
+    STATUS_TEXT = msg;
+    STATUS_TIMER = 2.8;
+}
+
+// ============================================
+// Terrain generation
+// ============================================
+
+def generate_terrain()
+{
+    TERRAIN_POINTS = [];
+    var ground_y = FIELD_Y + FIELD_H - 40;
+
+    // Landing pad position
+    var pad_center = FIELD_X + FIELD_W * 0.3 + randf(0, FIELD_W * 0.4);
+    PAD_X = pad_center - PAD_W * 0.5;
+    PAD_Y = ground_y;
+
+    var step_w = FIELD_W / (TERRAIN_COUNT - 1);
+    for (var i = 0; i < TERRAIN_COUNT; i = i + 1)
+    {
+        var tx = FIELD_X + i * step_w;
+        var ty = ground_y;
+
+        // Vary terrain height, but keep pad area flat
+        if (tx < PAD_X - 20 || tx > PAD_X + PAD_W + 20)
+        {
+            ty = ground_y - randf(0, 120);
+        }
+
+        TERRAIN_POINTS.push(tx);
+        TERRAIN_POINTS.push(ty);
+    }
+}
+
+def get_terrain_y_at(wx)
+{
+    var ground_y = FIELD_Y + FIELD_H - 40;
+    // Check if over pad
+    if (wx >= PAD_X && wx <= PAD_X + PAD_W)
+        return PAD_Y;
+
+    // Interpolate terrain
+    var n = len(TERRAIN_POINTS) / 2;
+    for (var i = 0; i < n - 1; i = i + 1)
+    {
+        var x0 = TERRAIN_POINTS[i * 2];
+        var y0 = TERRAIN_POINTS[i * 2 + 1];
+        var x1 = TERRAIN_POINTS[(i + 1) * 2];
+        var y1 = TERRAIN_POINTS[(i + 1) * 2 + 1];
+
+        if (wx >= x0 && wx <= x1)
+        {
+            var t = 0.0;
+            if (x1 - x0 > 0.01) t = (wx - x0) / (x1 - x0);
+            return y0 + t * (y1 - y0);
+        }
+    }
+    return ground_y;
+}
+
+def generate_stars()
+{
+    STARS_X = [];
+    STARS_Y = [];
+    STARS_BRIGHT = [];
+    for (var i = 0; i < 80; i = i + 1)
+    {
+        STARS_X.push(randf(FIELD_X, FIELD_X + FIELD_W));
+        STARS_Y.push(randf(FIELD_Y, FIELD_Y + FIELD_H * 0.6));
+        STARS_BRIGHT.push(math.irand(80, 255));
+    }
+}
+
+// ============================================
+// Neural network (manual forward pass)
+// ============================================
+
+def make_genome()
+{
+    var g = [];
+    var i = 0;
+    while (i < GENE_COUNT) { g.push(randf(-1.0, 1.0)); i += 1; }
+    return g;
+}
+
+def clone_genome(g)
+{
+    var c = [];
+    var i = 0;
+    while (i < GENE_COUNT) { c.push(g[i]); i += 1; }
+    return c;
+}
+
+def validate_genome(g)
+{
+    if (!g) return false;
+    if (len(g) != GENE_COUNT) return false;
+    var i = 0;
+    while (i < GENE_COUNT) { if (!g[i]) g[i] = 0.0; i += 1; }
+    return true;
+}
+
+def nn_forward(g, inp, store_vis)
+{
+    if (store_vis)
+    {
+        LAST_IN.clear();
+        LAST_H.clear();
+        LAST_O.clear();
+        var ci = 0;
+        while (ci < NN_IN) { LAST_IN.push(inp[ci]); ci += 1; }
+    }
+
+    var hidden = [];
+    var h = 0;
+    while (h < NN_H)
+    {
+        var sum = g[OFF_B1 + h];
+        var i = 0;
+        while (i < NN_IN) { sum += inp[i] * g[OFF_W1 + h * NN_IN + i]; i += 1; }
+        var act = sigmoid(sum);
+        hidden.push(act);
+        if (store_vis) LAST_H.push(act);
+        h += 1;
+    }
+
+    var out = [];
+    var o = 0;
+    while (o < NN_OUT)
+    {
+        var sum2 = g[OFF_B2 + o];
+        var j = 0;
+        while (j < NN_H) { sum2 += hidden[j] * g[OFF_W2 + o * NN_H + j]; j += 1; }
+        var act2 = sigmoid(sum2);
+        out.push(act2);
+        if (store_vis) LAST_O.push(act2);
+        o += 1;
+    }
+    return out;
+}
+
+// Output interpretation:
+// out[0] > 0.5 => main thrust
+// out[1] > 0.5 => rotate left
+// out[2] > 0.5 => rotate right
+
+// ============================================
+// Save / Load
+// ============================================
+
+def save_best_weights()
+{
+    if (!validate_genome(BEST_GENOME)) { set_status("Save failed"); return false; }
+    var payload = {
+        gene_count: int(GENE_COUNT),
+        best_fit: BEST_FIT_ALL,
+        best_from_gen: int(BEST_FROM_GEN),
+        weights: BEST_GENOME
+    };
+    var text = json.stringify(payload, 2);
+    if (text == nil || text == "") { set_status("Save failed: encode"); return false; }
+    if (!fs.write(WEIGHTS_FILE, text)) { set_status("Save failed: write"); return false; }
+    set_status("Saved lander weights");
+    return true;
+}
+
+def load_best_weights()
+{
+    var text = fs.read(WEIGHTS_FILE);
+    if (text == nil || text == "") { set_status("Load failed: missing"); return false; }
+    var data = nil;
+    try { data = json.parse(text); }
+    catch (e) { set_status("Load failed: parse"); return false; }
+    if (data == nil) { set_status("Load failed: nil"); return false; }
+    var count = data["gene_count"];
+    if (count == nil || int(count) != GENE_COUNT) { set_status("Load failed: size"); return false; }
+    var w = data["weights"];
+    if (w == nil || len(w) != GENE_COUNT) { set_status("Load failed: weights"); return false; }
+    var loaded = [];
+    var i = 0;
+    while (i < GENE_COUNT) { loaded.push(w[i]); i += 1; }
+    if (!validate_genome(loaded)) { set_status("Load failed: bad genome"); return false; }
+    BEST_GENOME = loaded;
+    if (data["best_fit"] != nil) BEST_FIT_ALL = data["best_fit"];
+    if (data["best_from_gen"] != nil) BEST_FROM_GEN = int(data["best_from_gen"]);
+    set_status("Loaded lander weights");
+    return true;
+}
+
+def auto_load_weights()
+{
+    var ok = load_best_weights();
+    if (!ok) { STATUS_TEXT = ""; STATUS_TIMER = 0.0; }
+    return ok;
+}
+
+// ============================================
+// GA
+// ============================================
+
+def make_child(g1, g2)
+{
+    var c = [];
+    var i = 0;
+    while (i < GENE_COUNT)
+    {
+        var gene = g1[i];
+        if (math.rand(0, 100) < 50) gene = g2[i];
+        if (math.rand(0, 10000) < int(MUT_RATE * 10000.0))
+            gene += randf(-MUT_MAG, MUT_MAG);
+        gene = clampf(gene, -3.0, 3.0);
+        c.push(gene);
+        i += 1;
+    }
+    return c;
+}
+
+def rebuild_top_indices()
+{
+    TOP_IDX.clear();
+    var used = [];
+    var i = 0;
+    while (i < POP_SIZE) { used.push(0); i += 1; }
+
+    var k = 0;
+    while (k < PARENT_POOL && k < POP_SIZE)
+    {
+        var best = -99999999.0;
+        var best_i = -1;
+        i = 0;
+        while (i < POP_SIZE)
+        {
+            if (!used[i] && FITNESS[i] > best) { best = FITNESS[i]; best_i = i; }
+            i += 1;
+        }
+        if (best_i == -1) break;
+        used[best_i] = 1;
+        TOP_IDX.push(best_i);
+        k += 1;
+    }
+}
+
+def evolve_generation()
+{
+    rebuild_top_indices();
+    if (len(TOP_IDX) <= 0) return;
+    var new_pop = [];
+    var i = 0;
+    while (i < POP_SIZE)
+    {
+        if (i < ELITE_KEEP && i < len(TOP_IDX))
+            new_pop.push(clone_genome(POPULATION[TOP_IDX[i]]));
+        else
+        {
+            var p1 = TOP_IDX[math.rand(0, len(TOP_IDX) - 1)];
+            var p2 = TOP_IDX[math.rand(0, len(TOP_IDX) - 1)];
+            new_pop.push(make_child(POPULATION[p1], POPULATION[p2]));
+        }
+        i += 1;
+    }
+    POPULATION = new_pop;
+    FITNESS.clear();
+    i = 0;
+    while (i < POP_SIZE) { FITNESS.push(0.0); i += 1; }
+    GENERATION += 1;
+    TRAIN_INDEX = 0;
+    GEN_BEST_FIT = -999999.0;
+    GEN_BEST_INDEX = -1;
+}
+
+def reset_training()
+{
+    POPULATION.clear();
+    FITNESS.clear();
+    TOP_IDX.clear();
+    var i = 0;
+    while (i < POP_SIZE) { POPULATION.push(make_genome()); FITNESS.push(0.0); i += 1; }
+    BEST_GENOME = clone_genome(POPULATION[0]);
+    BEST_FIT_ALL = -999999.0;
+    BEST_FROM_GEN = 0;
+    GENERATION = 1;
+    TRAIN_INDEX = 0;
+    GEN_BEST_FIT = -999999.0;
+    GEN_BEST_INDEX = -1;
+}
+
+// ============================================
+// Simulation
+// ============================================
+
+def make_nn_input(lx, ly, lvx, lvy, langle, lang_vel, lfuel, _pad_x, _pad_y)
+{
+    var pad_cx = _pad_x + PAD_W * 0.5;
+    return [
+        safe_ratio(lx - FIELD_X, FIELD_W),
+        safe_ratio(ly - FIELD_Y, FIELD_H),
+        safe_ratio(lvx, MAX_VEL),
+        safe_ratio(lvy, MAX_VEL),
+        clampf(langle / 3.14159, -1.0, 1.0),
+        safe_ratio(lang_vel, MAX_ANGULAR),
+        lfuel,
+        safe_ratio(pad_cx - lx, FIELD_W)
+    ];
+}
+
+def simulate_episode(g)
+{
+    // Start above pad area with small randomness
+    var pad_cx = PAD_X + PAD_W * 0.5;
+    var lx = pad_cx + randf(-150, 150);
+    var ly = FIELD_Y + 60 + randf(0, 30);
+    var lvx = randf(-10, 10);
+    var lvy = randf(0, 5);
+    var langle = 0.0;
+    var lang_vel = 0.0;
+    var lfuel = 1.0;
+
+    var fitness = 0.0;
+    var step = 0;
+    var landed = false;
+    var crashed = false;
+    var alive_steps = 0;
+
+    while (step < STEPS_PER_EPISODE && !landed && !crashed)
+    {
+        var inp = make_nn_input(lx, ly, lvx, lvy, langle, lang_vel, lfuel, PAD_X, PAD_Y);
+        var out = nn_forward(g, inp, false);
+
+        var do_thrust = out[0] > 0.5;
+        var do_left = out[1] > 0.5;
+        var do_right = out[2] > 0.5;
+
+        // Apply rotation
+        if (do_left) lang_vel -= ROTATE_SPEED * SIM_DT;
+        if (do_right) lang_vel += ROTATE_SPEED * SIM_DT;
+        lang_vel = clampf(lang_vel, -MAX_ANGULAR, MAX_ANGULAR);
+        lang_vel = lang_vel * 0.97;
+        langle += lang_vel * SIM_DT;
+
+        // Apply thrust
+        if (do_thrust && lfuel > 0)
+        {
+            lvx += sin(langle) * THRUST_POWER * SIM_DT * -1;
+            lvy -= cos(langle) * THRUST_POWER * SIM_DT;
+            lfuel -= 0.002;
+            if (lfuel < 0) lfuel = 0;
+        }
+
+        // Gravity
+        lvy += GRAVITY * SIM_DT;
+
+        // Velocity clamp
+        lvx = clampf(lvx, -MAX_VEL, MAX_VEL);
+        lvy = clampf(lvy, -MAX_VEL, MAX_VEL);
+
+        // Position
+        lx += lvx * SIM_DT;
+        ly += lvy * SIM_DT;
+
+        // Boundaries (left/right walls)
+        if (lx < FIELD_X + 10) { lx = FIELD_X + 10; lvx = abs(lvx) * 0.3; }
+        if (lx > FIELD_X + FIELD_W - 10) { lx = FIELD_X + FIELD_W - 10; lvx = -abs(lvx) * 0.3; }
+
+        // Top boundary
+        if (ly < FIELD_Y + 10) { ly = FIELD_Y + 10; lvy = abs(lvy) * 0.3; }
+
+        alive_steps += 1;
+
+        // Ground collision check
+        var ground_y = get_terrain_y_at(lx);
+        if (ly >= ground_y - LANDER_H * 0.5)
+        {
+            ly = ground_y - LANDER_H * 0.5;
+
+            // Check if on pad
+            var on_pad = (lx >= PAD_X && lx <= PAD_X + PAD_W);
+            var speed_ok = (abs(lvy) < SAFE_VY && abs(lvx) < SAFE_VX);
+            var angle_ok = (abs(langle) < SAFE_ANGLE);
+
+            if (on_pad && speed_ok && angle_ok)
+            {
+                landed = true;
+                fitness += 500.0;
+                fitness += lfuel * 50.0;
+                fitness += (1.0 - abs(langle) / SAFE_ANGLE) * 30.0;
+                fitness += (1.0 - abs(lvy) / SAFE_VY) * 20.0;
+                fitness += (1.0 - abs(lvx) / SAFE_VX) * 10.0;
+            }
+            else
+            {
+                crashed = true;
+                // Big partial credit for being close to pad
+                var cdist = abs(lx - pad_cx);
+                var close_bonus = clampf(1.0 - cdist / (FIELD_W * 0.5), 0, 1);
+                fitness += close_bonus * 40.0;
+                if (on_pad) fitness += 30.0;
+                if (speed_ok) fitness += 15.0;
+                if (angle_ok) fitness += 10.0;
+                // Less penalty for slow crash
+                var crash_speed = abs(lvy) + abs(lvx);
+                if (crash_speed < 100) fitness += 5.0;
+            }
+        }
+
+        // --- Dense rewards: guide GA toward landing ---
+
+        // KEY: reward being LOWER (closer to ground = progress toward landing)
+        var altitude = (ground_y - ly) / FIELD_H;
+        var descended = 1.0 - altitude;
+        fitness += descended * 0.06;
+
+        // Reward: be horizontally close to pad
+        var hdist = abs(lx - pad_cx) / FIELD_W;
+        fitness += (1.0 - hdist) * 0.04;
+
+        // Reward: stay upright (small)
+        var upright = 1.0 - abs(langle) / 3.14;
+        fitness += upright * 0.01;
+
+        // Reward: slow descent near ground
+        if (altitude < 0.3 && lvy > 0 && lvy < SAFE_VY)
+            fitness += 0.03;
+
+        // Penalize using too much fuel (hovering wastes fuel)
+        // This discourages hovering in place
+        if (do_thrust && altitude > 0.5)
+            fitness -= 0.01;
+
+        step += 1;
+    }
+
+    // PENALTY for timeout (still in air = bad, didn't land)
+    if (!landed && !crashed)
+    {
+        fitness -= 20.0;
+    }
+
+    return fitness;
+}
+
+def evaluate_genome(g)
+{
+    var total = 0.0;
+    var e = 0;
+    while (e < EPISODES_PER_GENOME) { total += simulate_episode(g); e += 1; }
+    return safe_ratio(total, EPISODES_PER_GENOME);
+}
+
+// ============================================
+// Training
+// ============================================
+
+def update_training()
+{
+    var loops = TRAIN_GENOMES_PER_FRAME;
+    while (loops > 0)
+    {
+        if (TRAIN_INDEX >= POP_SIZE) { evolve_generation(); break; }
+        var g = POPULATION[TRAIN_INDEX];
+        var fit = evaluate_genome(g);
+        FITNESS[TRAIN_INDEX] = fit;
+        if (fit > GEN_BEST_FIT) { GEN_BEST_FIT = fit; GEN_BEST_INDEX = TRAIN_INDEX; }
+        if (fit > BEST_FIT_ALL) { BEST_FIT_ALL = fit; BEST_GENOME = clone_genome(g); BEST_FROM_GEN = GENERATION; }
+        TRAIN_INDEX += 1;
+        loops -= 1;
+    }
+}
+
+def instant_train(evals)
+{
+    var total = int(evals);
+    var done = 0;
+    while (done < total)
+    {
+        if (TRAIN_INDEX >= POP_SIZE) { evolve_generation(); done += 1; continue; }
+        var g = POPULATION[TRAIN_INDEX];
+        var fit = evaluate_genome(g);
+        FITNESS[TRAIN_INDEX] = fit;
+        if (fit > GEN_BEST_FIT) { GEN_BEST_FIT = fit; GEN_BEST_INDEX = TRAIN_INDEX; }
+        if (fit > BEST_FIT_ALL) { BEST_FIT_ALL = fit; BEST_GENOME = clone_genome(g); BEST_FROM_GEN = GENERATION; }
+        TRAIN_INDEX += 1;
+        done += 1;
+    }
+}
+
+def start_offline_training(max_evals, target_fit)
+{
+    var budget = int(max_evals);
+    if (budget <= 0) return;
+    OFFLINE_ACTIVE = true;
+    OFFLINE_BUDGET = budget;
+    OFFLINE_DONE = 0;
+    OFFLINE_TARGET = target_fit;
+    RUNNER_MODE = false;
+    TRAINING_ACTIVE = false;
+    set_status(format("Offline training ({} evals)", OFFLINE_BUDGET));
+}
+
+def finish_offline_training()
+{
+    OFFLINE_ACTIVE = false;
+    save_best_weights();
+    RUNNER_MODE = true;
+    TRAINING_ACTIVE = false;
+    set_status(format("Offline done: {} evals  fit={}", OFFLINE_DONE, int(BEST_FIT_ALL * 100) / 100.0));
+}
+
+def update_offline_training()
+{
+    if (!OFFLINE_ACTIVE) return;
+    if (BEST_FIT_ALL >= OFFLINE_TARGET) { finish_offline_training(); return; }
+    if (OFFLINE_DONE >= OFFLINE_BUDGET) { finish_offline_training(); return; }
+    var batch = OFFLINE_BATCH_PER_FRAME;
+    var left = OFFLINE_BUDGET - OFFLINE_DONE;
+    if (batch > left) batch = left;
+    if (batch <= 0) { finish_offline_training(); return; }
+    instant_train(batch);
+    OFFLINE_DONE += batch;
+}
+
+// ============================================
+// Live lander
+// ============================================
+
+def reset_live_lander()
+{
+    LIVE_X = FIELD_X + FIELD_W * 0.5 + randf(-100, 100);
+    LIVE_Y = FIELD_Y + 80;
+    LIVE_VX = randf(-10, 10);
+    LIVE_VY = 0.0;
+    LIVE_ANGLE = 0.0;
+    LIVE_ANG_VEL = 0.0;
+    LIVE_FUEL = 1.0;
+    LIVE_THRUST = false;
+    LIVE_THRUST_LEFT = false;
+    LIVE_THRUST_RIGHT = false;
+    LIVE_LANDED = false;
+    LIVE_CRASHED = false;
+    LIVE_LAST_ACTION = 0;
+    PARTICLES_X = [];
+    PARTICLES_Y = [];
+    PARTICLES_VX = [];
+    PARTICLES_VY = [];
+    PARTICLES_LIFE = [];
+}
+
+def spawn_particle(px, py, pvx, pvy)
+{
+    PARTICLES_X.push(px);
+    PARTICLES_Y.push(py);
+    PARTICLES_VX.push(pvx);
+    PARTICLES_VY.push(pvy);
+    PARTICLES_LIFE.push(1.0);
+}
+
+def update_particles(dt)
+{
+    var nx = [];
+    var ny = [];
+    var nvx = [];
+    var nvy = [];
+    var nlife = [];
+    for (var i = 0; i < len(PARTICLES_X); i = i + 1)
+    {
+        var life = PARTICLES_LIFE[i] - dt * 2.5;
+        if (life > 0)
+        {
+            nx.push(PARTICLES_X[i] + PARTICLES_VX[i] * dt);
+            ny.push(PARTICLES_Y[i] + PARTICLES_VY[i] * dt);
+            nvx.push(PARTICLES_VX[i] * 0.98);
+            nvy.push(PARTICLES_VY[i] + 30 * dt);
+            nlife.push(life);
+        }
+    }
+    PARTICLES_X = nx;
+    PARTICLES_Y = ny;
+    PARTICLES_VX = nvx;
+    PARTICLES_VY = nvy;
+    PARTICLES_LIFE = nlife;
+}
+
+def update_live_lander(dt)
+{
+    if (LIVE_LANDED || LIVE_CRASHED) return;
+
+    LIVE_THRUST = false;
+    LIVE_THRUST_LEFT = false;
+    LIVE_THRUST_RIGHT = false;
+
+    if (HUMAN_MODE)
+    {
+        if (key_down(KEY_SPACE)) LIVE_THRUST = true;
+        if (key_down(263)) LIVE_THRUST_LEFT = true;
+        if (key_down(262)) LIVE_THRUST_RIGHT = true;
+    }
+    else
+    {
+        if (len(BEST_GENOME) >= GENE_COUNT)
+        {
+            var inp = make_nn_input(LIVE_X, LIVE_Y, LIVE_VX, LIVE_VY, LIVE_ANGLE, LIVE_ANG_VEL, LIVE_FUEL, PAD_X, PAD_Y);
+            var out = nn_forward(BEST_GENOME, inp, true);
+            LIVE_THRUST = out[0] > 0.5;
+            LIVE_THRUST_LEFT = out[1] > 0.5;
+            LIVE_THRUST_RIGHT = out[2] > 0.5;
+        }
+    }
+
+    // Rotation
+    if (LIVE_THRUST_LEFT) LIVE_ANG_VEL -= ROTATE_SPEED * dt;
+    if (LIVE_THRUST_RIGHT) LIVE_ANG_VEL += ROTATE_SPEED * dt;
+    LIVE_ANG_VEL = clampf(LIVE_ANG_VEL, -MAX_ANGULAR, MAX_ANGULAR);
+    LIVE_ANG_VEL = LIVE_ANG_VEL * 0.97;
+    LIVE_ANGLE += LIVE_ANG_VEL * dt;
+
+    // Thrust
+    if (LIVE_THRUST && LIVE_FUEL > 0)
+    {
+        LIVE_VX += sin(LIVE_ANGLE) * THRUST_POWER * dt * -1;
+        LIVE_VY -= cos(LIVE_ANGLE) * THRUST_POWER * dt;
+        LIVE_FUEL -= 0.002;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+
+        // Exhaust particles
+        var ex = LIVE_X + sin(LIVE_ANGLE) * LANDER_H * 0.5;
+        var ey = LIVE_Y + cos(LIVE_ANGLE) * LANDER_H * 0.5;
+        for (var p = 0; p < 2; p = p + 1)
+        {
+            spawn_particle(
+                ex + randf(-4, 4),
+                ey + randf(-2, 4),
+                sin(LIVE_ANGLE) * randf(20, 80) + randf(-20, 20),
+                cos(LIVE_ANGLE) * randf(40, 120) + randf(-15, 15)
+            );
+        }
+    }
+
+    // Gravity
+    LIVE_VY += GRAVITY * dt;
+    LIVE_VX = clampf(LIVE_VX, -MAX_VEL, MAX_VEL);
+    LIVE_VY = clampf(LIVE_VY, -MAX_VEL, MAX_VEL);
+
+    LIVE_X += LIVE_VX * dt;
+    LIVE_Y += LIVE_VY * dt;
+
+    // Walls
+    if (LIVE_X < FIELD_X + 10) { LIVE_X = FIELD_X + 10; LIVE_VX = abs(LIVE_VX) * 0.3; }
+    if (LIVE_X > FIELD_X + FIELD_W - 10) { LIVE_X = FIELD_X + FIELD_W - 10; LIVE_VX = -abs(LIVE_VX) * 0.3; }
+    if (LIVE_Y < FIELD_Y + 10) { LIVE_Y = FIELD_Y + 10; LIVE_VY = abs(LIVE_VY) * 0.3; }
+
+    // Ground
+    var ground_y = get_terrain_y_at(LIVE_X);
+    if (LIVE_Y >= ground_y - LANDER_H * 0.5)
+    {
+        LIVE_Y = ground_y - LANDER_H * 0.5;
+        var on_pad = (LIVE_X >= PAD_X && LIVE_X <= PAD_X + PAD_W);
+        var speed_ok = (abs(LIVE_VY) < SAFE_VY && abs(LIVE_VX) < SAFE_VX);
+        var angle_ok = (abs(LIVE_ANGLE) < SAFE_ANGLE);
+
+        if (on_pad && speed_ok && angle_ok)
+        {
+            LIVE_LANDED = true;
+            LIVE_SCORE += 1;
+            if (LIVE_SCORE > LIVE_BEST_SCORE) LIVE_BEST_SCORE = LIVE_SCORE;
+            set_status(format("Aterragem perfeita! Score: {}", LIVE_SCORE));
+        }
+        else
+        {
+            LIVE_CRASHED = true;
+            // Explosion particles
+            for (var p = 0; p < 20; p = p + 1)
+            {
+                spawn_particle(
+                    LIVE_X + randf(-8, 8), LIVE_Y + randf(-8, 8),
+                    randf(-80, 80), randf(-120, -20)
+                );
+            }
+            set_status("CRASH!");
+        }
+    }
+
+    update_particles(dt);
+}
+
+// ============================================
+// Rendering
+// ============================================
+
+def node_y(idx, count, y0, y1)
+{
+    if (count <= 1)
+    {
+        var mid = (y0 + y1) * 0.5;
+        return mid;
+    }
+    return y0 + safe_ratio(idx, count - 1) * (y1 - y0);
+}
+
+def draw_field()
+{
+    // Sky gradient
+    set_color(6, 8, 18);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, true);
+
+    // Stars
+    for (var i = 0; i < len(STARS_X); i = i + 1)
+    {
+        var b = STARS_BRIGHT[i];
+        set_color(b, b, b);
+        draw_circle(STARS_X[i], STARS_Y[i], 1, true);
+    }
+
+    // Terrain
+    set_color(80, 70, 60);
+    var n = len(TERRAIN_POINTS) / 2;
+    for (var i = 0; i < n - 1; i = i + 1)
+    {
+        var x0 = TERRAIN_POINTS[i * 2];
+        var y0 = TERRAIN_POINTS[i * 2 + 1];
+        var x1 = TERRAIN_POINTS[(i + 1) * 2];
+        var y1 = TERRAIN_POINTS[(i + 1) * 2 + 1];
+        draw_line(x0, y0, x1, y1);
+        // Fill below terrain
+        set_color(40, 35, 30);
+        var bottom = FIELD_Y + FIELD_H;
+        draw_triangle(x0, y0, x1, y1, x0, bottom, true);
+        draw_triangle(x1, y1, x1, bottom, x0, bottom, true);
+        set_color(80, 70, 60);
+    }
+
+    // Landing pad
+    set_color(220, 220, 60);
+    draw_rectangle(PAD_X, PAD_Y - 4, PAD_W, PAD_H, true);
+    set_color(255, 255, 120);
+    draw_text("PAD", PAD_X + PAD_W * 0.5 - 18, PAD_Y + 6, 16);
+
+    // Particles
+    for (var i = 0; i < len(PARTICLES_X); i = i + 1)
+    {
+        var life = PARTICLES_LIFE[i];
+        var a = int(life * 255);
+        if (a < 0) a = 0;
+        if (a > 255) a = 255;
+        set_alpha(a);
+        var r = int(255 * life);
+        var g = int(180 * life);
+        var b = int(60 * life);
+        set_color(r, g, b);
+        draw_circle(PARTICLES_X[i], PARTICLES_Y[i], 2 + life * 3, true);
+    }
+    set_alpha(255);
+
+    // Lander
+    if (!LIVE_CRASHED)
+    {
+        var lx = LIVE_X;
+        var ly = LIVE_Y;
+        var a = LIVE_ANGLE;
+        var hw = LANDER_W * 0.5;
+        var hh = LANDER_H * 0.5;
+
+        // Body (simplified as triangle)
+        var tip_x = lx - sin(a) * hh;
+        var tip_y = ly - cos(a) * hh;
+        var bl_x = lx - cos(a) * hw + sin(a) * hh;
+        var bl_y = ly + sin(a) * hw + cos(a) * hh;
+        var br_x = lx + cos(a) * hw + sin(a) * hh;
+        var br_y = ly - sin(a) * hw + cos(a) * hh;
+
+        // Shadow / outline
+        set_color(180, 200, 230);
+        draw_triangle(tip_x, tip_y, bl_x, bl_y, br_x, br_y, true);
+
+        // Legs
+        set_color(140, 150, 170);
+        draw_line(bl_x, bl_y, bl_x - cos(a) * 6, bl_y + cos(a) * 6 + 4);
+        draw_line(br_x, br_y, br_x + cos(a) * 6, br_y + cos(a) * 6 + 4);
+
+        // Thrust flame
+        if (LIVE_THRUST && LIVE_FUEL > 0)
+        {
+            var fx = lx + sin(a) * hh;
+            var fy = ly + cos(a) * hh;
+            var flen = 10 + randf(0, 15);
+            set_color(255, 180, 50);
+            draw_triangle(
+                fx - cos(a) * 5, fy + sin(a) * 5,
+                fx + cos(a) * 5, fy - sin(a) * 5,
+                fx + sin(a) * flen, fy + cos(a) * flen,
+                true
+            );
+            set_color(255, 255, 150);
+            draw_triangle(
+                fx - cos(a) * 2, fy + sin(a) * 2,
+                fx + cos(a) * 2, fy - sin(a) * 2,
+                fx + sin(a) * flen * 0.6, fy + cos(a) * flen * 0.6,
+                true
+            );
+        }
+
+        // Landed indicator
+        if (LIVE_LANDED)
+        {
+            set_color(80, 255, 120);
+            draw_text("LANDED!", lx - 28, ly - hh - 28, 22);
+        }
+    }
+    else
+    {
+        // Crashed: show X
+        set_color(255, 80, 60);
+        draw_text("X", LIVE_X - 8, LIVE_Y - 10, 28);
+    }
+
+    // Border
+    set_color(92, 118, 150);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, false);
+
+    // HUD
+    set_color(220, 238, 255);
+    draw_text("BU Lunar Lander AI", FIELD_X + 8, 18, 36);
+    set_color(165, 190, 220);
+    draw_text("GA + Neural Network (evolve to land!)", FIELD_X + 8, 52, 18);
+
+    // Live stats in field
+    set_color(200, 220, 240);
+    draw_text(format("Fuel: {}%", int(LIVE_FUEL * 100)), FIELD_X + 10, FIELD_Y + 8, 18);
+    draw_text(format("Vel: {},{}", int(LIVE_VX), int(LIVE_VY)), FIELD_X + 160, FIELD_Y + 8, 18);
+    draw_text(format("Angle: {}", int(LIVE_ANGLE * 57.3)), FIELD_X + 340, FIELD_Y + 8, 18);
+    draw_text(format("Score: {} (best: {})", LIVE_SCORE, LIVE_BEST_SCORE), FIELD_X + 520, FIELD_Y + 8, 18);
+
+    if (HUMAN_MODE)
+    {
+        set_color(120, 255, 180);
+        draw_text("HUMAN MODE", FIELD_X + FIELD_W - 160, FIELD_Y + 8, 18);
+    }
+}
+
+def draw_network_panel()
+{
+    set_color(18, 26, 38);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, true);
+    set_color(92, 118, 150);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, false);
+
+    set_color(220, 238, 255);
+    draw_text("Neural Network", PANEL_X + 18, FIELD_Y + 14, 24);
+
+    if (len(BEST_GENOME) < GENE_COUNT) return;
+
+    var in_x = PANEL_X + 30;
+    var h_x = PANEL_X + 160;
+    var o_x = PANEL_X + 310;
+    var y0 = FIELD_Y + 68;
+    var y1 = FIELD_Y + 380;
+
+    // Connections IN -> H
+    var h = 0;
+    while (h < NN_H)
+    {
+        var hy = node_y(h, NN_H, y0, y1);
+        var i = 0;
+        while (i < NN_IN)
+        {
+            var iy = node_y(i, NN_IN, y0, y1);
+            var w = BEST_GENOME[OFF_W1 + h * NN_IN + i];
+            var a = int(clampf(abs(w) * 170 + 18, 18, 190));
+            set_alpha(a);
+            if (w >= 0) set_color(75, 210, 95);
+            else set_color(230, 90, 90);
+            draw_line(in_x, iy, h_x, hy);
+            i += 1;
+        }
+        h += 1;
+    }
+
+    // Connections H -> O
+    var o = 0;
+    while (o < NN_OUT)
+    {
+        var oy = node_y(o, NN_OUT, y0 + 40, y1 - 40);
+        h = 0;
+        while (h < NN_H)
+        {
+            var hy2 = node_y(h, NN_H, y0, y1);
+            var w2 = BEST_GENOME[OFF_W2 + o * NN_H + h];
+            var a2 = int(clampf(abs(w2) * 180 + 18, 18, 200));
+            set_alpha(a2);
+            if (w2 >= 0) set_color(85, 220, 105);
+            else set_color(240, 95, 95);
+            draw_line(h_x, hy2, o_x, oy);
+            h += 1;
+        }
+        o += 1;
+    }
+    set_alpha(255);
+
+    // Input nodes
+    var labels_in = ["posX", "posY", "velX", "velY", "angle", "angVel", "fuel", "padDX"];
+    var ii = 0;
+    while (ii < NN_IN)
+    {
+        var niy = node_y(ii, NN_IN, y0, y1);
+        var av = 0.0;
+        if (ii < len(LAST_IN)) av = LAST_IN[ii];
+        var c = int(clampf(abs(av) * 255, 40, 255));
+        set_color(c, c, 255);
+        draw_circle(in_x, niy, 8, true);
+        set_color(170, 190, 215);
+        draw_text(labels_in[ii], in_x + 12, niy - 6, 12);
+        ii += 1;
+    }
+
+    // Hidden nodes
+    h = 0;
+    while (h < NN_H)
+    {
+        var nhy = node_y(h, NN_H, y0, y1);
+        var ah = 0.0;
+        if (h < len(LAST_H)) ah = LAST_H[h];
+        var ch = int(clampf(ah * 255, 28, 255));
+        set_color(120, ch, 220);
+        draw_circle(h_x, nhy, 8, true);
+        h += 1;
+    }
+
+    // Output nodes
+    var labels_out = ["THRUST", "ROT L", "ROT R"];
+    o = 0;
+    while (o < NN_OUT)
+    {
+        var noy = node_y(o, NN_OUT, y0 + 40, y1 - 40);
+        var ao = 0.0;
+        if (o < len(LAST_O)) ao = LAST_O[o];
+        var co = int(clampf(ao * 255, 35, 255));
+        set_color(255, co, 90);
+        draw_circle(o_x, noy, 10, true);
+        set_color(200, 215, 230);
+        draw_text(labels_out[o], o_x + 16, noy - 6, 13);
+        o += 1;
+    }
+
+    // AI Thinking bars
+    set_color(200, 224, 245);
+    draw_text("AI Thinking", PANEL_X + 20, y1 + 30, 18);
+    var bo = 0;
+    while (bo < NN_OUT)
+    {
+        var lbl = labels_out[bo];
+        var vv = 0.0;
+        if (bo < len(LAST_O)) vv = LAST_O[bo];
+        var by = y1 + 60 + bo * 28;
+        var bw = int(clampf(vv, 0, 1) * 200);
+        set_color(80, 95, 120);
+        draw_rectangle(PANEL_X + 120, by, 200, 16, true);
+        if (vv > 0.5) set_color(100, 255, 140);
+        else set_color(180, 180, 200);
+        draw_rectangle(PANEL_X + 120, by, bw, 16, true);
+        set_color(190, 210, 235);
+        draw_text(lbl, PANEL_X + 20, by + 1, 13);
+        draw_text(format("{}%", int(vv * 100)), PANEL_X + 330, by + 1, 13);
+        bo += 1;
+    }
+}
+
+def draw_stats()
+{
+    var sy = FIELD_Y + FIELD_H - 310;
+    var step = 22;
+    set_color(205, 224, 245);
+    draw_text(format("Generation: {}", GENERATION), PANEL_X + 18, sy, 18);
+    draw_text(format("Eval: {}/{}", TRAIN_INDEX, POP_SIZE), PANEL_X + 18, sy + step, 18);
+    draw_text(format("Gen Best: {}", int(GEN_BEST_FIT * 100) / 100.0), PANEL_X + 18, sy + step * 2, 18);
+    draw_text(format("Best Ever: {}", int(BEST_FIT_ALL * 100) / 100.0), PANEL_X + 18, sy + step * 3, 18);
+    draw_text(format("Best Gen: {}", BEST_FROM_GEN), PANEL_X + 18, sy + step * 4, 18);
+
+    if (TRAINING_ACTIVE) set_color(135, 250, 155);
+    else set_color(255, 190, 140);
+    draw_text(format("Training: {}", TRAINING_ACTIVE), PANEL_X + 18, sy + step * 5, 18);
+
+    if (RUNNER_MODE) set_color(120, 235, 170);
+    else set_color(220, 190, 140);
+    draw_text(format("Runner: {}", RUNNER_MODE), PANEL_X + 18, sy + step * 6, 18);
+
+    if (OFFLINE_ACTIVE) set_color(255, 220, 120);
+    else set_color(150, 170, 200);
+    draw_text(format("Offline: {} ({}/{})", OFFLINE_ACTIVE, OFFLINE_DONE, OFFLINE_BUDGET), PANEL_X + 18, sy + step * 7, 16);
+
+    if (TURBO_MODE) set_color(255, 220, 120);
+    else set_color(160, 180, 205);
+    draw_text(format("Turbo: {} ({}g/f)", TURBO_MODE, TRAIN_GENOMES_PER_FRAME), PANEL_X + 18, sy + step * 8, 18);
+
+    // Controls
+    set_color(150, 180, 210);
+    var cy = FIELD_Y + FIELD_H - 100;
+    draw_text("Controls:", PANEL_X + 18, cy, 16);
+    draw_text("SPACE: pause/resume", PANEL_X + 18, cy + 18, 14);
+    draw_text("T: turbo  H: human mode", PANEL_X + 18, cy + 34, 14);
+    draw_text("I: instant  O: offline", PANEL_X + 18, cy + 50, 14);
+    draw_text("R: reset  G/L: save/load", PANEL_X + 18, cy + 66, 14);
+    draw_text("P: runner mode", PANEL_X + 18, cy + 82, 14);
+
+    if (STATUS_TIMER > 0)
+    {
+        set_color(255, 230, 160);
+        draw_text(STATUS_TEXT, PANEL_X + 18, FIELD_Y + FIELD_H - 10, 16);
+    }
+}
+
+// ============================================
+// Main
+// ============================================
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("BU Lunar Lander AI");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+generate_terrain();
+generate_stars();
+reset_training();
+reset_live_lander();
+
+if (auto_load_weights())
+{
+    RUNNER_MODE = true;
+    TRAINING_ACTIVE = false;
+    set_status("Loaded weights: runner mode");
+}
+
+var RESET_TIMER = 0.0;
+
+loop
+{
+    var dt = delta();
+    if (dt <= 0.0) dt = SIM_DT;
+    if (dt > 0.05) dt = 0.05;
+
+    if (key_pressed(KEY_ESCAPE)) close_window();
+
+    if (key_pressed(KEY_SPACE))
+    {
+        if (RUNNER_MODE) set_status("Runner mode ON");
+        else TRAINING_ACTIVE = !TRAINING_ACTIVE;
+    }
+    if (key_pressed(KEY_H))
+    {
+        HUMAN_MODE = !HUMAN_MODE;
+        if (HUMAN_MODE) set_status("HUMAN mode: SPACE=thrust, LEFT/RIGHT=rotate");
+        else set_status("AI mode");
+        reset_live_lander();
+    }
+    if (key_pressed(KEY_G)) save_best_weights();
+    if (key_pressed(KEY_L)) load_best_weights();
+    if (key_pressed(KEY_P))
+    {
+        RUNNER_MODE = !RUNNER_MODE;
+        if (RUNNER_MODE) { TRAINING_ACTIVE = false; OFFLINE_ACTIVE = false; set_status("Runner ON"); }
+        else set_status("Runner OFF");
+    }
+    if (key_pressed(KEY_I))
+    {
+        instant_train(INSTANT_TRAIN_EVALS);
+        set_status(format("Instant: {} evals", INSTANT_TRAIN_EVALS));
+    }
+    if (key_pressed(KEY_O))
+    {
+        if (OFFLINE_ACTIVE) { OFFLINE_ACTIVE = false; set_status("Offline canceled"); }
+        else start_offline_training(OFFLINE_MAX_EVALS, OFFLINE_TARGET_FIT);
+    }
+    if (key_pressed(KEY_R))
+    {
+        reset_training();
+        generate_terrain();
+        reset_live_lander();
+        RUNNER_MODE = false;
+        OFFLINE_ACTIVE = false;
+        LIVE_SCORE = 0;
+        set_status("Reset!");
+    }
+    if (key_pressed(KEY_T))
+    {
+        TURBO_MODE = !TURBO_MODE;
+        if (TURBO_MODE) TRAIN_GENOMES_PER_FRAME = 12;
+        else TRAIN_GENOMES_PER_FRAME = 4;
+    }
+
+    // Training
+    if (!RUNNER_MODE && TRAINING_ACTIVE) update_training();
+    update_offline_training();
+
+    // Live lander
+    update_live_lander(dt);
+
+    // Auto-reset after landing/crash
+    if (LIVE_LANDED || LIVE_CRASHED)
+    {
+        RESET_TIMER += dt;
+        if (RESET_TIMER > 2.0)
+        {
+            RESET_TIMER = 0.0;
+            if (LIVE_LANDED) generate_terrain();
+            reset_live_lander();
+        }
+    }
+    else
+    {
+        RESET_TIMER = 0.0;
+    }
+
+    if (STATUS_TIMER > 0) STATUS_TIMER -= dt;
+
+    // ============================================
+    // Render
+    // ============================================
+    set_draw_screen(true);
+    set_alpha(255);
+
+    set_color(8, 10, 20);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    draw_field();
+    draw_network_panel();
+    draw_stats();
+
+    frame;
+}

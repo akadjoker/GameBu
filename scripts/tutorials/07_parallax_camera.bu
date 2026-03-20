@@ -1,0 +1,412 @@
+// ============================================================
+// TUTORIAL 7: Camera, Scroll e Parallax
+// ============================================================
+// Aprende:
+//   - Criar graphs via Image (sem ficheiros externos!)
+//   - Processos com graph + set_layer() + z + update_order()
+//   - set_scroll para mover a camera
+//   - set_layer_scroll_factor para parallax (3 layers)
+//   - Smooth camera follow
+//   - Draw imediato so para HUD (nao para o mundo!)
+// ============================================================
+
+import math;
+
+var VIEW_W = 800;
+var VIEW_H = 600;
+var WORLD_W = 2400;
+var WORLD_H = 600;
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Tutorial 7: Camera e Parallax");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+// --- PARALLAX ---
+// GameBu tem 32 layers (0-31).
+// Cada layer pode ter um scroll_factor diferente:
+//   factor 0.0 = nao se move (fixo na camera)
+//   factor 0.5 = move metade da velocidade (background)
+//   factor 1.0 = move a velocidade normal (gameplay)
+
+set_layer_scroll_factor(0, 0.2, 0.2);   // Ceu (muito lento)
+set_layer_scroll_factor(1, 0.5, 0.5);   // Montanhas (meio)
+set_layer_scroll_factor(2, 1.0, 1.0);   // Gameplay (normal)
+
+// ============================================================
+// CRIAR GRAPHS VIA IMAGE (sem assets externos!)
+// ============================================================
+// Padrão: Image(w,h) → fill/draw → to_graph("nome") → graphId
+// Depois usamos o graphId no processo com: graph = id
+
+// --- Ceu (layer 0) - gradient pixel a pixel ---
+var img_sky = Image(1, 600);
+var sy = 0;
+while (sy < 600)
+{
+    // Gradient: topo escuro (10,15,60) → base claro (60,100,180)
+    var sr = 10 + sy * 50 / 600;
+    var sg = 15 + sy * 85 / 600;
+    var sb = 60 + sy * 120 / 600;
+    img_sky.set_pixel(0, sy, sr, sg, sb);
+    sy = sy + 1;
+}
+var G_SKY = img_sky.to_graph("sky");
+
+// --- Estrela (layer 0) ---
+var img_star = Image(5, 5);
+img_star.fill(0, 0, 0, 0);
+img_star.draw_rect(2, 0, 1, 5, 255, 255, 220);  // Cruz vertical
+img_star.draw_rect(0, 2, 5, 1, 255, 255, 220);  // Cruz horizontal
+img_star.set_pixel(2, 2, 255, 255, 255);         // Centro brilhante
+var G_STAR = img_star.to_graph("star");
+
+// --- Lua (layer 0) ---
+var img_moon = Image(50, 50);
+img_moon.fill(0, 0, 0, 0);
+img_moon.draw_circle(25, 25, 22, 255, 255, 200);
+img_moon.draw_circle(25, 25, 20, 255, 250, 180);
+img_moon.draw_circle(32, 20, 18, 0, 0, 0, 0);   // Recorte crescente
+var G_MOON = img_moon.to_graph("moon");
+
+// --- Montanha (layer 1) ---
+var img_mtn = Image(200, 150);
+img_mtn.fill(0, 0, 0, 0);
+var mrow = 0;
+while (mrow < 150)
+{
+    var mw = 10 + mrow * 1.3;
+    if (mw > 200) mw = 200;
+    var mx = (200 - mw) / 2;
+    var gr = 25 + mrow / 5;
+    var gg = 45 + mrow / 3;
+    var gb = 20 + mrow / 6;
+    if (mrow < 20)
+    {
+        img_mtn.draw_rect(mx, mrow, mw, 1, 200 + mrow * 2, 210 + mrow * 2, 220 + mrow);
+    }
+    else
+    {
+        img_mtn.draw_rect(mx, mrow, mw, 1, gr, gg, gb);
+    }
+    mrow = mrow + 1;
+}
+var G_MOUNTAIN = img_mtn.to_graph("mountain");
+
+// --- Chao tile (layer 2) ---
+var img_ground = Image(64, 64);
+// Gradient de relva: topo claro, base escuro
+var gy = 0;
+while (gy < 64)
+{
+    var gg2 = 70 + (64 - gy) / 2;  // topo mais claro
+    img_ground.draw_rect(0, gy, 64, 1, 35, gg2, 25);
+    gy = gy + 1;
+}
+// Detalhes
+var gd = 0;
+while (gd < 64)
+{
+    img_ground.draw_line(gd, 0, gd + 4, 6, 55, 100, 40);
+    img_ground.draw_line(gd + 2, 0, gd + 1, 4, 45, 85, 35);
+    gd = gd + 7;
+}
+var G_GROUND = img_ground.to_graph("ground");
+
+// --- Arvore (layer 2) ---
+var img_tree = Image(48, 70);
+img_tree.fill(0, 0, 0, 0);
+img_tree.draw_rect(20, 40, 8, 30, 90, 60, 30);     // Tronco
+img_tree.draw_rect(22, 42, 4, 28, 110, 75, 40);   // Tronco highlight
+img_tree.draw_circle(24, 28, 20, 30, 100, 30);     // Copa exterior
+img_tree.draw_circle(24, 24, 16, 40, 130, 45);     // Copa media
+img_tree.draw_circle(24, 20, 10, 55, 150, 55);     // Copa highlight
+var G_TREE = img_tree.to_graph("tree");
+
+// --- Casa (layer 2) ---
+var img_house = Image(70, 65);
+img_house.fill(0, 0, 0, 0);
+img_house.draw_rect(5, 25, 60, 40, 150, 120, 80);  // Corpo
+img_house.draw_rect(7, 27, 56, 36, 170, 140, 100); // Corpo highlight
+// Telhado (linhas diagonais simuladas com rects)
+var tr = 0;
+while (tr < 20)
+{
+    var tw = 60 - tr * 3;
+    if (tw < 4) tw = 4;
+    var tx = (70 - tw) / 2;
+    img_house.draw_rect(tx, 5 + tr, tw, 1, 180 - tr * 2, 50, 40);
+    tr = tr + 1;
+}
+img_house.draw_rect(28, 42, 14, 23, 90, 70, 50);  // Porta
+img_house.draw_rect(30, 44, 10, 19, 70, 50, 35);  // Porta interior
+img_house.draw_rect(12, 35, 10, 10, 150, 200, 240); // Janela
+img_house.draw_rect(48, 35, 10, 10, 150, 200, 240); // Janela
+var G_HOUSE = img_house.to_graph("house");
+
+// --- Jogador (layer 2) - GRANDE para ser visivel ---
+var img_player = Image(32, 32);
+img_player.fill(0, 0, 0, 0);
+// Outline
+img_player.draw_circle(16, 16, 15, 200, 150, 20);
+// Corpo amarelo
+img_player.draw_circle(16, 16, 13, 255, 210, 60);
+// Highlight
+img_player.draw_circle(14, 12, 6, 255, 240, 120);
+// Olhos
+img_player.draw_circle(11, 13, 3, 40, 40, 40);
+img_player.draw_circle(21, 13, 3, 40, 40, 40);
+img_player.draw_circle(11, 12, 1, 255, 255, 255);
+img_player.draw_circle(21, 12, 1, 255, 255, 255);
+// Sorriso
+img_player.draw_rect(12, 20, 8, 2, 40, 40, 40);
+var G_PLAYER = img_player.to_graph("player");
+
+// Camera
+var cam_x = 0.0;
+var cam_y = 0.0;
+var GROUND_Y = WORLD_H - 64;
+var p = nil;
+
+// ============================================================
+// Layer 0: Ceu, Estrelas e Lua (entities, scroll factor 0.2)
+// ============================================================
+process sky_bg(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_SKY;
+    size_x = WORLD_W;  // Esticar 1px de largura para cobrir mundo todo
+    size_y = 100;
+    z = -100;          // Atras de tudo
+    set_layer(0);
+    update_order();
+    loop { frame; }
+}
+
+process star(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_STAR;
+    z = 0;
+    set_layer(0);
+    update_order();
+    loop { frame; }
+}
+
+process moon(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_MOON;
+    z = 1;
+    set_layer(0);
+    update_order();
+    loop { frame; }
+}
+
+// ============================================================
+// Layer 1: Montanhas (entities, scroll factor 0.5)
+// ============================================================
+process mountain(px, py, sc)
+{
+    x = px;
+    y = py;
+    graph = G_MOUNTAIN;
+    size = sc;
+    z = 0;
+    set_layer(1);
+    update_order();
+    loop { frame; }
+}
+
+// ============================================================
+// Layer 2: Chao, Arvores, Casas (entities, scroll factor 1.0)
+// ============================================================
+process ground_tile(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_GROUND;
+    z = 0;
+    set_layer(2);
+    update_order();
+    loop { frame; }
+}
+
+process tree(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_TREE;
+    z = 5;
+    set_layer(2);
+    update_order();
+    loop { frame; }
+}
+
+process house(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_HOUSE;
+    z = 5;
+    set_layer(2);
+    update_order();
+    loop { frame; }
+}
+
+// ============================================================
+// JOGADOR (entity com graph, layer 2, z alto)
+// ============================================================
+process camera_player(px, py)
+{
+    x = px;
+    y = py;
+    graph = G_PLAYER;
+    size = 150;        // Maior para ser bem visivel
+    z = 10;            // Por cima de arvores e casas
+    set_layer(2);      // Mesmo layer que o gameplay
+    update_order();
+    var speed = 300;
+
+    loop
+    {
+        var dt = delta();
+
+        if (key_down(263)) x = x - speed * dt; // LEFT
+        if (key_down(262)) x = x + speed * dt; // RIGHT
+        if (key_down(265)) y = y - speed * dt; // UP
+        if (key_down(264)) y = y + speed * dt; // DOWN
+        x = math.clamp(x, 20, WORLD_W - 20);
+        y = math.clamp(y, 20, GROUND_Y);
+
+        frame;
+    }
+}
+
+// ============================================================
+// HUD - draw imediato so para UI! (nao para objectos no mundo)
+// ============================================================
+process parallax_hud()
+{
+    loop
+    {
+        set_draw_screen(true);
+
+        set_color(0, 0, 0);
+        set_alpha(150);
+        draw_rectangle(0, 0, VIEW_W, 55, true);
+        set_alpha(255);
+
+        set_color(255, 255, 100);
+        draw_text("Tutorial 7: Parallax (entities + graph)", 10, 5, 18);
+        set_color(200, 200, 200);
+        draw_text("[Setas] Mover - cada layer move a velocidade diferente!", 10, 28, 12);
+        draw_text("Layer0=0.2x  Layer1=0.5x  Layer2=1.0x", 10, 42, 11);
+
+        // Mini-mapa (draw imediato e perfeito para HUD)
+        set_color(40, 40, 40);
+        var mm_w = 160;
+        var mm_h = 20;
+        var mm_x = VIEW_W - mm_w - 10;
+        var mm_y = 10;
+        draw_rectangle(mm_x, mm_y, mm_w, mm_h, true);
+        set_color(100, 100, 100);
+        draw_rectangle(mm_x, mm_y, mm_w, mm_h, false);
+
+        // Viewport no mini-mapa
+        var vp_x = mm_x + cam_x / WORLD_W * mm_w;
+        var vp_w = VIEW_W / WORLD_W * mm_w;
+        set_color(255, 255, 100);
+        draw_rectangle(vp_x, mm_y, vp_w, mm_h, false);
+
+        // Jogador no mini-mapa
+        if (p)
+        {
+            set_color(255, 100, 100);
+            draw_circle(mm_x + p.x / WORLD_W * mm_w, mm_y + mm_h / 2, 3, true);
+        }
+
+        set_draw_screen(false);
+        frame;
+    }
+}
+
+// ============================================================
+// CRIAR O MUNDO (tudo entities com graph!)
+// ============================================================
+
+// Ceu de fundo (layer 0, z=-100, atras de tudo)
+sky_bg(WORLD_W / 2, VIEW_H / 2);
+
+// Estrelas (layer 0)
+var s = 0;
+while (s < 30)
+{
+    star((s * 173 + 47) % WORLD_W, (s * 89 + 23) % 300);
+    s = s + 1;
+}
+
+// Lua (layer 0)
+moon(1800, 80);
+
+// Montanhas (layer 1)
+var m = 0;
+while (m < 8)
+{
+    mountain(m * 350 + 150, WORLD_H - 180, 100 + (m * 31) % 60);
+    m = m + 1;
+}
+
+// Chao tiles (layer 2)
+var gx = 32;
+while (gx < WORLD_W)
+{
+    ground_tile(gx, GROUND_Y + 32);
+    gx = gx + 64;
+}
+
+// Arvores (layer 2)
+var t = 0;
+while (t < 12)
+{
+    tree(100 + t * 200, GROUND_Y - 15);
+    t = t + 1;
+}
+
+// Casas (layer 2)
+house(600, GROUND_Y - 12);
+house(1400, GROUND_Y - 12);
+
+// Player (layer 2, z=10 = por cima de tudo no layer)
+p = camera_player(400, GROUND_Y - 12);
+
+// HUD (draw imediato, so para overlay no ecra)
+parallax_hud();
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+loop
+{
+    var dt = delta();
+
+    // Smooth camera follow
+    if (p)
+    {
+        var target_x = p.x - VIEW_W * 0.5;
+        var target_y = p.y - VIEW_H * 0.5;
+        target_x = math.clamp(target_x, 0, WORLD_W - VIEW_W);
+        target_y = math.clamp(target_y, 0, WORLD_H - VIEW_H);
+        cam_x = cam_x + (target_x - cam_x) * math.min(1.0, dt * 5);
+        cam_y = cam_y + (target_y - cam_y) * math.min(1.0, dt * 5);
+    }
+
+    // Aplicar scroll - move TODAS as layers (cada uma com o seu factor)
+    set_scroll(cam_x, cam_y);
+
+    frame;
+}

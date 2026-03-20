@@ -1,0 +1,193 @@
+// ============================================================
+// TUTORIAL 3: Processos - O Coracao do Motor
+// ============================================================
+// Aprende:
+//   - O que e um processo (entidade viva com loop proprio)
+//   - Privates: x, y, angle, size, graph
+//   - Criar processos e comunicar entre eles
+//   - proc(id) para obter referencia
+//   - Processos morrem quando o loop acaba (break)
+// ============================================================
+
+import math;
+
+set_window_size(800, 600);
+set_window_title("Tutorial 3: Processos");
+set_design_resolution(800, 600);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+// --- O QUE E UM PROCESSO? ---
+// Um processo e como um "objecto vivo" - tem a sua propria
+// posicao (x, y), angulo, tamanho, e corre o seu loop
+// independentemente. Pensa neles como actores num jogo.
+//
+// Cada processo tem 28 "privates" automaticas:
+//   x, y      - posicao
+//   z         - ordem de render (maior = mais a frente)
+//   angle     - rotacao em graus
+//   size      - tamanho em % (100 = normal)
+//   graph     - ID do sprite (-1 = sem sprite)
+//
+// Um processo VIVE enquanto estiver no loop.
+// Quando faz break; ou sai do loop, MORRE.
+
+// Criar varios processos
+var ball_ids = [];
+
+// ============================================================
+// PROCESSO: Bola que salta
+// ============================================================
+process bouncing_ball(start_x, start_y)
+{
+    // x e y sao PRIVATES - o motor usa-as para posicionar
+    x = start_x;
+    y = start_y;
+
+    // Variaveis locais (so este processo ve)
+    var vx = math.rand(-200, 200);
+    var vy = math.rand(-300, -100);
+    var radius = math.rand(10, 25);
+    var r = math.rand(100, 255);
+    var g = math.rand(100, 255);
+    var b = math.rand(100, 255);
+    var life = 5.0; // segundos de vida
+
+    loop
+    {
+        var dt = delta();
+
+        // Gravidade
+        vy = vy + 500 * dt;
+
+        // Mover
+        x = x + vx * dt;
+        y = y + vy * dt;
+
+        // Bounce nas paredes
+        if (x < radius || x > 800 - radius)
+        {
+            vx = -vx;
+            x = math.clamp(x, radius, 800 - radius);
+        }
+
+        // Bounce no chao
+        if (y > 500 - radius)
+        {
+            y = 500 - radius;
+            vy = -vy * 0.8; // perde energia
+        }
+
+        // Diminuir vida
+        life = life - dt;
+        var alpha_val = math.clamp(life / 5.0 * 255, 0, 255);
+
+        // Desenhar
+        set_alpha(alpha_val);
+        set_color(r, g, b);
+        draw_circle(x, y, radius, true);
+        set_color(255, 255, 255);
+        draw_circle(x, y, radius, false);
+        set_alpha(255);
+
+        // Morrer quando vida acaba
+        if (life <= 0)
+        {
+            break; // processo morre aqui!
+        }
+
+        frame;
+    }
+    // Depois do break, o processo e destruido automaticamente
+}
+
+// ============================================================
+// PROCESSO: Spawner - cria novas bolas ao clicar
+// ============================================================
+process spawner()
+{
+    loop
+    {
+        // Clicar cria nova bola na posicao do rato
+        if (mouse_down(0)) // botao esquerdo
+        {
+            var mx = get_mouse_x();
+            var my = get_mouse_y();
+            bouncing_ball(mx, my);
+        }
+
+        frame;
+    }
+}
+
+// ============================================================
+// PROCESSO: HUD - mostra informacao
+// ============================================================
+process hud()
+{
+    loop
+    {
+        // Background
+        set_color(15, 15, 30);
+        draw_rectangle(0, 0, 800, 600, true);
+
+        // Chao
+        set_color(40, 60, 40);
+        draw_rectangle(0, 500, 800, 100, true);
+
+        // Titulo
+        set_color(255, 255, 100);
+        draw_text("Tutorial 3: Processos", 10, 10, 20);
+
+        // Instrucoes
+        set_color(200, 200, 200);
+        draw_text("Clica para criar bolas! Cada bola e um PROCESSO.", 10, 40, 14);
+        draw_text("Cada uma tem x, y, velocidade e vida propria.", 10, 58, 14);
+        draw_text("Quando life <= 0, faz break; e o processo morre.", 10, 76, 14);
+
+        // Mostrar estado das bolas iniciais
+        set_color(100, 200, 255);
+        draw_text("Bolas iniciais:", 10, 520, 14);
+        var j = 0;
+        while (j < ball_ids.length())
+        {
+            var b = proc(ball_ids[j]);
+            if (b)
+            {
+                draw_text(format("Bola {}: x={:.0f} y={:.0f}", j, b.x, b.y), 10, 540 + j * 12, 10);
+            }
+            else
+            {
+                set_color(255, 100, 100);
+                draw_text("Bola " + j + ": MORTA", 10, 540 + j * 12, 10);
+                set_color(100, 200, 255);
+            }
+            j = j + 1;
+        }
+
+        frame;
+    }
+}
+
+
+
+var i = 0;
+while (i < 5)
+{
+    var b = bouncing_ball(100 + i * 150, 300);
+    ball_ids.push(b.id);
+    i = i + 1;
+}
+
+// Criar HUD (tambem e um processo!)
+hud();
+
+// Criar o spawner
+spawner();
+
+// Loop principal
+loop
+{
+    frame;
+}

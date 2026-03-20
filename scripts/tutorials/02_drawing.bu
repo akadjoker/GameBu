@@ -1,0 +1,282 @@
+// ============================================================
+// TUTORIAL 2: Primitivas de Desenho
+// ============================================================
+// Aprende:
+//   - Todas as formas: rect, circle, line, triangle, ellipse, ring
+//   - Novas formas: rounded_rect, arc, bezier, poly, gradient
+//   - set_color e set_alpha
+//   - set_blend_mode para efeitos de luz
+//   - clip_begin / clip_end para recortar
+// ============================================================
+
+import math;
+
+set_window_size(800, 600);
+set_window_title("Tutorial 2: Primitivas de Desenho");
+set_design_resolution(800, 600);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+var page = 0;
+var PAGES = 4;
+var t = 0;
+
+loop
+{
+    t = t + 1;
+
+    // Navegacao
+    if (key_pressed(262)) page = (page + 1) % PAGES;       // RIGHT
+    if (key_pressed(263)) page = (page - 1 + PAGES) % PAGES; // LEFT
+
+    // Background
+    set_color(15, 15, 30);
+    draw_rectangle(0, 0, 800, 600, true);
+
+    // Header
+    set_color(255, 255, 255);
+    draw_text("Tutorial 2: Primitivas [LEFT/RIGHT]", 10, 10, 20);
+
+    // =============================================
+    // PAGINA 0: Formas basicas
+    // =============================================
+    if (page == 0)
+    {
+        draw_text("Formas Basicas", 10, 40, 16);
+
+        // Rectangulo preenchido
+        set_color(255, 80, 80);
+        draw_rectangle(50, 80, 120, 80, true);
+        set_color(200, 200, 200);
+        draw_text("draw_rectangle", 50, 165, 12);
+        draw_text("(filled)", 50, 178, 10);
+
+        // Rectangulo outline
+        set_color(80, 255, 80);
+        draw_rectangle(200, 80, 120, 80, false);
+        set_color(200, 200, 200);
+        draw_text("draw_rectangle", 200, 165, 12);
+        draw_text("(outline)", 200, 178, 10);
+
+        // Circulo
+        set_color(80, 80, 255);
+        draw_circle(410, 120, 40, true);
+        set_color(200, 200, 200);
+        draw_text("draw_circle", 380, 165, 12);
+
+        // Triangulo
+        set_color(255, 200, 50);
+        draw_triangle(540, 80, 600, 160, 480, 160, true);
+        set_color(200, 200, 200);
+        draw_text("draw_triangle", 500, 165, 12);
+
+        // Linha
+        set_color(255, 100, 200);
+        draw_line(680, 80, 780, 160);
+        set_color(200, 200, 200);
+        draw_text("draw_line", 700, 165, 12);
+
+        // Ellipse
+        set_color(100, 255, 200);
+        draw_ellipse(110, 260, 60, 35, true);
+        set_color(200, 200, 200);
+        draw_text("draw_ellipse", 60, 300, 12);
+
+        // Ring
+        set_color(255, 150, 50);
+        draw_ring(280, 260, 20, 40, 0, 270, true);
+        set_color(200, 200, 200);
+        draw_text("draw_ring", 250, 310, 12);
+
+        // Linha grossa
+        set_color(200, 100, 255);
+        draw_line_ex(380, 230, 480, 290, 5.0);
+        set_color(200, 200, 200);
+        draw_text("draw_line_ex", 390, 300, 12);
+
+        // Rectangulo rotado
+        set_color(50, 200, 200);
+        draw_rotated_rectangle(600, 260, 100, 60, 25, true);
+        set_color(200, 200, 200);
+        draw_text("draw_rotated", 570, 300, 12);
+        draw_text("_rectangle", 570, 313, 12);
+
+        // Ponto
+        set_color(255, 255, 255);
+        draw_point(750, 260);
+        draw_point(752, 260);
+        draw_point(754, 260);
+        draw_text("draw_point", 720, 270, 12);
+
+        // Info
+        set_color(100, 200, 100);
+        draw_text("Cada forma aceita 'fill' (true/false)", 50, 380, 14);
+        draw_text("set_color(r,g,b) muda a cor antes de desenhar", 50, 400, 14);
+        draw_text("Nao precisas criar objectos - desenha directo!", 50, 420, 14);
+    }
+
+    // =============================================
+    // PAGINA 1: Novas primitivas
+    // =============================================
+    if (page == 1)
+    {
+        draw_text("Novas Primitivas", 10, 40, 16);
+
+        // Rounded rect
+        set_color(255, 100, 50);
+        draw_rounded_rect(50, 80, 150, 90, 0.3, true);
+        set_color(100, 200, 255);
+        draw_rounded_rect(50, 185, 150, 90, 0.8, false);
+        set_color(200, 200, 200);
+        draw_text("draw_rounded_rect", 55, 280, 12);
+        draw_text("roundness: 0.0 - 1.0", 55, 295, 10);
+
+        // Arc
+        set_color(255, 200, 50);
+        draw_arc(330, 140, 60, 0, 90, true);
+        set_color(100, 255, 100);
+        draw_arc(330, 140, 60, 90, 220, true);
+        set_color(100, 100, 255);
+        draw_arc(330, 140, 60, 220, 360, true);
+        set_color(200, 200, 200);
+        draw_text("draw_arc (pie chart!)", 270, 210, 12);
+
+        // Animated arc = cooldown bar
+        var angle = (t * 4) % 360;
+        set_color(50, 50, 50);
+        draw_arc(330, 280, 30, 0, 360, true);
+        set_color(100, 255, 200);
+        draw_arc(330, 280, 30, 0, angle, true);
+        set_color(200, 200, 200);
+        draw_text("cooldown effect!", 290, 320, 12);
+
+        // Bezier
+        set_color(255, 100, 255);
+        draw_bezier(470, 80, 700, 200, 3.0);
+        set_color(200, 200, 200);
+        draw_text("draw_bezier", 550, 210, 12);
+
+        // Poly
+        set_color(255, 200, 100);
+        draw_poly(530, 320, 6, 45, t * 1.5, true);
+        set_color(100, 200, 255);
+        draw_poly(650, 320, 5, 40, -t * 2, false);
+        set_color(200, 200, 200);
+        draw_text("draw_poly (N lados)", 530, 380, 12);
+
+        // Gradient
+        set_color(255, 50, 50);
+        draw_gradient_rect(50, 370, 200, 60, 50, 50, 255, true);
+        set_color(255, 255, 50);
+        draw_gradient_rect(50, 440, 200, 60, 50, 255, 50, false);
+        set_color(200, 200, 200);
+        draw_text("draw_gradient_rect", 55, 510, 12);
+        draw_text("(vertical/horizontal)", 55, 525, 10);
+    }
+
+    // =============================================
+    // PAGINA 2: Cores, Alpha, Blend Modes
+    // =============================================
+    if (page == 2)
+    {
+        draw_text("Cores, Alpha e Blend Modes", 10, 40, 16);
+
+        // Demonstrar set_color
+        set_color(255, 0, 0);
+        draw_rectangle(50, 80, 60, 60, true);
+        set_color(0, 255, 0);
+        draw_rectangle(120, 80, 60, 60, true);
+        set_color(0, 0, 255);
+        draw_rectangle(190, 80, 60, 60, true);
+        set_color(255, 255, 0);
+        draw_rectangle(260, 80, 60, 60, true);
+        set_color(255, 0, 255);
+        draw_rectangle(330, 80, 60, 60, true);
+        set_color(0, 255, 255);
+        draw_rectangle(400, 80, 60, 60, true);
+        set_color(200, 200, 200);
+        draw_text("set_color(r, g, b) - valores 0 a 255", 50, 150, 13);
+
+        // Alpha transparency
+        set_color(255, 100, 100);
+        draw_rectangle(50, 200, 200, 80, true);
+        set_alpha(180);
+        set_color(100, 100, 255);
+        draw_rectangle(100, 220, 200, 80, true);
+        set_alpha(100);
+        set_color(100, 255, 100);
+        draw_rectangle(150, 240, 200, 80, true);
+        set_alpha(255); // Reset
+        set_color(200, 200, 200);
+        draw_text("set_alpha(0-255) - transparencia", 50, 330, 13);
+
+        // Blend modes
+        set_color(255, 100, 50);
+        draw_circle(500, 250, 50, true);
+
+        set_blend_mode(BLEND_ADDITIVE);
+        set_color(50, 100, 255);
+        draw_circle(540, 270, 50, true);
+        set_color(50, 255, 100);
+        draw_circle(520, 220, 50, true);
+        reset_blend_mode();
+
+        set_color(200, 200, 200);
+        draw_text("BLEND_ADDITIVE = efeito de luz", 470, 330, 13);
+        draw_text("Blend modes:", 470, 360, 12);
+        draw_text("BLEND_ALPHA (default)", 470, 378, 11);
+        draw_text("BLEND_ADDITIVE (luz)", 470, 393, 11);
+        draw_text("BLEND_MULTIPLIED", 470, 408, 11);
+        draw_text("BLEND_ADD_COLORS", 470, 423, 11);
+        draw_text("BLEND_SUBTRACT_COLORS", 470, 438, 11);
+    }
+
+    // =============================================
+    // PAGINA 3: Clipping e Texto
+    // =============================================
+    if (page == 3)
+    {
+        draw_text("Clipping e Texto", 10, 40, 16);
+
+        // Clip rect - recorta tudo dentro da area
+        set_color(100, 100, 100);
+        draw_rectangle(50, 80, 200, 150, false);
+        set_color(200, 200, 200);
+        draw_text("clip_begin(x,y,w,h)", 50, 240, 12);
+
+        clip_begin(50, 80, 200, 150);
+        // Circulo grande que é cortado pela area
+        set_color(255, 100, 50);
+        draw_circle(150, 155, 100, true);
+        set_color(255, 255, 100);
+        draw_circle(100, 120, 60, true);
+        clip_end();
+
+        // Texto com fonte default
+        set_color(255, 255, 255);
+        draw_text("draw_text(str, x, y, size)", 350, 80, 16);
+        draw_text("Tamanho 10", 350, 110, 10);
+        draw_text("Tamanho 14", 350, 125, 14);
+        draw_text("Tamanho 20", 350, 145, 20);
+        draw_text("Tamanho 30", 350, 175, 30);
+
+        // Medir texto
+        var tw = get_text_width("Hello!", 20);
+        set_color(100, 200, 100);
+        draw_text("get_text_width = " + tw + " px", 350, 220, 14);
+
+        // Dica final
+        set_color(255, 200, 100);
+        draw_text("DICA: Nao precisas de objectos para desenhar!", 50, 350, 16);
+        draw_text("Chama draw_*() a cada frame - o motor trata de tudo.", 50, 375, 14);
+        draw_text("Isto chama-se 'Immediate Mode Rendering'", 50, 395, 14);
+        draw_text("(como Dear ImGui - simples e rapido!)", 50, 415, 14);
+    }
+
+    // Footer
+    set_color(100, 100, 100);
+    draw_text("Pagina " + (page + 1) + "/" + PAGES, 360, 570, 14);
+
+    frame;
+}

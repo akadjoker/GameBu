@@ -11,6 +11,15 @@ extern Scene gScene;
 namespace BindingsProcess
 {
 
+    // Sync Entity transform from process privates (for natives called before onStart)
+    static inline void syncEntityFromPrivates(Entity *entity, Process *proc)
+    {
+        entity->setPosition(proc->privates[0].asNumber(), proc->privates[1].asNumber());
+        entity->setAngle(proc->privates[4].asInt());
+        entity->size_x = proc->privates[(int)PrivateIndex::SIZEX].asNumber();
+        entity->size_y = proc->privates[(int)PrivateIndex::SIZEY].asNumber();
+    }
+
     double get_distx(double a, double d)
     {
         double angulo = (double)a * RAD;
@@ -153,6 +162,7 @@ namespace BindingsProcess
         }
 
         Entity *entity = (Entity *)proc->userData;
+        if (!entity->ready) syncEntityFromPrivates(entity, proc);
         Vector2 realPoint = entity->getRealPoint(pointIndex);
 
         //        Info("get_real_point: pointIndex=%d realX=%f realY=%f", pointIndex, realPoint.x, realPoint.y);
@@ -497,6 +507,7 @@ namespace BindingsProcess
         }
 
         Entity *entity = (Entity *)proc->userData;
+        if (!entity->ready) syncEntityFromPrivates(entity, proc);
         Vector2 worldPoint = entity->getWorldPoint(args[0].asNumber(), args[1].asNumber());
 
         vm->pushDouble(worldPoint.x);
@@ -523,7 +534,7 @@ namespace BindingsProcess
         }
 
         Entity *entity = (Entity *)proc->userData;
-        
+        if (!entity->ready) syncEntityFromPrivates(entity, proc);
         Vector2 localPoint = entity->getLocalPoint(args[0].asNumber(), args[1].asNumber());
 
         //        Info("get_real_point: pointIndex=%d realX=%f realY=%f", pointIndex, realPoint.x, realPoint.y);
@@ -551,6 +562,7 @@ namespace BindingsProcess
             return 1;
         }
 
+        if (!entity->ready) syncEntityFromPrivates(entity, proc);
         vm->pushBool(gScene.IsOutOfScreen(entity));
         return 1;
     }
@@ -963,6 +975,20 @@ namespace BindingsProcess
         return 1;
     }
 
+    int native_set_entity_blend(Interpreter *vm, Process *proc, int argCount, Value *args)
+    {
+        (void)vm;
+        if (argCount != 1 || !args[0].isNumber())
+        {
+            Error("set_entity_blend expects 1 argument (blend mode)");
+            return 0;
+        }
+        Entity *entity = requireEntity(proc, "set_entity_blend");
+        if (!entity) return 0;
+        entity->blend = args[0].asInt();
+        return 0;
+    }
+
     void registerAll(Interpreter &vm)
     {
         vm.registerNativeProcess("advance", native_advance, 1);
@@ -1000,6 +1026,8 @@ namespace BindingsProcess
         vm.registerNativeProcess("fget_angle", native_fget_angle, 1);
         vm.registerNativeProcess("fget_dist", native_fget_dist, 1);
         vm.registerNativeProcess("turn_to", native_turn_to, 2);
+
+        vm.registerNativeProcess("set_entity_blend", native_set_entity_blend, 1);
 
     }
 }

@@ -1,0 +1,1470 @@
+// === BU Meteor Defender AI ===
+// GA + Neural Network learns to shoot down falling meteors.
+// A turret at the bottom aims and fires missiles to protect the base.
+
+import math;
+import fs;
+import json;
+
+// --- Window ---
+var VIEW_W = 1440;
+var VIEW_H = 840;
+
+// --- Layout ---
+var FIELD_X = 24;
+var FIELD_Y = 70;
+var FIELD_W = 900;
+var FIELD_H = 740;
+
+var PANEL_X = 952;
+var PANEL_W = VIEW_W - PANEL_X - 20;
+
+// --- Keys ---
+var KEY_ESCAPE = 256;
+var KEY_SPACE = 32;
+var KEY_T = 84;
+var KEY_R = 82;
+var KEY_I = 73;
+var KEY_O = 79;
+var KEY_P = 80;
+var KEY_G = 71;
+var KEY_L = 76;
+var KEY_H = 72;
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+
+// --- Turret ---
+var TURRET_X = 0.0;
+var TURRET_Y = 0.0;
+var TURRET_W = 30;
+var TURRET_H = 40;
+var TURRET_AIM_SPEED = 3.0;
+var TURRET_MIN_ANGLE = -1.3;
+var TURRET_MAX_ANGLE = 1.3;
+
+// --- Missiles ---
+var MISSILE_SPEED = 500.0;
+var MISSILE_R = 4;
+var MISSILE_COOLDOWN = 0.25;
+var MAX_MISSILES = 8;
+
+// --- Meteors ---
+var METEOR_MIN_R = 12;
+var METEOR_MAX_R = 28;
+var METEOR_MIN_SPEED = 60.0;
+var METEOR_MAX_SPEED = 160.0;
+var METEOR_SPAWN_TIME = 0.8;
+var MAX_METEORS = 12;
+
+// --- Game ---
+var BASE_HP = 10;
+var GROUND_Y = 0.0;
+var SIM_DT = 1.0 / 60.0;
+
+// --- NN topology ---
+// Inputs: turret_angle, closest_meteor_dx, closest_meteor_dy,
+//         closest_meteor_vx, closest_meteor_vy, closest_meteor_dist,
+//         2nd_meteor_dx, 2nd_meteor_dy, can_fire
+var NN_IN = 9;
+var NN_H = 10;
+var NN_OUT = 3; // 0=aim_left, 1=aim_right, 2=fire
+
+var OFF_W1 = 0;
+var OFF_B1 = NN_IN * NN_H;
+var OFF_W2 = OFF_B1 + NN_H;
+var OFF_B2 = OFF_W2 + NN_H * NN_OUT;
+var GENE_COUNT = OFF_B2 + NN_OUT;
+
+// --- GA setup ---
+var POP_SIZE = 48;
+var ELITE_KEEP = 8;
+var PARENT_POOL = 16;
+var MUT_RATE = 0.10;
+var MUT_MAG = 0.45;
+
+var EPISODES_PER_GENOME = 2;
+var STEPS_PER_EPISODE = 1200;
+
+var TRAIN_GENOMES_PER_FRAME = 4;
+var TRAINING_ACTIVE = true;
+var TURBO_MODE = false;
+var RUNNER_MODE = false;
+var HUMAN_MODE = false;
+
+var INSTANT_TRAIN_EVALS = 200;
+var OFFLINE_ACTIVE = false;
+var OFFLINE_BUDGET = 0;
+var OFFLINE_DONE = 0;
+var OFFLINE_TARGET = 0.0;
+var OFFLINE_BATCH_PER_FRAME = 100;
+var OFFLINE_MAX_EVALS = 12000;
+var OFFLINE_TARGET_FIT = 50.0;
+
+var WEIGHTS_FILE = "defender_best_genome.json";
+
+// --- GA state ---
+var POPULATION = [];
+var FITNESS = [];
+var TOP_IDX = [];
+
+var GENERATION = 1;
+var TRAIN_INDEX = 0;
+var GEN_BEST_FIT = -999999.0;
+var GEN_BEST_INDEX = -1;
+
+var BEST_FIT_ALL = -999999.0;
+var BEST_GENOME = [];
+var BEST_FROM_GEN = 0;
+
+// --- Live state ---
+var LIVE_ANGLE = 0.0;
+var LIVE_COOLDOWN = 0.0;
+var LIVE_HP = 0;
+var LIVE_SCORE = 0;
+var LIVE_BEST_SCORE = 0;
+var LIVE_WAVE = 0;
+var LIVE_DEAD = false;
+var LIVE_DEAD_TIMER = 0.0;
+
+// Missile arrays
+var LIVE_MX = [];
+var LIVE_MY = [];
+var LIVE_MVX = [];
+var LIVE_MVY = [];
+
+// Meteor arrays
+var LIVE_AX = [];
+var LIVE_AY = [];
+var LIVE_AVX = [];
+var LIVE_AVY = [];
+var LIVE_AR = [];
+
+var LIVE_SPAWN_TIMER = 0.0;
+var LIVE_LAST_ACTION = -1;
+
+// --- Explosions ---
+var EXP_X = [];
+var EXP_Y = [];
+var EXP_LIFE = [];
+var EXP_SIZE = [];
+
+// --- Stars ---
+var STARS_X = [];
+var STARS_Y = [];
+var STARS_B = [];
+
+// --- Visualisation ---
+var LAST_IN = [];
+var LAST_H = [];
+var LAST_O = [];
+var STATUS_TEXT = "";
+var STATUS_TIMER = 0.0;
+
+// ============================================
+// Helpers
+// ============================================
+
+def clampf(v, a, b)
+{
+    if (v < a) return a;
+    if (v > b) return b;
+    return v;
+}
+
+def safe_ratio(n, d)
+{
+    if (!d) return 0.0;
+    return n / d;
+}
+
+def randf(a, b) { return math.rand(a, b); }
+def sigmoid(x) { return 1.0 / (1.0 + exp(-x)); }
+
+def set_status(msg)
+{
+    STATUS_TEXT = msg;
+    STATUS_TIMER = 2.8;
+}
+
+def dist2d(x1, y1, x2, y2)
+{
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    return sqrt(dx * dx + dy * dy);
+}
+
+// --- Pre-generated buildings ---
+var BLDG_X = [];
+var BLDG_W = [];
+var BLDG_H = [];
+
+def generate_buildings()
+{
+    BLDG_X = [];
+    BLDG_W = [];
+    BLDG_H = [];
+    var bx = FIELD_X + 60;
+    while (bx < FIELD_X + FIELD_W - 60)
+    {
+        var bw = 20 + math.irand(0, 15);
+        var bh = 20 + math.irand(0, 40);
+        BLDG_X.push(bx);
+        BLDG_W.push(bw);
+        BLDG_H.push(bh);
+        bx += bw + math.irand(15, 50);
+    }
+}
+
+def generate_stars()
+{
+    STARS_X = [];
+    STARS_Y = [];
+    STARS_B = [];
+    for (var i = 0; i < 100; i = i + 1)
+    {
+        STARS_X.push(randf(FIELD_X, FIELD_X + FIELD_W));
+        STARS_Y.push(randf(FIELD_Y, GROUND_Y - 50));
+        STARS_B.push(math.irand(60, 220));
+    }
+}
+
+// ============================================
+// Neural network (manual forward)
+// ============================================
+
+def make_genome()
+{
+    var g = [];
+    var i = 0;
+    while (i < GENE_COUNT) { g.push(randf(-1.0, 1.0)); i += 1; }
+    return g;
+}
+
+def clone_genome(g)
+{
+    var c = [];
+    var i = 0;
+    while (i < GENE_COUNT) { c.push(g[i]); i += 1; }
+    return c;
+}
+
+def validate_genome(g)
+{
+    if (!g) return false;
+    if (len(g) != GENE_COUNT) return false;
+    var i = 0;
+    while (i < GENE_COUNT) { if (!g[i]) g[i] = 0.0; i += 1; }
+    return true;
+}
+
+def nn_forward(g, inp, store_vis)
+{
+    if (store_vis)
+    {
+        LAST_IN.clear();
+        LAST_H.clear();
+        LAST_O.clear();
+        var ci = 0;
+        while (ci < NN_IN) { LAST_IN.push(inp[ci]); ci += 1; }
+    }
+
+    var hidden = [];
+    var h = 0;
+    while (h < NN_H)
+    {
+        var sum = g[OFF_B1 + h];
+        var i = 0;
+        while (i < NN_IN) { sum += inp[i] * g[OFF_W1 + h * NN_IN + i]; i += 1; }
+        var act = sigmoid(sum);
+        hidden.push(act);
+        if (store_vis) LAST_H.push(act);
+        h += 1;
+    }
+
+    var out = [];
+    var o = 0;
+    while (o < NN_OUT)
+    {
+        var sum2 = g[OFF_B2 + o];
+        var j = 0;
+        while (j < NN_H) { sum2 += hidden[j] * g[OFF_W2 + o * NN_H + j]; j += 1; }
+        var act2 = sigmoid(sum2);
+        out.push(act2);
+        if (store_vis) LAST_O.push(act2);
+        o += 1;
+    }
+    return out;
+}
+
+// ============================================
+// Save / Load
+// ============================================
+
+def save_best_weights()
+{
+    if (!validate_genome(BEST_GENOME)) { set_status("Save failed"); return false; }
+    var payload = {
+        gene_count: int(GENE_COUNT),
+        best_fit: BEST_FIT_ALL,
+        best_from_gen: int(BEST_FROM_GEN),
+        weights: BEST_GENOME
+    };
+    var text = json.stringify(payload, 2);
+    if (text == nil || text == "") { set_status("Save: encode fail"); return false; }
+    if (!fs.write(WEIGHTS_FILE, text)) { set_status("Save: write fail"); return false; }
+    set_status("Saved defender weights");
+    return true;
+}
+
+def load_best_weights()
+{
+    var text = fs.read(WEIGHTS_FILE);
+    if (text == nil || text == "") { set_status("Load: missing"); return false; }
+    var data = nil;
+    try { data = json.parse(text); }
+    catch (e) { set_status("Load: parse fail"); return false; }
+    if (data == nil) { set_status("Load: nil"); return false; }
+    var count = data["gene_count"];
+    if (count == nil || int(count) != GENE_COUNT) { set_status("Load: size mismatch"); return false; }
+    var w = data["weights"];
+    if (w == nil || len(w) != GENE_COUNT) { set_status("Load: bad weights"); return false; }
+    var loaded = [];
+    var i = 0;
+    while (i < GENE_COUNT) { loaded.push(w[i]); i += 1; }
+    if (!validate_genome(loaded)) { set_status("Load: invalid"); return false; }
+    BEST_GENOME = loaded;
+    if (data["best_fit"] != nil) BEST_FIT_ALL = data["best_fit"];
+    if (data["best_from_gen"] != nil) BEST_FROM_GEN = int(data["best_from_gen"]);
+    set_status("Loaded defender weights");
+    return true;
+}
+
+def auto_load_weights()
+{
+    var ok = load_best_weights();
+    if (!ok) { STATUS_TEXT = ""; STATUS_TIMER = 0.0; }
+    return ok;
+}
+
+// ============================================
+// GA
+// ============================================
+
+def make_child(g1, g2)
+{
+    var c = [];
+    var i = 0;
+    while (i < GENE_COUNT)
+    {
+        var gene = g1[i];
+        if (math.rand(0, 100) < 50) gene = g2[i];
+        if (math.rand(0, 10000) < int(MUT_RATE * 10000.0))
+            gene += randf(-MUT_MAG, MUT_MAG);
+        gene = clampf(gene, -3.0, 3.0);
+        c.push(gene);
+        i += 1;
+    }
+    return c;
+}
+
+def rebuild_top_indices()
+{
+    TOP_IDX.clear();
+    var used = [];
+    var i = 0;
+    while (i < POP_SIZE) { used.push(0); i += 1; }
+    var k = 0;
+    while (k < PARENT_POOL && k < POP_SIZE)
+    {
+        var best = -99999999.0;
+        var best_i = -1;
+        i = 0;
+        while (i < POP_SIZE)
+        {
+            if (!used[i] && FITNESS[i] > best) { best = FITNESS[i]; best_i = i; }
+            i += 1;
+        }
+        if (best_i == -1) break;
+        used[best_i] = 1;
+        TOP_IDX.push(best_i);
+        k += 1;
+    }
+}
+
+def evolve_generation()
+{
+    rebuild_top_indices();
+    if (len(TOP_IDX) <= 0) return;
+    var new_pop = [];
+    var i = 0;
+    while (i < POP_SIZE)
+    {
+        if (i < ELITE_KEEP && i < len(TOP_IDX))
+            new_pop.push(clone_genome(POPULATION[TOP_IDX[i]]));
+        else
+        {
+            var p1 = TOP_IDX[math.rand(0, len(TOP_IDX) - 1)];
+            var p2 = TOP_IDX[math.rand(0, len(TOP_IDX) - 1)];
+            new_pop.push(make_child(POPULATION[p1], POPULATION[p2]));
+        }
+        i += 1;
+    }
+    POPULATION = new_pop;
+    FITNESS.clear();
+    i = 0;
+    while (i < POP_SIZE) { FITNESS.push(0.0); i += 1; }
+    GENERATION += 1;
+    TRAIN_INDEX = 0;
+    GEN_BEST_FIT = -999999.0;
+    GEN_BEST_INDEX = -1;
+}
+
+def reset_training()
+{
+    POPULATION.clear();
+    FITNESS.clear();
+    TOP_IDX.clear();
+    var i = 0;
+    while (i < POP_SIZE) { POPULATION.push(make_genome()); FITNESS.push(0.0); i += 1; }
+    BEST_GENOME = clone_genome(POPULATION[0]);
+    BEST_FIT_ALL = -999999.0;
+    BEST_FROM_GEN = 0;
+    GENERATION = 1;
+    TRAIN_INDEX = 0;
+    GEN_BEST_FIT = -999999.0;
+    GEN_BEST_INDEX = -1;
+}
+
+// ============================================
+// Simulation helpers
+// ============================================
+
+def find_closest_meteors(ax, ay, avx, avy, ar, turret_cx, turret_cy)
+{
+    // Returns [dx1, dy1, vx1, vy1, dist1, dx2, dy2] for 2 closest meteors
+    var best_d = 99999.0;
+    var best_i = -1;
+    var sec_d = 99999.0;
+    var sec_i = -1;
+
+    var n = len(ax);
+    var i = 0;
+    while (i < n)
+    {
+        var d = dist2d(turret_cx, turret_cy, ax[i], ay[i]);
+        if (d < best_d)
+        {
+            sec_d = best_d;
+            sec_i = best_i;
+            best_d = d;
+            best_i = i;
+        }
+        elif (d < sec_d)
+        {
+            sec_d = d;
+            sec_i = i;
+        }
+        i += 1;
+    }
+
+    var result = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+
+    if (best_i >= 0)
+    {
+        result[0] = safe_ratio(ax[best_i] - turret_cx, FIELD_W * 0.5);
+        result[1] = safe_ratio(ay[best_i] - turret_cy, FIELD_H);
+        result[2] = safe_ratio(avx[best_i], METEOR_MAX_SPEED);
+        result[3] = safe_ratio(avy[best_i], METEOR_MAX_SPEED);
+        result[4] = safe_ratio(best_d, FIELD_H);
+    }
+    if (sec_i >= 0)
+    {
+        result[5] = safe_ratio(ax[sec_i] - turret_cx, FIELD_W * 0.5);
+        result[6] = safe_ratio(ay[sec_i] - turret_cy, FIELD_H);
+    }
+
+    return result;
+}
+
+// ============================================
+// Training simulation
+// ============================================
+
+def simulate_episode(g)
+{
+    var turret_cx = FIELD_X + FIELD_W * 0.5;
+    var turret_cy = GROUND_Y - 10;
+    var angle = 0.0;
+    var cooldown = 0.0;
+    var hp = BASE_HP;
+    var score = 0;
+    var shots_fired = 0;
+    var hits = 0;
+
+    var mx = [];
+    var my = [];
+    var mvx = [];
+    var mvy = [];
+
+    var ax = [];
+    var ay = [];
+    var avx = [];
+    var avy = [];
+    var ar = [];
+
+    var spawn_timer = 0.3;
+    var step = 0;
+    var fitness = 0.0;
+
+    while (step < STEPS_PER_EPISODE && hp > 0)
+    {
+        // Spawn meteors
+        spawn_timer -= SIM_DT;
+        if (spawn_timer <= 0 && len(ax) < MAX_METEORS)
+        {
+            spawn_timer = METEOR_SPAWN_TIME + randf(-0.2, 0.3);
+            var sx = randf(FIELD_X + 30, FIELD_X + FIELD_W - 30);
+            var sy = FIELD_Y - 10;
+            var svx = randf(-30, 30);
+            var svy = randf(METEOR_MIN_SPEED, METEOR_MAX_SPEED);
+            var sr = randf(METEOR_MIN_R, METEOR_MAX_R);
+            ax.push(sx);
+            ay.push(sy);
+            avx.push(svx);
+            avy.push(svy);
+            ar.push(sr);
+        }
+
+        // NN input
+        var closest = find_closest_meteors(ax, ay, avx, avy, ar, turret_cx, turret_cy);
+        var can_fire = 0.0;
+        if (cooldown <= 0 && len(mx) < MAX_MISSILES) can_fire = 1.0;
+
+        var inp = [
+            clampf(angle / 1.5, -1.0, 1.0),
+            closest[0], closest[1], closest[2], closest[3], closest[4],
+            closest[5], closest[6],
+            can_fire
+        ];
+
+        var out = nn_forward(g, inp, false);
+        var do_left = out[0] > 0.5;
+        var do_right = out[1] > 0.5;
+        var do_fire = out[2] > 0.5;
+
+        // Aim
+        if (do_left) angle -= TURRET_AIM_SPEED * SIM_DT;
+        if (do_right) angle += TURRET_AIM_SPEED * SIM_DT;
+        angle = clampf(angle, TURRET_MIN_ANGLE, TURRET_MAX_ANGLE);
+
+        // Fire
+        if (cooldown > 0) cooldown -= SIM_DT;
+        if (do_fire && cooldown <= 0 && len(mx) < MAX_MISSILES)
+        {
+            var barrel_x = turret_cx + sin(angle) * TURRET_H * -1;
+            var barrel_y = turret_cy - cos(angle) * TURRET_H;
+            mx.push(barrel_x);
+            my.push(barrel_y);
+            mvx.push(sin(angle) * MISSILE_SPEED * -1);
+            mvy.push(-cos(angle) * MISSILE_SPEED);
+            cooldown = MISSILE_COOLDOWN;
+            shots_fired += 1;
+        }
+
+        // Move missiles
+        var new_mx = [];
+        var new_my = [];
+        var new_mvx = [];
+        var new_mvy = [];
+        var mi = 0;
+        while (mi < len(mx))
+        {
+            var mmx = mx[mi] + mvx[mi] * SIM_DT;
+            var mmy = my[mi] + mvy[mi] * SIM_DT;
+            // Keep if in bounds
+            if (mmx > FIELD_X - 10 && mmx < FIELD_X + FIELD_W + 10 &&
+                mmy > FIELD_Y - 20 && mmy < GROUND_Y + 10)
+            {
+                new_mx.push(mmx);
+                new_my.push(mmy);
+                new_mvx.push(mvx[mi]);
+                new_mvy.push(mvy[mi]);
+            }
+            mi += 1;
+        }
+        mx = new_mx;
+        my = new_my;
+        mvx = new_mvx;
+        mvy = new_mvy;
+
+        // Move meteors
+        var new_ax = [];
+        var new_ay = [];
+        var new_avx = [];
+        var new_avy = [];
+        var new_ar = [];
+        var ai = 0;
+        while (ai < len(ax))
+        {
+            var aax = ax[ai] + avx[ai] * SIM_DT;
+            var aay = ay[ai] + avy[ai] * SIM_DT;
+
+            // Check if meteor hit ground
+            if (aay >= GROUND_Y - ar[ai])
+            {
+                hp -= 1;
+                fitness -= 8.0;
+                ai += 1;
+                continue;
+            }
+
+            // Check missile-meteor collision
+            var hit = false;
+            var ci = 0;
+            while (ci < len(mx))
+            {
+                var dd = dist2d(mx[ci], my[ci], aax, aay);
+                if (dd < ar[ai] + MISSILE_R)
+                {
+                    hit = true;
+                    // Remove missile
+                    mx.remove(ci);
+                    my.remove(ci);
+                    mvx.remove(ci);
+                    mvy.remove(ci);
+                    break;
+                }
+                ci += 1;
+            }
+
+            if (hit)
+            {
+                score += 1;
+                hits += 1;
+                fitness += 15.0;
+                // Bonus for hitting big meteors
+                if (ar[ai] > 22) fitness += 5.0;
+            }
+            else
+            {
+                // Out of bounds horizontally? remove
+                if (aax > FIELD_X - 40 && aax < FIELD_X + FIELD_W + 40)
+                {
+                    new_ax.push(aax);
+                    new_ay.push(aay);
+                    new_avx.push(avx[ai]);
+                    new_avy.push(avy[ai]);
+                    new_ar.push(ar[ai]);
+                }
+            }
+            ai += 1;
+        }
+        ax = new_ax;
+        ay = new_ay;
+        avx = new_avx;
+        avy = new_avy;
+        ar = new_ar;
+
+        // Small reward for aiming toward closest meteor
+        if (len(ax) > 0 && closest[4] < 0.9)
+        {
+            var aim_dx = closest[0];
+            var aim_match = 0.0;
+            if (aim_dx < 0 && angle < 0) aim_match = 0.5;
+            elif (aim_dx > 0 && angle > 0) aim_match = 0.5;
+            elif (abs(aim_dx) < 0.1) aim_match = 0.3;
+            fitness += aim_match * 0.02;
+        }
+
+        // Survival reward
+        fitness += 0.01;
+
+        step += 1;
+    }
+
+    // Bonus for accuracy
+    if (shots_fired > 0)
+    {
+        var accuracy = safe_ratio(hits, shots_fired);
+        fitness += accuracy * 10.0;
+    }
+
+    // Bonus for remaining HP
+    fitness += hp * 3.0;
+
+    return fitness;
+}
+
+def evaluate_genome(g)
+{
+    var total = 0.0;
+    var e = 0;
+    while (e < EPISODES_PER_GENOME) { total += simulate_episode(g); e += 1; }
+    return safe_ratio(total, EPISODES_PER_GENOME);
+}
+
+// ============================================
+// Training
+// ============================================
+
+def update_training()
+{
+    var loops = TRAIN_GENOMES_PER_FRAME;
+    while (loops > 0)
+    {
+        if (TRAIN_INDEX >= POP_SIZE) { evolve_generation(); break; }
+        var g = POPULATION[TRAIN_INDEX];
+        var fit = evaluate_genome(g);
+        FITNESS[TRAIN_INDEX] = fit;
+        if (fit > GEN_BEST_FIT) { GEN_BEST_FIT = fit; GEN_BEST_INDEX = TRAIN_INDEX; }
+        if (fit > BEST_FIT_ALL) { BEST_FIT_ALL = fit; BEST_GENOME = clone_genome(g); BEST_FROM_GEN = GENERATION; }
+        TRAIN_INDEX += 1;
+        loops -= 1;
+    }
+}
+
+def instant_train(evals)
+{
+    var total = int(evals);
+    var done = 0;
+    while (done < total)
+    {
+        if (TRAIN_INDEX >= POP_SIZE) { evolve_generation(); done += 1; continue; }
+        var g = POPULATION[TRAIN_INDEX];
+        var fit = evaluate_genome(g);
+        FITNESS[TRAIN_INDEX] = fit;
+        if (fit > GEN_BEST_FIT) { GEN_BEST_FIT = fit; GEN_BEST_INDEX = TRAIN_INDEX; }
+        if (fit > BEST_FIT_ALL) { BEST_FIT_ALL = fit; BEST_GENOME = clone_genome(g); BEST_FROM_GEN = GENERATION; }
+        TRAIN_INDEX += 1;
+        done += 1;
+    }
+}
+
+def start_offline_training(max_evals, target_fit)
+{
+    var budget = int(max_evals);
+    if (budget <= 0) return;
+    OFFLINE_ACTIVE = true;
+    OFFLINE_BUDGET = budget;
+    OFFLINE_DONE = 0;
+    OFFLINE_TARGET = target_fit;
+    RUNNER_MODE = false;
+    TRAINING_ACTIVE = false;
+    set_status(format("Offline training ({} evals)", OFFLINE_BUDGET));
+}
+
+def finish_offline_training()
+{
+    OFFLINE_ACTIVE = false;
+    save_best_weights();
+    RUNNER_MODE = true;
+    TRAINING_ACTIVE = false;
+    set_status(format("Offline done: {} evals  fit={}", OFFLINE_DONE, int(BEST_FIT_ALL * 100) / 100.0));
+}
+
+def update_offline_training()
+{
+    if (!OFFLINE_ACTIVE) return;
+    if (BEST_FIT_ALL >= OFFLINE_TARGET) { finish_offline_training(); return; }
+    if (OFFLINE_DONE >= OFFLINE_BUDGET) { finish_offline_training(); return; }
+    var batch = OFFLINE_BATCH_PER_FRAME;
+    var left = OFFLINE_BUDGET - OFFLINE_DONE;
+    if (batch > left) batch = left;
+    if (batch <= 0) { finish_offline_training(); return; }
+    instant_train(batch);
+    OFFLINE_DONE += batch;
+}
+
+// ============================================
+// Live game
+// ============================================
+
+def reset_live_game()
+{
+    LIVE_ANGLE = 0.0;
+    LIVE_COOLDOWN = 0.0;
+    LIVE_HP = BASE_HP;
+    LIVE_SCORE = 0;
+    LIVE_WAVE = 0;
+    LIVE_DEAD = false;
+    LIVE_DEAD_TIMER = 0.0;
+    LIVE_LAST_ACTION = -1;
+    LIVE_SPAWN_TIMER = 0.5;
+
+    LIVE_MX = [];
+    LIVE_MY = [];
+    LIVE_MVX = [];
+    LIVE_MVY = [];
+
+    LIVE_AX = [];
+    LIVE_AY = [];
+    LIVE_AVX = [];
+    LIVE_AVY = [];
+    LIVE_AR = [];
+
+    EXP_X = [];
+    EXP_Y = [];
+    EXP_LIFE = [];
+    EXP_SIZE = [];
+}
+
+def spawn_explosion(ex, ey, size)
+{
+    EXP_X.push(ex);
+    EXP_Y.push(ey);
+    EXP_LIFE.push(1.0);
+    EXP_SIZE.push(size);
+}
+
+def update_explosions(dt)
+{
+    var nx = [];
+    var ny = [];
+    var nl = [];
+    var ns = [];
+    var i = 0;
+    while (i < len(EXP_X))
+    {
+        var life = EXP_LIFE[i] - dt * 3.0;
+        if (life > 0)
+        {
+            nx.push(EXP_X[i]);
+            ny.push(EXP_Y[i]);
+            nl.push(life);
+            ns.push(EXP_SIZE[i]);
+        }
+        i += 1;
+    }
+    EXP_X = nx;
+    EXP_Y = ny;
+    EXP_LIFE = nl;
+    EXP_SIZE = ns;
+}
+
+def update_live_game(dt)
+{
+    if (LIVE_DEAD) return;
+
+    var turret_cx = TURRET_X;
+    var turret_cy = TURRET_Y;
+
+    var do_left = false;
+    var do_right = false;
+    var do_fire = false;
+
+    if (HUMAN_MODE)
+    {
+        if (key_down(KEY_LEFT)) do_left = true;
+        if (key_down(KEY_RIGHT)) do_right = true;
+        if (key_down(KEY_SPACE)) do_fire = true;
+    }
+    else
+    {
+        if (len(BEST_GENOME) >= GENE_COUNT)
+        {
+            var closest = find_closest_meteors(LIVE_AX, LIVE_AY, LIVE_AVX, LIVE_AVY, LIVE_AR, turret_cx, turret_cy);
+            var can_fire = 0.0;
+            if (LIVE_COOLDOWN <= 0 && len(LIVE_MX) < MAX_MISSILES) can_fire = 1.0;
+
+            var inp = [
+                clampf(LIVE_ANGLE / 1.5, -1.0, 1.0),
+                closest[0], closest[1], closest[2], closest[3], closest[4],
+                closest[5], closest[6],
+                can_fire
+            ];
+
+            var out = nn_forward(BEST_GENOME, inp, true);
+            do_left = out[0] > 0.5;
+            do_right = out[1] > 0.5;
+            do_fire = out[2] > 0.5;
+
+            if (do_left && !do_right) LIVE_LAST_ACTION = 0;
+            elif (do_right && !do_left) LIVE_LAST_ACTION = 1;
+            elif (do_fire) LIVE_LAST_ACTION = 2;
+            else LIVE_LAST_ACTION = -1;
+        }
+    }
+
+    // Aim
+    if (do_left) LIVE_ANGLE -= TURRET_AIM_SPEED * dt;
+    if (do_right) LIVE_ANGLE += TURRET_AIM_SPEED * dt;
+    LIVE_ANGLE = clampf(LIVE_ANGLE, TURRET_MIN_ANGLE, TURRET_MAX_ANGLE);
+
+    // Fire
+    if (LIVE_COOLDOWN > 0) LIVE_COOLDOWN -= dt;
+    if (do_fire && LIVE_COOLDOWN <= 0 && len(LIVE_MX) < MAX_MISSILES)
+    {
+        var bx = turret_cx + sin(LIVE_ANGLE) * TURRET_H * -1;
+        var by = turret_cy - cos(LIVE_ANGLE) * TURRET_H;
+        LIVE_MX.push(bx);
+        LIVE_MY.push(by);
+        LIVE_MVX.push(sin(LIVE_ANGLE) * MISSILE_SPEED * -1);
+        LIVE_MVY.push(-cos(LIVE_ANGLE) * MISSILE_SPEED);
+        LIVE_COOLDOWN = MISSILE_COOLDOWN;
+    }
+
+    // Spawn meteors
+    LIVE_SPAWN_TIMER -= dt;
+    if (LIVE_SPAWN_TIMER <= 0 && len(LIVE_AX) < MAX_METEORS)
+    {
+        LIVE_SPAWN_TIMER = METEOR_SPAWN_TIME + randf(-0.2, 0.3);
+        LIVE_AX.push(randf(FIELD_X + 30, FIELD_X + FIELD_W - 30));
+        LIVE_AY.push(FIELD_Y - 10);
+        LIVE_AVX.push(randf(-30, 30));
+        LIVE_AVY.push(randf(METEOR_MIN_SPEED, METEOR_MAX_SPEED));
+        LIVE_AR.push(randf(METEOR_MIN_R, METEOR_MAX_R));
+    }
+
+    // Move missiles
+    var new_mx = [];
+    var new_my = [];
+    var new_mvx = [];
+    var new_mvy = [];
+    var mi = 0;
+    while (mi < len(LIVE_MX))
+    {
+        var mmx = LIVE_MX[mi] + LIVE_MVX[mi] * dt;
+        var mmy = LIVE_MY[mi] + LIVE_MVY[mi] * dt;
+        if (mmx > FIELD_X - 10 && mmx < FIELD_X + FIELD_W + 10 &&
+            mmy > FIELD_Y - 20 && mmy < GROUND_Y + 10)
+        {
+            new_mx.push(mmx);
+            new_my.push(mmy);
+            new_mvx.push(LIVE_MVX[mi]);
+            new_mvy.push(LIVE_MVY[mi]);
+        }
+        mi += 1;
+    }
+    LIVE_MX = new_mx;
+    LIVE_MY = new_my;
+    LIVE_MVX = new_mvx;
+    LIVE_MVY = new_mvy;
+
+    // Move meteors + collisions
+    var new_ax = [];
+    var new_ay = [];
+    var new_avx = [];
+    var new_avy = [];
+    var new_ar = [];
+    var ai = 0;
+    while (ai < len(LIVE_AX))
+    {
+        var aax = LIVE_AX[ai] + LIVE_AVX[ai] * dt;
+        var aay = LIVE_AY[ai] + LIVE_AVY[ai] * dt;
+
+        // Hit ground?
+        if (aay >= GROUND_Y - LIVE_AR[ai])
+        {
+            LIVE_HP -= 1;
+            spawn_explosion(aax, GROUND_Y, LIVE_AR[ai] + 10);
+            ai += 1;
+            continue;
+        }
+
+        // Missile hit?
+        var hit = false;
+        var ci = 0;
+        while (ci < len(LIVE_MX))
+        {
+            var dd = dist2d(LIVE_MX[ci], LIVE_MY[ci], aax, aay);
+            if (dd < LIVE_AR[ai] + MISSILE_R)
+            {
+                hit = true;
+                LIVE_MX.remove(ci);
+                LIVE_MY.remove(ci);
+                LIVE_MVX.remove(ci);
+                LIVE_MVY.remove(ci);
+                break;
+            }
+            ci += 1;
+        }
+
+        if (hit)
+        {
+            LIVE_SCORE += 1;
+            spawn_explosion(aax, aay, LIVE_AR[ai] + 6);
+        }
+        else
+        {
+            if (aax > FIELD_X - 40 && aax < FIELD_X + FIELD_W + 40)
+            {
+                new_ax.push(aax);
+                new_ay.push(aay);
+                new_avx.push(LIVE_AVX[ai]);
+                new_avy.push(LIVE_AVY[ai]);
+                new_ar.push(LIVE_AR[ai]);
+            }
+        }
+        ai += 1;
+    }
+    LIVE_AX = new_ax;
+    LIVE_AY = new_ay;
+    LIVE_AVX = new_avx;
+    LIVE_AVY = new_avy;
+    LIVE_AR = new_ar;
+
+    // Dead check
+    if (LIVE_HP <= 0)
+    {
+        LIVE_DEAD = true;
+        if (LIVE_SCORE > LIVE_BEST_SCORE) LIVE_BEST_SCORE = LIVE_SCORE;
+        set_status(format("GAME OVER! Score: {}  Best: {}", LIVE_SCORE, LIVE_BEST_SCORE));
+    }
+
+    update_explosions(dt);
+}
+
+// ============================================
+// Rendering
+// ============================================
+
+def node_y(idx, count, y0, y1)
+{
+    if (count <= 1)
+    {
+        var mid = (y0 + y1) * 0.5;
+        return mid;
+    }
+    return y0 + safe_ratio(idx, count - 1) * (y1 - y0);
+}
+
+def draw_field()
+{
+    // Sky
+    set_color(6, 8, 22);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, true);
+
+    // Stars
+    var i = 0;
+    while (i < len(STARS_X))
+    {
+        var b = STARS_B[i];
+        set_color(b, b, b);
+        draw_circle(STARS_X[i], STARS_Y[i], 1, true);
+        i += 1;
+    }
+
+    // Ground
+    set_color(50, 80, 50);
+    draw_rectangle(FIELD_X, GROUND_Y, FIELD_W, FIELD_Y + FIELD_H - GROUND_Y, true);
+    set_color(70, 110, 70);
+    draw_line(FIELD_X, GROUND_Y, FIELD_X + FIELD_W, GROUND_Y);
+
+    // City buildings (pre-generated)
+    var bi = 0;
+    while (bi < len(BLDG_X))
+    {
+        var bx = BLDG_X[bi];
+        var bw = BLDG_W[bi];
+        var bh = BLDG_H[bi];
+        set_color(40, 50, 65);
+        draw_rectangle(bx, GROUND_Y - bh, bw, bh, true);
+        // Window lights (static pattern based on index)
+        set_color(255, 230, 120);
+        var wy = GROUND_Y - bh + 5;
+        var wi = 0;
+        while (wy < GROUND_Y - 4)
+        {
+            if ((bi + wi) % 3 != 0)
+                draw_rectangle(bx + 3, wy, 3, 3, true);
+            if (bw > 15 && (bi + wi) % 2 == 0)
+                draw_rectangle(bx + bw - 7, wy, 3, 3, true);
+            wy += 8;
+            wi += 1;
+        }
+        bi += 1;
+    }
+
+    // Turret base
+    set_color(100, 120, 140);
+    draw_rectangle(TURRET_X - 20, TURRET_Y - 5, 40, 15, true);
+    draw_circle(TURRET_X, TURRET_Y - 5, 15, true);
+
+    // Turret barrel
+    var barrel_tip_x = TURRET_X + sin(LIVE_ANGLE) * TURRET_H * -1;
+    var barrel_tip_y = TURRET_Y - cos(LIVE_ANGLE) * TURRET_H;
+    set_color(160, 180, 200);
+    draw_line_ex(TURRET_X, TURRET_Y - 8, barrel_tip_x, barrel_tip_y, 4);
+
+    // Missiles
+    set_color(255, 255, 200);
+    i = 0;
+    while (i < len(LIVE_MX))
+    {
+        draw_circle(LIVE_MX[i], LIVE_MY[i], MISSILE_R, true);
+        // Trail
+        set_color(255, 200, 100);
+        set_alpha(150);
+        draw_circle(LIVE_MX[i] - LIVE_MVX[i] * 0.02, LIVE_MY[i] - LIVE_MVY[i] * 0.02, 3, true);
+        set_alpha(255);
+        set_color(255, 255, 200);
+        i += 1;
+    }
+
+    // Meteors
+    i = 0;
+    while (i < len(LIVE_AX))
+    {
+        var mr = LIVE_AR[i];
+        // Outer glow
+        set_color(180, 80, 40);
+        set_alpha(120);
+        draw_circle(LIVE_AX[i], LIVE_AY[i], mr + 4, true);
+        set_alpha(255);
+        // Core
+        set_color(200, 100, 60);
+        draw_circle(LIVE_AX[i], LIVE_AY[i], mr, true);
+        set_color(240, 160, 80);
+        draw_circle(LIVE_AX[i] - 2, LIVE_AY[i] - 2, mr * 0.6, true);
+        i += 1;
+    }
+
+    // Explosions
+    i = 0;
+    while (i < len(EXP_X))
+    {
+        var life = EXP_LIFE[i];
+        var a = int(life * 255);
+        if (a > 255) a = 255;
+        if (a < 0) a = 0;
+        set_alpha(a);
+        var er = EXP_SIZE[i] * (1.5 - life * 0.5);
+        set_color(255, 200, 80);
+        draw_circle(EXP_X[i], EXP_Y[i], er, true);
+        set_color(255, 255, 200);
+        draw_circle(EXP_X[i], EXP_Y[i], er * 0.5, true);
+        i += 1;
+    }
+    set_alpha(255);
+
+    // HP bar
+    set_color(40, 40, 40);
+    draw_rectangle(FIELD_X + 10, FIELD_Y + 8, 200, 16, true);
+    var hp_ratio = safe_ratio(LIVE_HP, BASE_HP);
+    if (hp_ratio > 0.5) set_color(80, 220, 80);
+    elif (hp_ratio > 0.2) set_color(220, 200, 60);
+    else set_color(220, 60, 60);
+    var hp_w = int(hp_ratio * 196);
+    if (hp_w > 0)
+        draw_rectangle(FIELD_X + 12, FIELD_Y + 10, hp_w, 12, true);
+    set_color(220, 230, 240);
+    draw_text(format("HP: {}/{}", LIVE_HP, BASE_HP), FIELD_X + 220, FIELD_Y + 8, 16);
+
+    // Border
+    set_color(92, 118, 150);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, false);
+
+    // Header
+    set_color(220, 238, 255);
+    draw_text("BU Meteor Defender AI", FIELD_X + 8, 16, 34);
+    set_color(165, 190, 220);
+    draw_text("GA + NN aprende a defender a base", FIELD_X + 8, 48, 18);
+
+    // Score
+    set_color(255, 220, 100);
+    draw_text(format("Score: {}", LIVE_SCORE), FIELD_X + FIELD_W - 200, FIELD_Y + 8, 22);
+    set_color(200, 210, 230);
+    draw_text(format("Best: {}", LIVE_BEST_SCORE), FIELD_X + FIELD_W - 200, FIELD_Y + 34, 16);
+
+    if (HUMAN_MODE)
+    {
+        set_color(120, 255, 180);
+        draw_text("HUMAN", FIELD_X + FIELD_W - 90, FIELD_Y + 8, 18);
+    }
+
+    if (LIVE_DEAD)
+    {
+        set_color(255, 60, 60);
+        draw_text("GAME OVER", FIELD_X + FIELD_W * 0.5 - 100, FIELD_Y + FIELD_H * 0.4, 48);
+    }
+}
+
+def draw_network_panel()
+{
+    set_color(18, 26, 38);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, true);
+    set_color(92, 118, 150);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, false);
+
+    set_color(220, 238, 255);
+    draw_text("Neural Network", PANEL_X + 18, FIELD_Y + 14, 24);
+
+    if (len(BEST_GENOME) < GENE_COUNT) return;
+
+    var in_x = PANEL_X + 30;
+    var h_x = PANEL_X + 170;
+    var o_x = PANEL_X + 320;
+    var y0 = FIELD_Y + 60;
+    var y1 = FIELD_Y + 380;
+
+    // Connections IN -> H
+    var h = 0;
+    while (h < NN_H)
+    {
+        var hy = node_y(h, NN_H, y0, y1);
+        var i = 0;
+        while (i < NN_IN)
+        {
+            var iy = node_y(i, NN_IN, y0, y1);
+            var w = BEST_GENOME[OFF_W1 + h * NN_IN + i];
+            var a = int(clampf(abs(w) * 170 + 18, 18, 190));
+            set_alpha(a);
+            if (w >= 0) set_color(75, 210, 95);
+            else set_color(230, 90, 90);
+            draw_line(in_x, iy, h_x, hy);
+            i += 1;
+        }
+        h += 1;
+    }
+
+    // Connections H -> O
+    var o = 0;
+    while (o < NN_OUT)
+    {
+        var oy = node_y(o, NN_OUT, y0 + 60, y1 - 60);
+        h = 0;
+        while (h < NN_H)
+        {
+            var hy2 = node_y(h, NN_H, y0, y1);
+            var w2 = BEST_GENOME[OFF_W2 + o * NN_H + h];
+            var a2 = int(clampf(abs(w2) * 180 + 18, 18, 200));
+            set_alpha(a2);
+            if (w2 >= 0) set_color(85, 220, 105);
+            else set_color(240, 95, 95);
+            draw_line(h_x, hy2, o_x, oy);
+            h += 1;
+        }
+        o += 1;
+    }
+    set_alpha(255);
+
+    // Input nodes
+    var labels_in = ["aim", "m1.dx", "m1.dy", "m1.vx", "m1.vy", "m1.dist", "m2.dx", "m2.dy", "canFire"];
+    var ii = 0;
+    while (ii < NN_IN)
+    {
+        var niy = node_y(ii, NN_IN, y0, y1);
+        var av = 0.0;
+        if (ii < len(LAST_IN)) av = LAST_IN[ii];
+        var c = int(clampf(abs(av) * 255, 40, 255));
+        set_color(c, c, 255);
+        draw_circle(in_x, niy, 7, true);
+        set_color(170, 190, 215);
+        draw_text(labels_in[ii], in_x + 11, niy - 5, 11);
+        ii += 1;
+    }
+
+    // Hidden
+    h = 0;
+    while (h < NN_H)
+    {
+        var nhy = node_y(h, NN_H, y0, y1);
+        var ah = 0.0;
+        if (h < len(LAST_H)) ah = LAST_H[h];
+        var ch = int(clampf(ah * 255, 28, 255));
+        set_color(120, ch, 220);
+        draw_circle(h_x, nhy, 7, true);
+        h += 1;
+    }
+
+    // Output
+    var labels_out = ["AIM L", "AIM R", "FIRE"];
+    o = 0;
+    while (o < NN_OUT)
+    {
+        var noy = node_y(o, NN_OUT, y0 + 60, y1 - 60);
+        var ao = 0.0;
+        if (o < len(LAST_O)) ao = LAST_O[o];
+        var co = int(clampf(ao * 255, 35, 255));
+        set_color(255, co, 90);
+        draw_circle(o_x, noy, 10, true);
+        set_color(200, 215, 230);
+        draw_text(labels_out[o], o_x + 16, noy - 6, 13);
+        o += 1;
+    }
+
+    // Thinking bars
+    set_color(200, 224, 245);
+    draw_text("AI Thinking", PANEL_X + 20, y1 + 30, 18);
+    var bo = 0;
+    while (bo < NN_OUT)
+    {
+        var lbl = labels_out[bo];
+        var vv = 0.0;
+        if (bo < len(LAST_O)) vv = LAST_O[bo];
+        var by = y1 + 60 + bo * 28;
+        var bw = int(clampf(vv, 0, 1) * 200);
+        set_color(80, 95, 120);
+        draw_rectangle(PANEL_X + 120, by, 200, 16, true);
+        if (vv > 0.5) set_color(100, 255, 140);
+        else set_color(180, 180, 200);
+        draw_rectangle(PANEL_X + 120, by, bw, 16, true);
+        set_color(190, 210, 235);
+        draw_text(lbl, PANEL_X + 20, by + 1, 13);
+        draw_text(format("{}%", int(vv * 100)), PANEL_X + 330, by + 1, 13);
+        bo += 1;
+    }
+
+    var act_name = "---";
+    if (LIVE_LAST_ACTION == 0) act_name = "AIM LEFT";
+    elif (LIVE_LAST_ACTION == 1) act_name = "AIM RIGHT";
+    elif (LIVE_LAST_ACTION == 2) act_name = "FIRE!";
+    set_color(255, 220, 150);
+    draw_text(format("Action: {}", act_name), PANEL_X + 20, y1 + 150, 16);
+}
+
+def draw_stats()
+{
+    var sy = FIELD_Y + FIELD_H - 280;
+    var step = 22;
+    set_color(205, 224, 245);
+    draw_text(format("Generation: {}", GENERATION), PANEL_X + 18, sy, 18);
+    draw_text(format("Eval: {}/{}", TRAIN_INDEX, POP_SIZE), PANEL_X + 18, sy + step, 18);
+    draw_text(format("Gen Best: {}", int(GEN_BEST_FIT * 100) / 100.0), PANEL_X + 18, sy + step * 2, 18);
+    draw_text(format("Best Ever: {}", int(BEST_FIT_ALL * 100) / 100.0), PANEL_X + 18, sy + step * 3, 18);
+    draw_text(format("Best Gen: {}", BEST_FROM_GEN), PANEL_X + 18, sy + step * 4, 18);
+
+    if (TRAINING_ACTIVE) set_color(135, 250, 155);
+    else set_color(255, 190, 140);
+    draw_text(format("Training: {}", TRAINING_ACTIVE), PANEL_X + 18, sy + step * 5, 18);
+
+    if (RUNNER_MODE) set_color(120, 235, 170);
+    else set_color(220, 190, 140);
+    draw_text(format("Runner: {}", RUNNER_MODE), PANEL_X + 18, sy + step * 6, 18);
+
+    if (OFFLINE_ACTIVE) set_color(255, 220, 120);
+    else set_color(150, 170, 200);
+    draw_text(format("Offline: {} ({}/{})", OFFLINE_ACTIVE, OFFLINE_DONE, OFFLINE_BUDGET), PANEL_X + 18, sy + step * 7, 16);
+
+    if (TURBO_MODE) set_color(255, 220, 120);
+    else set_color(160, 180, 205);
+    draw_text(format("Turbo: {} ({}g/f)", TURBO_MODE, TRAIN_GENOMES_PER_FRAME), PANEL_X + 18, sy + step * 8, 18);
+
+    set_color(150, 180, 210);
+    var cy = FIELD_Y + FIELD_H - 80;
+    draw_text("SPACE: pause  T: turbo  H: human", PANEL_X + 18, cy, 14);
+    draw_text("I: instant  O: offline  R: reset", PANEL_X + 18, cy + 18, 14);
+    draw_text("G/L: save/load  P: runner", PANEL_X + 18, cy + 36, 14);
+    draw_text("Human: LEFT/RIGHT aim, SPACE fire", PANEL_X + 18, cy + 54, 14);
+
+    if (STATUS_TIMER > 0)
+    {
+        set_color(255, 230, 160);
+        draw_text(STATUS_TEXT, PANEL_X + 18, FIELD_Y + FIELD_H - 10, 16);
+    }
+}
+
+// ============================================
+// Main
+// ============================================
+
+TURRET_X = FIELD_X + FIELD_W * 0.5;
+GROUND_Y = FIELD_Y + FIELD_H - 30;
+TURRET_Y = GROUND_Y - 5;
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("BU Meteor Defender AI");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+generate_stars();
+generate_buildings();
+reset_training();
+reset_live_game();
+
+if (auto_load_weights())
+{
+    RUNNER_MODE = true;
+    TRAINING_ACTIVE = false;
+    set_status("Loaded weights: runner mode");
+}
+
+loop
+{
+    var dt = delta();
+    if (dt <= 0.0) dt = SIM_DT;
+    if (dt > 0.05) dt = 0.05;
+
+    if (key_pressed(KEY_ESCAPE)) close_window();
+
+    if (key_pressed(KEY_SPACE))
+    {
+        if (!HUMAN_MODE)
+        {
+            if (RUNNER_MODE) set_status("Runner ON");
+            else TRAINING_ACTIVE = !TRAINING_ACTIVE;
+        }
+    }
+    if (key_pressed(KEY_H))
+    {
+        HUMAN_MODE = !HUMAN_MODE;
+        reset_live_game();
+        if (HUMAN_MODE) set_status("HUMAN: LEFT/RIGHT aim, SPACE fire");
+        else set_status("AI mode");
+    }
+    if (key_pressed(KEY_G)) save_best_weights();
+    if (key_pressed(KEY_L)) load_best_weights();
+    if (key_pressed(KEY_P))
+    {
+        RUNNER_MODE = !RUNNER_MODE;
+        if (RUNNER_MODE) { TRAINING_ACTIVE = false; OFFLINE_ACTIVE = false; set_status("Runner ON"); }
+        else set_status("Runner OFF");
+    }
+    if (key_pressed(KEY_I))
+    {
+        instant_train(INSTANT_TRAIN_EVALS);
+        set_status(format("Instant: {} evals", INSTANT_TRAIN_EVALS));
+    }
+    if (key_pressed(KEY_O))
+    {
+        if (OFFLINE_ACTIVE) { OFFLINE_ACTIVE = false; set_status("Offline canceled"); }
+        else start_offline_training(OFFLINE_MAX_EVALS, OFFLINE_TARGET_FIT);
+    }
+    if (key_pressed(KEY_R))
+    {
+        reset_training();
+        reset_live_game();
+        RUNNER_MODE = false;
+        OFFLINE_ACTIVE = false;
+        set_status("Reset!");
+    }
+    if (key_pressed(KEY_T))
+    {
+        TURBO_MODE = !TURBO_MODE;
+        if (TURBO_MODE) TRAIN_GENOMES_PER_FRAME = 12;
+        else TRAIN_GENOMES_PER_FRAME = 4;
+    }
+
+    // Training
+    if (!RUNNER_MODE && TRAINING_ACTIVE) update_training();
+    update_offline_training();
+
+    // Live game
+    update_live_game(dt);
+
+    // Auto-restart after death
+    if (LIVE_DEAD)
+    {
+        LIVE_DEAD_TIMER += dt;
+        if (LIVE_DEAD_TIMER > 2.5)
+        {
+            LIVE_DEAD_TIMER = 0.0;
+            reset_live_game();
+        }
+    }
+
+    if (STATUS_TIMER > 0) STATUS_TIMER -= dt;
+
+    // Render
+    set_draw_screen(true);
+    set_alpha(255);
+
+    set_color(8, 10, 20);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    draw_field();
+    draw_network_panel();
+    draw_stats();
+
+    frame;
+}

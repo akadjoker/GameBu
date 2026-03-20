@@ -1,0 +1,63 @@
+// ============================================================
+// TUTORIAL 1: Hello World - Primeiro programa em Bu
+// ============================================================
+// Aprende:
+//   - Configurar janela
+//   - Desenhar texto
+//   - Game loop basico (loop + frame)
+//   - set_draw_screen para HUD
+// ============================================================
+
+import math;
+
+// --- Setup da janela ---
+set_window_size(800, 600);
+set_window_title("Tutorial 1: Hello World");
+set_design_resolution(800, 600);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+// Activar draw no ecra (nao no mundo)
+set_draw_screen(true);
+
+// --- Game Loop ---
+// Em Bu, tudo corre dentro de um loop.
+// "frame;" é OBRIGATORIO - diz ao motor para renderizar e avançar 1 frame.
+
+var t = 0;
+
+loop
+{
+    t = t + 1;
+
+    // Limpar ecra com cor escura
+    set_color(20, 20, 40);
+    draw_rectangle(0, 0, 800, 600, true);
+
+    // Titulo
+    set_color(255, 255, 100);
+    draw_text("Hello GameBu!", 250, 100, 40);
+
+    // Texto animado (piscar usando modulo)
+    if ((t / 30) % 2 == 0)
+    {
+        set_color(200, 200, 200);
+        draw_text("Pressiona ESC para sair", 260, 200, 18);
+    }
+
+    // Circulo que segue o tempo
+    set_color(255, 100, 50);
+    var cx = 400 + sin(t * 0.05) * 150;
+    var cy = 400 + cos(t * 0.03) * 80;
+    draw_circle(cx, cy, 20, true);
+
+    // Outline do circulo
+    set_color(255, 200, 100);
+    draw_circle(cx, cy, 22, false);
+
+    // Info
+    set_color(100, 100, 100);
+    draw_text("Frame: " + t, 10, 570, 14);
+
+    frame;
+}

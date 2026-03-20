@@ -44,7 +44,7 @@ add_compile_options(
 
 
 
-file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+file(GLOB SOURCES CONFIGURE_DEPENDS "src/main.cpp")
 add_executable(main   ${SOURCES})
 target_include_directories(main PUBLIC include src)
 if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -57,7 +57,7 @@ endif()
    
 endif()
 
-target_link_libraries(main miniz poly2tri raylib box2d libbu graphics)
+target_link_libraries(main runtime)
 
 if (WIN32)
     target_link_libraries(main Winmm.lib )

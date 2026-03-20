@@ -1,0 +1,680 @@
+// === BU Emoji Recognizer 8x8 ===
+// Draw emojis on an 8x8 grid and train a CNN to classify them.
+// Categories: smiley, sad, heart, star, arrow, cross
+
+import nn;
+import math;
+
+var VIEW_W = 1200;
+var VIEW_H = 720;
+
+var GRID_N = 8;
+var GRID_CELL = 44;
+var GRID_X = 70;
+var GRID_Y = 160;
+
+var MOUSE_LEFT = 0;
+var MOUSE_RIGHT = 1;
+
+var KEY_C = 67;
+var KEY_R = 82;
+var KEY_S = 83;
+var KEY_SPACE = 32;
+var KEY_T = 84;
+var KEY_A = 65;
+var KEY_ENTER = 257;
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+var KEY_UP = 265;
+var KEY_DOWN = 264;
+
+// --- Emoji categories ---
+var NUM_CLASSES = 6;
+var CLASS_NAMES = ["smiley", "sad", "heart", "star", "arrow", "cross"];
+var CLASS_COLORS = [
+    [255, 220, 80],
+    [120, 160, 255],
+    [255, 90, 110],
+    [255, 200, 60],
+    [80, 220, 160],
+    [220, 120, 255]
+];
+
+// --- Emoji prototypes (8x8 grids flattened) ---
+// Each is a 64-element array: 1.0 = lit, 0.0 = off
+// Row by row, top to bottom
+
+var EMOJI_SMILEY = [
+    0,0,1,1,1,1,0,0,
+    0,1,0,0,0,0,1,0,
+    1,0,1,0,0,1,0,1,
+    1,0,0,0,0,0,0,1,
+    1,0,1,0,0,1,0,1,
+    1,0,0,1,1,0,0,1,
+    0,1,0,0,0,0,1,0,
+    0,0,1,1,1,1,0,0
+];
+
+var EMOJI_SAD = [
+    0,0,1,1,1,1,0,0,
+    0,1,0,0,0,0,1,0,
+    1,0,1,0,0,1,0,1,
+    1,0,0,0,0,0,0,1,
+    1,0,0,1,1,0,0,1,
+    1,0,1,0,0,1,0,1,
+    0,1,0,0,0,0,1,0,
+    0,0,1,1,1,1,0,0
+];
+
+var EMOJI_HEART = [
+    0,0,0,0,0,0,0,0,
+    0,1,1,0,0,1,1,0,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    0,1,1,1,1,1,1,0,
+    0,0,1,1,1,1,0,0,
+    0,0,0,1,1,0,0,0
+];
+
+var EMOJI_STAR = [
+    0,0,0,1,1,0,0,0,
+    0,0,0,1,1,0,0,0,
+    1,1,1,1,1,1,1,1,
+    0,1,1,1,1,1,1,0,
+    0,0,1,1,1,1,0,0,
+    0,1,1,0,0,1,1,0,
+    1,1,0,0,0,0,1,1,
+    1,0,0,0,0,0,0,1
+];
+
+var EMOJI_ARROW = [
+    0,0,0,1,1,0,0,0,
+    0,0,1,1,1,1,0,0,
+    0,1,1,1,1,1,1,0,
+    1,1,0,1,1,0,1,1,
+    0,0,0,1,1,0,0,0,
+    0,0,0,1,1,0,0,0,
+    0,0,0,1,1,0,0,0,
+    0,0,0,1,1,0,0,0
+];
+
+var EMOJI_CROSS = [
+    1,0,0,0,0,0,0,1,
+    0,1,0,0,0,0,1,0,
+    0,0,1,0,0,1,0,0,
+    0,0,0,1,1,0,0,0,
+    0,0,0,1,1,0,0,0,
+    0,0,1,0,0,1,0,0,
+    0,1,0,0,0,0,1,0,
+    1,0,0,0,0,0,0,1
+];
+
+var EMOJI_BASE = [];
+var MODEL = nil;
+var CANVAS = [];
+var USER_X = [];
+var USER_Y = [];
+var LABEL_COUNTS = [];
+
+var PREDICTION = [];
+var PREDICTED_CLASS = -1;
+var BASE_SCORE = 0;
+var STATUS_TEXT = "A treinar a rede... aguarda.";
+var STATUS_TIMER = 0.0;
+var SELECTED_LABEL = 0;
+var AUTO_TRAIN = true;
+var FINE_TUNE_COUNT = 0;
+
+// ============================================
+// Helpers
+// ============================================
+
+def clamp01(v)
+{
+    if (v < 0.0) return 0.0;
+    if (v > 1.0) return 1.0;
+    return v;
+}
+
+def make_blank()
+{
+    var s = [];
+    for (var i = 0; i < GRID_N * GRID_N; i = i + 1)
+        s.push(0.0);
+    return s;
+}
+
+def clone_arr(src)
+{
+    var out = [];
+    for (var i = 0; i < len(src); i = i + 1)
+        out.push(src[i]);
+    return out;
+}
+
+def sample_idx(x, y) { return y * GRID_N + x; }
+
+def get_cell(s, x, y)
+{
+    if (x < 0 || x >= GRID_N || y < 0 || y >= GRID_N) return 0.0;
+    return s[sample_idx(x, y)];
+}
+
+def set_cell(s, x, y, v)
+{
+    if (x < 0 || x >= GRID_N || y < 0 || y >= GRID_N) return;
+    s[sample_idx(x, y)] = clamp01(v);
+}
+
+def has_lit_neighbor(s, x, y)
+{
+    for (var oy = -1; oy <= 1; oy = oy + 1)
+    {
+        for (var ox = -1; ox <= 1; ox = ox + 1)
+        {
+            if (ox == 0 && oy == 0) {}
+            elif (get_cell(s, x + ox, y + oy) > 0.5) return true;
+        }
+    }
+    return false;
+}
+
+def make_one_hot(cls)
+{
+    var v = [];
+    for (var i = 0; i < NUM_CLASSES; i = i + 1)
+    {
+        if (i == cls) v.push(1.0);
+        else v.push(0.0);
+    }
+    return v;
+}
+
+def argmax(values)
+{
+    var best = 0;
+    var bestVal = values[0];
+    for (var i = 1; i < len(values); i = i + 1)
+    {
+        if (values[i] > bestVal)
+        {
+            bestVal = values[i];
+            best = i;
+        }
+    }
+    return best;
+}
+
+def sample_sum(s)
+{
+    var sum = 0.0;
+    for (var i = 0; i < len(s); i = i + 1)
+        sum = sum + s[i];
+    return sum;
+}
+
+def make_variant(base, dx, dy)
+{
+    var s = make_blank();
+    for (var y = 0; y < GRID_N; y = y + 1)
+    {
+        for (var x = 0; x < GRID_N; x = x + 1)
+        {
+            var sv = get_cell(base, x - dx, y - dy);
+            var v = 0.0;
+            if (sv > 0.5)
+            {
+                v = 1.0;
+                if (math.rand(0.0, 1.0) < 0.04) v = 0.0;
+            }
+            elif (has_lit_neighbor(base, x - dx, y - dy))
+            {
+                if (math.rand(0.0, 1.0) < 0.05) v = 1.0;
+            }
+            else
+            {
+                if (math.rand(0.0, 1.0) < 0.005) v = 1.0;
+            }
+            set_cell(s, x, y, v);
+        }
+    }
+    return s;
+}
+
+def make_flip_h(base)
+{
+    var s = make_blank();
+    for (var y = 0; y < GRID_N; y = y + 1)
+        for (var x = 0; x < GRID_N; x = x + 1)
+            set_cell(s, GRID_N - 1 - x, y, get_cell(base, x, y));
+    return s;
+}
+
+def make_flip_v(base)
+{
+    var s = make_blank();
+    for (var y = 0; y < GRID_N; y = y + 1)
+        for (var x = 0; x < GRID_N; x = x + 1)
+            set_cell(s, x, GRID_N - 1 - y, get_cell(base, x, y));
+    return s;
+}
+
+// Convert prototype arrays to float arrays
+def to_float_sample(proto)
+{
+    var s = [];
+    for (var i = 0; i < len(proto); i = i + 1)
+    {
+        if (proto[i] >= 1) s.push(1.0);
+        else s.push(0.0);
+    }
+    return s;
+}
+
+// ============================================
+// Model
+// ============================================
+
+def refresh_base_score()
+{
+    BASE_SCORE = 0;
+    for (var i = 0; i < NUM_CLASSES; i = i + 1)
+    {
+        var pred = MODEL.predict(EMOJI_BASE[i]);
+        if (argmax(pred) == i) BASE_SCORE = BASE_SCORE + 1;
+    }
+}
+
+def set_selected_label(v)
+{
+    SELECTED_LABEL = v;
+    if (SELECTED_LABEL < 0) SELECTED_LABEL = NUM_CLASSES - 1;
+    if (SELECTED_LABEL >= NUM_CLASSES) SELECTED_LABEL = 0;
+}
+
+def clear_canvas() { CANVAS = make_blank(); }
+
+def load_emoji_to_canvas(cls)
+{
+    set_selected_label(cls);
+    CANVAS = clone_arr(EMOJI_BASE[cls]);
+    STATUS_TEXT = format("Canvas: prototipo de '{}'", CLASS_NAMES[cls]);
+    STATUS_TIMER = 2.0;
+}
+
+def load_random_variant()
+{
+    var cls = math.irand(0, NUM_CLASSES - 1);
+    var dx = math.irand(-1, 1);
+    var dy = math.irand(-1, 1);
+    CANVAS = make_variant(EMOJI_BASE[cls], dx, dy);
+    set_selected_label(cls);
+    STATUS_TEXT = format("Variante sintetica de '{}' (dx={}, dy={})", CLASS_NAMES[cls], dx, dy);
+    STATUS_TIMER = 2.4;
+}
+
+def fine_tune_model(epochs)
+{
+    var X = [];
+    var Y = [];
+
+    for (var cls = 0; cls < NUM_CLASSES; cls = cls + 1)
+    {
+        X.push(clone_arr(EMOJI_BASE[cls]));
+        Y.push(make_one_hot(cls));
+        X.push(make_variant(EMOJI_BASE[cls], math.irand(-1, 1), math.irand(-1, 1)));
+        Y.push(make_one_hot(cls));
+    }
+
+    for (var i = 0; i < len(USER_X); i = i + 1)
+    {
+        X.push(clone_arr(USER_X[i]));
+        Y.push(clone_arr(USER_Y[i]));
+    }
+
+    MODEL.fit(X, Y, epochs, 8);
+    FINE_TUNE_COUNT = FINE_TUNE_COUNT + 1;
+    refresh_base_score();
+}
+
+def teach_current_canvas()
+{
+    if (sample_sum(CANVAS) < 0.4)
+    {
+        STATUS_TEXT = "Canvas vazio! Desenha algo primeiro.";
+        STATUS_TIMER = 2.0;
+        return;
+    }
+
+    USER_X.push(clone_arr(CANVAS));
+    USER_Y.push(make_one_hot(SELECTED_LABEL));
+    LABEL_COUNTS[SELECTED_LABEL] = LABEL_COUNTS[SELECTED_LABEL] + 1;
+
+    if (AUTO_TRAIN)
+    {
+        fine_tune_model(24);
+        STATUS_TEXT = format("Ensinei '{}'. Exemplos: {} | fine tunes: {}", CLASS_NAMES[SELECTED_LABEL], LABEL_COUNTS[SELECTED_LABEL], FINE_TUNE_COUNT);
+    }
+    else
+    {
+        STATUS_TEXT = format("Guardei exemplo de '{}'. Prime T para treinar.", CLASS_NAMES[SELECTED_LABEL]);
+    }
+    STATUS_TIMER = 3.0;
+}
+
+def train_model()
+{
+    // Build base prototypes
+    EMOJI_BASE = [];
+    EMOJI_BASE.push(to_float_sample(EMOJI_SMILEY));
+    EMOJI_BASE.push(to_float_sample(EMOJI_SAD));
+    EMOJI_BASE.push(to_float_sample(EMOJI_HEART));
+    EMOJI_BASE.push(to_float_sample(EMOJI_STAR));
+    EMOJI_BASE.push(to_float_sample(EMOJI_ARROW));
+    EMOJI_BASE.push(to_float_sample(EMOJI_CROSS));
+
+    USER_X = [];
+    USER_Y = [];
+    LABEL_COUNTS = [];
+    for (var i = 0; i < NUM_CLASSES; i = i + 1)
+        LABEL_COUNTS.push(0);
+    FINE_TUNE_COUNT = 0;
+
+    // Generate training data with augmentation
+    var X = [];
+    var Y = [];
+
+    for (var cls = 0; cls < NUM_CLASSES; cls = cls + 1)
+    {
+        var base = EMOJI_BASE[cls];
+        // Original + shifts + flips
+        for (var dy = -1; dy <= 1; dy = dy + 1)
+        {
+            for (var dx = -1; dx <= 1; dx = dx + 1)
+            {
+                for (var pass = 0; pass < 3; pass = pass + 1)
+                {
+                    X.push(make_variant(base, dx, dy));
+                    Y.push(make_one_hot(cls));
+                }
+            }
+        }
+        // Flipped variants
+        var fh = make_flip_h(base);
+        var fv = make_flip_v(base);
+        for (var p = 0; p < 4; p = p + 1)
+        {
+            X.push(make_variant(fh, math.irand(-1, 1), math.irand(-1, 1)));
+            Y.push(make_one_hot(cls));
+            X.push(make_variant(fv, math.irand(-1, 1), math.irand(-1, 1)));
+            Y.push(make_one_hot(cls));
+        }
+    }
+
+    MODEL = Network();
+    MODEL.input(GRID_N, GRID_N, 1);
+    MODEL.add(64, 48, "relu");
+    MODEL.add(48, 24, "relu");
+    MODEL.add(24, NUM_CLASSES, "softmax");
+    MODEL.compile("adam", "cross_entropy", 0.01);
+    MODEL.fit(X, Y, 140, 12);
+
+    refresh_base_score();
+    STATUS_TEXT = format("Rede pronta! Acerto base: {}/{}. Desenha e prime ENTER.", BASE_SCORE, NUM_CLASSES);
+    STATUS_TIMER = 4.0;
+    print(format("emoji_recognizer base score: {}/{}\n", BASE_SCORE, NUM_CLASSES));
+}
+
+// ============================================
+// Drawing helpers
+// ============================================
+
+def point_in_rect(px, py, rx, ry, rw, rh)
+{
+    return px >= rx && px < rx + rw && py >= ry && py < ry + rh;
+}
+
+def paint_canvas_at(mx, my, erase)
+{
+    if (!point_in_rect(mx, my, GRID_X, GRID_Y, GRID_CELL * GRID_N, GRID_CELL * GRID_N)) return;
+    var gx = int((mx - GRID_X) / GRID_CELL);
+    var gy = int((my - GRID_Y) / GRID_CELL);
+    if (erase) set_cell(CANVAS, gx, gy, 0.0);
+    else set_cell(CANVAS, gx, gy, 1.0);
+}
+
+def update_prediction()
+{
+    PREDICTION = MODEL.predict(CANVAS);
+    PREDICTED_CLASS = argmax(PREDICTION);
+}
+
+def draw_sample(sample, px, py, cellSize, bright)
+{
+    for (var y = 0; y < GRID_N; y = y + 1)
+    {
+        for (var x = 0; x < GRID_N; x = x + 1)
+        {
+            var v = get_cell(sample, x, y);
+            if (bright) set_color(24, 34, 48);
+            else set_color(22, 28, 36);
+            draw_rectangle(px + x * cellSize, py + y * cellSize, cellSize - 1, cellSize - 1, true);
+
+            if (v > 0.5)
+            {
+                if (bright) set_color(118, 196, 255);
+                else set_color(146, 214, 255);
+                draw_rectangle(px + x * cellSize + 1, py + y * cellSize + 1, cellSize - 3, cellSize - 3, true);
+            }
+        }
+    }
+}
+
+def draw_button(textLabel, bx, by, bw, bh, hot)
+{
+    if (hot) set_color(72, 102, 156);
+    else set_color(40, 58, 92);
+    draw_rectangle(bx, by, bw, bh, true);
+    if (hot) set_color(214, 230, 255);
+    else set_color(136, 160, 204);
+    draw_rectangle(bx, by, bw, bh, false);
+    set_color(242, 246, 255);
+    draw_text(textLabel, bx + 14, by + 11, 20);
+}
+
+// ============================================
+// Main
+// ============================================
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("Emoji Recognizer 8x8");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+train_model();
+clear_canvas();
+load_random_variant();
+
+loop
+{
+    var dt = delta();
+    var mx = get_mouse_x();
+    var my = get_mouse_y();
+    var clickLeft = mouse_pressed(MOUSE_LEFT);
+
+    if (STATUS_TIMER > 0.0) STATUS_TIMER -= dt;
+
+    // Keyboard
+    if (key_pressed(KEY_C)) clear_canvas();
+    if (key_pressed(KEY_R) || key_pressed(KEY_SPACE)) load_random_variant();
+    if (key_pressed(KEY_LEFT) || key_pressed(KEY_DOWN)) set_selected_label(SELECTED_LABEL - 1);
+    if (key_pressed(KEY_RIGHT) || key_pressed(KEY_UP)) set_selected_label(SELECTED_LABEL + 1);
+    if (key_pressed(KEY_ENTER)) teach_current_canvas();
+    if (key_pressed(KEY_T))
+    {
+        fine_tune_model(30);
+        STATUS_TEXT = format("Re-treino manual. Base score: {}/{} | fine tunes: {}", BASE_SCORE, NUM_CLASSES, FINE_TUNE_COUNT);
+        STATUS_TIMER = 3.0;
+    }
+    if (key_pressed(KEY_A))
+    {
+        AUTO_TRAIN = !AUTO_TRAIN;
+        if (AUTO_TRAIN) STATUS_TEXT = "Auto-train: ON";
+        else STATUS_TEXT = "Auto-train: OFF";
+        STATUS_TIMER = 2.0;
+    }
+
+    // Paint
+    if (mouse_down(MOUSE_LEFT)) paint_canvas_at(mx, my, false);
+    if (mouse_down(MOUSE_RIGHT)) paint_canvas_at(mx, my, true);
+
+    // Buttons
+    var btnY = 555;
+    var clearHot = point_in_rect(mx, my, 470, btnY, 110, 44);
+    var randomHot = point_in_rect(mx, my, 600, btnY, 130, 44);
+    if (clickLeft && clearHot)
+    {
+        clear_canvas();
+        STATUS_TEXT = "Canvas limpo";
+        STATUS_TIMER = 1.5;
+    }
+    if (clickLeft && randomHot) load_random_variant();
+
+    // Clickable prototypes
+    for (var cls = 0; cls < NUM_CLASSES; cls = cls + 1)
+    {
+        var col = cls % 3;
+        var row = int(cls / 3);
+        var bx = 810 + col * 120;
+        var by = 148 + row * 120;
+        if (clickLeft && point_in_rect(mx, my, bx, by, 108, 108))
+            load_emoji_to_canvas(cls);
+    }
+
+    update_prediction();
+
+    // ============================================
+    // Render
+    // ============================================
+    set_draw_screen(true);
+    set_alpha(255);
+
+    // Background gradient
+    for (var band = 0; band < 5; band = band + 1)
+    {
+        var k = 14 + band * 5;
+        set_color(k, k + 6, k + 16);
+        draw_rectangle(0, band * 150, VIEW_W, 150, true);
+    }
+
+    // Title
+    set_color(230, 238, 252);
+    draw_text("Emoji Recognizer 8x8", 52, 32, 40);
+    set_color(160, 178, 208);
+    draw_text("Desenha emojis, ensina a rede, e ve-a reconhecer padroes!", 54, 76, 20);
+
+    // Canvas panel
+    set_color(18, 24, 36);
+    draw_rectangle(40, 130, 392, 460, true);
+    set_color(90, 118, 168);
+    draw_rectangle(40, 130, 392, 460, false);
+    set_color(242, 246, 255);
+    draw_text("Desenha aqui", 68, 138, 26);
+    set_color(156, 174, 206);
+    draw_text("Esquerdo pinta | Direito apaga", 68, 168, 16);
+    draw_sample(CANVAS, GRID_X, GRID_Y, GRID_CELL, true);
+
+    // Prediction panel
+    set_color(28, 36, 50);
+    draw_rectangle(470, 90, 300, 450, true);
+    set_color(88, 114, 160);
+    draw_rectangle(470, 90, 300, 450, false);
+
+    set_color(238, 244, 255);
+    draw_text("Palpite", 492, 104, 28);
+
+    // Show predicted emoji name with class color
+    var pc = CLASS_COLORS[PREDICTED_CLASS];
+    set_color(pc[0], pc[1], pc[2]);
+    if (PREDICTED_CLASS >= 0)
+        draw_text(CLASS_NAMES[PREDICTED_CLASS], 500, 140, 48);
+
+    set_color(172, 192, 224);
+    if (PREDICTED_CLASS >= 0)
+        draw_text(format("Confianca: {}%", int(PREDICTION[PREDICTED_CLASS] * 100.0)), 500, 200, 20);
+    draw_text(format("Base score: {}/{}", BASE_SCORE, NUM_CLASSES), 500, 228, 20);
+    draw_text(format("Rotulo: {} ({})", SELECTED_LABEL, CLASS_NAMES[SELECTED_LABEL]), 500, 256, 20);
+    draw_text(format("Exemplos teus: {}", len(USER_X)), 500, 284, 20);
+    if (AUTO_TRAIN) draw_text("Auto-train: ON", 500, 312, 20);
+    else draw_text("Auto-train: OFF", 500, 312, 20);
+    draw_text(format("Fine tunes: {}", FINE_TUNE_COUNT), 500, 340, 20);
+
+    // Confidence bars
+    for (var i = 0; i < NUM_CLASSES; i = i + 1)
+    {
+        var py = 380 + i * 22;
+        var barW = int(PREDICTION[i] * 220);
+        var cc = CLASS_COLORS[i];
+        set_color(170, 188, 220);
+        draw_text(CLASS_NAMES[i], 484, py - 4, 14);
+        set_color(36, 48, 68);
+        draw_rectangle(560, py, 180, 14, true);
+        if (i == PREDICTED_CLASS)
+        {
+            set_color(255, 220, 80);
+        }
+        else
+        {
+            set_color(cc[0], cc[1], cc[2]);
+        }
+        if (barW > 180) barW = 180;
+        draw_rectangle(560, py, barW, 14, true);
+        set_color(200, 210, 230);
+        draw_text(format("{}%", int(PREDICTION[i] * 100)), 745, py - 2, 12);
+    }
+
+    // Prototype panel
+    set_color(206, 220, 242);
+    draw_text("Prototipos (clica)", 810, 108, 22);
+    for (var cls = 0; cls < NUM_CLASSES; cls = cls + 1)
+    {
+        var col = cls % 3;
+        var row = int(cls / 3);
+        var bx = 810 + col * 120;
+        var by = 148 + row * 120;
+        var hot = point_in_rect(mx, my, bx, by, 108, 108);
+
+        if (hot) set_color(52, 78, 124);
+        else set_color(30, 42, 66);
+        draw_rectangle(bx, by, 108, 108, true);
+
+        if (cls == SELECTED_LABEL) set_color(255, 208, 110);
+        elif (hot) set_color(190, 214, 252);
+        else set_color(108, 136, 184);
+        draw_rectangle(bx, by, 108, 108, false);
+
+        var cc2 = CLASS_COLORS[cls];
+        set_color(cc2[0], cc2[1], cc2[2]);
+        draw_text(CLASS_NAMES[cls], bx + 6, by + 6, 14);
+        draw_sample(EMOJI_BASE[cls], bx + 14, by + 24, 10, false);
+    }
+
+    // Buttons
+    draw_button("Limpar", 470, btnY, 110, 44, clearHot);
+    draw_button("Random", 600, btnY, 130, 44, randomHot);
+
+    // Controls
+    set_color(170, 188, 214);
+    draw_text("LEFT/RIGHT rotulo | ENTER ensina | T treina | A auto-train", 474, 614, 18);
+    draw_text("R/SPACE variante random | C limpa canvas", 474, 638, 18);
+
+    // Status bar
+    set_color(255, 236, 176);
+    if (STATUS_TIMER > 0.0)
+        draw_text(STATUS_TEXT, 54, 680, 20);
+    else
+        draw_text("Desenha um emoji, escolhe o rotulo, e prime ENTER para ensinar.", 54, 680, 20);
+
+    frame;
+}

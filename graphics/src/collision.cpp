@@ -409,12 +409,13 @@ void PolygonShape::draw(const Entity *entity, Color color)
     screenX -= l.scroll_x;
     screenY -= l.scroll_y;
 
-    float scale_final = (float)entity->size / 100.0f;
+    float scale_final_x = (float)entity->size_x / 100.0f;
+    float scale_final_y = (float)entity->size_y / 100.0f;
     Matrix2D mat = Matrix2D::GetTransformation(
         screenX, screenY,
         entity->angle,
         {0, 0},
-        {scale_final, scale_final});
+        {scale_final_x, scale_final_y});
 
     Vector2 transformed[MAX_POINTS];
     transformPoints(points, transformed, num_points, mat);
@@ -617,19 +618,21 @@ bool Entity::intersects(const Entity *other) const
         return false;
 
 
-    float scale1 = (float)size / 100.0f;
-    float scale2 = (float)other->size / 100.0f;
+    float scale1_x = (float)size_x / 100.0f;
+    float scale1_y = (float)size_y / 100.0f;
+    float scale2_x = (float)other->size_x / 100.0f;
+    float scale2_y = (float)other->size_y / 100.0f;
     
     Matrix2D mat1 = Matrix2D::GetTransformation(
         x, y, angle,
         {0, 0},
-        {scale1, scale1}
+        {scale1_x, scale1_y}
     );
     
     Matrix2D mat2 = Matrix2D::GetTransformation(
         other->x, other->y, other->angle,
         {0, 0},
-        {scale2, scale2}
+        {scale2_x, scale2_y}
     );
 
     return checkCollision(shape, mat1, other->shape, mat2);
@@ -654,12 +657,13 @@ void Entity::updateBounds()
     // screenY -= l.scroll_y;
 
     // Criar matriz de transformação
-    float scale_final = (float)size / 100.0f;
+    float scale_final_x = (float)size_x / 100.0f;
+    float scale_final_y = (float)size_y / 100.0f;
     Matrix2D mat = Matrix2D::GetTransformation(
         screenX, screenY,
         angle,
         {0, 0},
-        {scale_final, scale_final});
+        {scale_final_x, scale_final_y});
 
     if (shape->type == CIRCLE)
     {

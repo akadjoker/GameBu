@@ -1,0 +1,157 @@
+// Test script for new draw primitives
+// draw_rounded_rect, draw_arc, draw_bezier, draw_poly, draw_gradient_rect, set_entity_blend
+
+import math;
+
+var W = 800;
+var H = 600;
+set_window_size(W, H);
+set_window_title("Draw Primitives Test");
+set_design_resolution(W, H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+var selected = 0;
+var t = 0;
+
+
+process hud_process()
+{
+    loop
+    {
+        set_color(20, 20, 30);
+        draw_rectangle(0, 0, W, H, true);
+
+        set_color(255, 255, 255);
+        draw_text("Draw Primitives - LEFT/RIGHT", 10, 10, 20);
+
+        if (selected == 0)
+        {
+            draw_text("rounded_rect", 10, 35, 18);
+            set_color(255, 100, 50);
+            draw_rounded_rect(100, 100, 200, 120, 0.3, true);
+            set_color(50, 200, 100);
+            draw_rounded_rect(350, 100, 200, 120, 0.5, true);
+            set_color(100, 150, 255);
+            draw_rounded_rect(100, 260, 200, 120, 0.8, false);
+            set_color(255, 255, 100);
+            draw_rounded_rect(350, 260, 200, 120, 1.0, true);
+            set_color(200, 200, 200);
+            draw_text("0.3", 180, 230, 14);
+            draw_text("0.5", 430, 230, 14);
+            draw_text("0.8 outline", 150, 390, 14);
+            draw_text("1.0", 430, 390, 14);
+        }
+
+        if (selected == 1)
+        {
+            draw_text("arc (circle sector)", 10, 35, 18);
+            set_color(255, 100, 100);
+            draw_arc(200, 250, 100, 0, 90, true);
+            set_color(100, 255, 100);
+            draw_arc(400, 250, 100, 0, 180, true);
+            set_color(100, 100, 255);
+            draw_arc(600, 250, 80, 45, 270, false);
+            var angle = (t * 3) % 360;
+            set_color(255, 200, 50);
+            draw_arc(400, 480, 50, 0, angle, true);
+            set_color(200, 200, 200);
+            draw_text("90 deg", 170, 140, 14);
+            draw_text("180 deg", 370, 140, 14);
+            draw_text("outline", 570, 140, 14);
+            draw_text("animated cooldown", 330, 540, 14);
+        }
+
+        if (selected == 2)
+        {
+            draw_text("bezier", 10, 35, 18);
+            set_color(255, 100, 200);
+            draw_bezier(100, 200, 700, 400, 3.0);
+            set_color(100, 255, 200);
+            draw_bezier(100, 500, 700, 100, 2.0);
+            set_color(255, 255, 100);
+            draw_bezier(400, 100, 400, 500, 5.0);
+            set_color(200, 200, 200);
+            draw_text("Bezier curves", 320, 80, 16);
+        }
+
+        if (selected == 3)
+        {
+            draw_text("poly (N sides)", 10, 35, 18);
+            set_color(255, 100, 50);
+            draw_poly(150, 250, 3, 60, 0, true);
+            set_color(50, 200, 100);
+            draw_poly(300, 250, 5, 60, 0, true);
+            set_color(100, 150, 255);
+            draw_poly(450, 250, 6, 60, 0, true);
+            set_color(255, 200, 50);
+            draw_poly(600, 250, 8, 60, 0, true);
+            var rot = t * 2;
+            set_color(255, 100, 255);
+            draw_poly(250, 450, 6, 80, rot, false);
+            set_color(100, 255, 255);
+            draw_poly(500, 450, 5, 70, -rot, true);
+            set_color(200, 200, 200);
+            draw_text("3", 145, 155, 14);
+            draw_text("5", 295, 155, 14);
+            draw_text("6", 445, 155, 14);
+            draw_text("8", 595, 155, 14);
+        }
+
+        if (selected == 4)
+        {
+            draw_text("gradient_rect", 10, 35, 18);
+            set_color(255, 0, 0);
+            draw_gradient_rect(50, 100, 300, 150, 0, 0, 255, true);
+            set_color(255, 255, 0);
+            draw_gradient_rect(400, 100, 300, 150, 0, 100, 255, false);
+            set_color(50, 50, 50);
+            draw_gradient_rect(50, 300, 650, 200, 200, 200, 200, true);
+            set_color(255, 255, 255);
+            draw_text("V: red->blue", 120, 260, 14);
+            draw_text("H: yellow->cyan", 460, 260, 14);
+            draw_text("dark->light", 300, 510, 14);
+        }
+
+        if (selected == 5)
+        {
+            draw_text("entity blend (BLEND_ADDITIVE)", 10, 35, 18);
+            set_color(200, 200, 200);
+            draw_text("Look at the icon - additive blend", 250, 550, 14);
+        }
+
+        frame;
+    }
+}
+
+process blend_test_process()
+{
+    x = 400;
+    y = 300;
+    size = 200;
+    set_entity_blend(BLEND_ADDITIVE);
+    loop
+    {
+        angle = angle + 1;
+        frame;
+    }
+}
+
+hud_process();
+
+loop
+{
+    t = t + 1;
+
+    if (key_pressed(262)) // RIGHT
+    {
+        selected = (selected + 1) % 6;
+    }
+    if (key_pressed(263)) // LEFT
+    {
+        selected = (selected - 1 + 6) % 6;
+    }
+
+    frame;
+}

@@ -1,0 +1,285 @@
+// ============================================================
+// TUTORIAL 6: Colisoes
+// ============================================================
+// Aprende:
+//   - init_collision para activar sistema
+//   - set_rect_shape / set_circle_shape
+//   - collision layers e masks
+//   - place_free para verificar posicao
+//   - collision(type, x, y) para encontrar processos
+//   - Resposta a colisao (bounce, destroy)
+// ============================================================
+
+import math;
+
+var W = 800;
+var H = 600;
+
+set_window_size(W, H);
+set_window_title("Tutorial 6: Colisoes");
+set_design_resolution(W, H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+// IMPORTANTE: inicializar sistema de colisao com tamanho do mundo
+init_collision(0, 0, W, H);
+
+
+
+var SCORE = 0;
+
+ 
+
+// ============================================================
+// JOGADOR: nave que dispara
+// ============================================================
+process player_ship(px, py)
+{
+    x = px;
+    y = py;
+    var speed = 300;
+    var fire_cd = 0.0;
+
+    // Collision shape: rectangulo 30x20
+    set_rect_shape(-15, -10, 30, 20);
+    set_collision_layer(1);  // layer 1 = jogador
+    set_collision_mask(2);   // colide com layer 2 = inimigos
+
+    loop
+    {
+        var dt = delta();
+
+        // Mover
+        if (key_down(263)) x = x - speed * dt; // LEFT
+        if (key_down(262)) x = x + speed * dt; // RIGHT
+        x = math.clamp(x, 20, W - 20);
+
+        // Disparar
+        fire_cd = fire_cd - dt;
+        if (key_down(32) && fire_cd <= 0) // SPACE
+        {
+            bullet(x, y - 15);
+            fire_cd = 0.15; // cooldown
+        }
+
+        // Verificar colisao com inimigos
+        var hit = collision(type enemy, x, y);
+        if (hit)
+        {
+            // Flash vermelho
+            set_color(255, 0, 0);
+            draw_rectangle(0, 0, W, H, true);
+        }
+
+        // Desenhar nave
+        set_color(100, 200, 255);
+        draw_triangle(x, y - 15, x - 15, y + 10, x + 15, y + 10, true);
+        set_color(200, 220, 255);
+        draw_triangle(x, y - 15, x - 15, y + 10, x + 15, y + 10, false);
+
+        // Motor
+        if ((int(dt * 1000)) % 2 == 0)
+        {
+            set_color(255, 150, 50);
+            draw_circle(x, y + 13, 4, true);
+        }
+
+        frame;
+    }
+}
+
+// ============================================================
+// BALA
+// ============================================================
+process bullet(px, py)
+{
+    x = px;
+    y = py;
+    var speed = 500;
+
+    // Collision: circulo pequeno
+    set_circle_shape(4);
+    set_collision_layer(4);  // layer 4 = balas
+    set_collision_mask(2);   // colide com layer 2 = inimigos
+
+    loop
+    {
+        var dt = delta();
+        y = y - speed * dt;
+
+        // Fora do ecra? morrer
+        if (y < -10) break;
+
+        // Verificar colisao com inimigo
+        var hit = collision(type enemy, x, y);
+        if (hit)
+        {
+            // Dar dano ao inimigo
+            hit.hp = hit.hp - 1;
+            SCORE = SCORE + 10;
+            // Criar explosao
+            explosion(x, y);
+            break; // bala morre
+        }
+
+        // Desenhar bala
+        set_color(255, 255, 100);
+        draw_circle(x, y, 3, true);
+
+        // Trail
+        set_alpha(100);
+        draw_line_ex(x, y, x, y + 15, 2);
+        set_alpha(255);
+
+        frame;
+    }
+}
+
+// ============================================================
+// INIMIGO
+// ============================================================
+process enemy(px, py)
+{
+    x = px;
+    y = py;
+
+    // Variaveis do inimigo
+    var hp = 3;
+    var base_x = px;
+    var move_t = math.rand(0, 6.28);
+    var flash = 0;
+
+    // Collision: rectangulo
+    set_rect_shape(-18, -14, 36, 28);
+    set_collision_layer(2);  // layer 2 = inimigos
+    set_collision_mask(5);   // colide com layer 1 (jogador) e 4 (balas)
+
+    loop
+    {
+        var dt = delta();
+
+        // Movimento lateral
+        move_t = move_t + dt * 2;
+        x = base_x + sin(move_t) * 50;
+
+        // Flash quando leva dano
+        if (flash > 0)
+        {
+            flash = flash - dt;
+            set_color(255, 255, 255);
+        }
+        else
+        {
+            set_color(255, 80, 80);
+        }
+
+        // Desenhar inimigo
+        draw_rectangle(x - 18, y - 14, 36, 28, true);
+        set_color(200, 50, 50);
+        draw_rectangle(x - 18, y - 14, 36, 28, false);
+
+        // Olhos
+        set_color(255, 255, 255);
+        draw_circle(x - 6, y - 3, 4, true);
+        draw_circle(x + 6, y - 3, 4, true);
+        set_color(0, 0, 0);
+        draw_circle(x - 5, y - 2, 2, true);
+        draw_circle(x + 7, y - 2, 2, true);
+
+        // Barra de vida
+        set_color(60, 60, 60);
+        draw_rectangle(x - 18, y - 22, 36, 4, true);
+        set_color(0, 255, 0);
+        draw_rectangle(x - 18, y - 22, 36 * hp / 3, 4, true);
+
+        // Verificar se leva dano (flash)
+        if (hp < 3 && flash <= 0)
+        {
+            flash = 0.1;
+        }
+
+        // Morrer
+        if (hp <= 0)
+        {
+            explosion(x, y);
+            SCORE = SCORE + 50;
+            break;
+        }
+
+        frame;
+    }
+}
+
+// ============================================================
+// EXPLOSAO (efeito visual)
+// ============================================================
+process explosion(px, py)
+{
+    x = px;
+    y = py;
+    var life = 0.4;
+    var max_r = 25;
+
+    loop
+    {
+        var dt = delta();
+        life = life - dt;
+        var t_norm = 1.0 - life / 0.4;
+        var r = max_r * t_norm;
+
+        set_alpha(math.clamp((1.0 - t_norm) * 255, 0, 255));
+        set_color(255, 200, 50);
+        draw_circle(x, y, r, true);
+        set_color(255, 100, 50);
+        draw_circle(x, y, r * 0.6, true);
+        set_alpha(255);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+// ============================================================
+// HUD
+// ============================================================
+process collision_hud()
+{
+    loop
+    {
+        set_color(15, 15, 30);
+        draw_rectangle(0, 0, W, 60, true);
+
+        set_color(255, 255, 100);
+        draw_text("Tutorial 6: Colisoes", 10, 5, 18);
+        set_color(200, 200, 200);
+        draw_text("[Setas] Mover  |  [SPACE] Disparar", 10, 30, 12);
+        draw_text("Score: " + SCORE, 10, 45, 12);
+
+        // Info box
+        set_color(40, 40, 60);
+        draw_rectangle(0, H - 80, W, 80, true);
+        set_color(150, 150, 150);
+        draw_text("Collision Layers: 1=jogador, 2=inimigos, 4=balas", 10, H - 72, 11);
+        draw_text("set_rect_shape(ox, oy, w, h) / set_circle_shape(r)", 10, H - 58, 11);
+        draw_text("collision(type enemy, x, y) -> encontra inimigo na posicao", 10, H - 44, 11);
+        draw_text("set_collision_layer(n) + set_collision_mask(n) = filtragem", 10, H - 30, 11);
+
+        frame;
+    }
+}
+
+
+// Criar jogador
+player_ship(400, 500);
+
+// Criar inimigos
+var j = 0;
+while (j < 6)
+{
+    enemy(100 + j * 110, 120 + (j % 2) * 60);
+    j = j + 1;
+}
+
+// HUD
+collision_hud();

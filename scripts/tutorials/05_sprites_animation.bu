@@ -1,0 +1,281 @@
+// ============================================================
+// TUTORIAL 5: Sprites e Animacao
+// ============================================================
+// Aprende:
+//   - load_graph para carregar imagem como sprite
+//   - Private "graph" num processo = sprite automatico
+//   - load_atlas para sprite sheets
+//   - Animacao manual com draw_graph_part
+//   - flip_horizontal / flip_vertical
+//   - size, angle para transformar sprite
+//   - set_entity_blend para blend por entidade
+// ============================================================
+
+import math;
+
+set_window_size(800, 600);
+set_window_title("Tutorial 5: Sprites e Animacao");
+set_design_resolution(800, 600);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+// --- NOTA SOBRE SPRITES ---
+// Existem duas formas de usar sprites em GameBu:
+//
+// 1) PROCESSO COM GRAPH (automatico):
+//    Definir graph = load_graph("imagem.png")
+//    O motor desenha o sprite automaticamente na posicao x, y
+//    com rotacao (angle) e escala (size)
+//
+// 2) DRAW MANUAL (immediate mode):
+//    draw_graph(id, x, y)
+//    draw_graph_ex(id, x, y, angle, sizeX, sizeY, flipX, flipY)
+//    Tu controlas quando e como desenhar
+
+// Para este tutorial, vamos demonstrar SEM ficheiros de imagem
+// usando apenas draw como "sprites falsos" para que funcionem
+// em qualquer maquina.
+
+set_draw_screen(true);
+
+// Simular um sprite sheet: quadros de animacao desenhados
+var anim_frame = 0;
+var anim_timer = 0.0;
+var anim_speed = 8; // frames por segundo
+
+
+// Desenhar personagem "sprite" com primitivas
+def draw_character(px, py, frame_idx, facing)
+{
+    var w = 20;
+    var h = 30;
+    var leg_offset = 0;
+
+    // Animacao de pernas
+    if (frame_idx == 1) leg_offset = 4;
+    if (frame_idx == 2) leg_offset = 0;
+    if (frame_idx == 3) leg_offset = -4;
+
+    // Corpo
+    set_color(80, 130, 220);
+    draw_rectangle(px - w/2, py - h/2, w, h, true);
+
+    // Cabeca
+    set_color(255, 200, 150);
+    draw_circle(px, py - h/2 - 8, 10, true);
+
+    // Olho
+    set_color(40, 40, 40);
+    draw_circle(px + facing * 4, py - h/2 - 10, 2, true);
+
+    // Pernas (animadas)
+    set_color(60, 60, 120);
+    draw_rectangle(px - 7, py + h/2, 5, 10 + leg_offset, true);
+    draw_rectangle(px + 2, py + h/2, 5, 10 - leg_offset, true);
+
+    // Braco
+    set_color(80, 130, 220);
+    draw_rectangle(px + facing * w/2, py - 5, facing * 8, 5, true);
+}
+
+// ============================================================
+// Personagem com animacao frame-a-frame
+// ============================================================
+process animated_character(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    var frame_idx = 0;
+    var timer = 0.0;
+    var frames = 4; // numero de frames de animacao
+    var facing = 1; // 1=direita, -1=esquerda
+    var speed = 150;
+
+    loop
+    {
+        var dt = delta();
+
+        // Movimento
+        var moving = false;
+        if (key_down(263)) // LEFT
+        {
+            x = x - speed * dt;
+            facing = -1;
+            moving = true;
+        }
+        if (key_down(262)) // RIGHT
+        {
+            x = x + speed * dt;
+            facing = 1;
+            moving = true;
+        }
+
+        x = math.clamp(x, 30, 770);
+
+        // Animar se estiver a mover
+        if (moving)
+        {
+            timer = timer + dt;
+            if (timer > 1.0 / anim_speed)
+            {
+                timer = 0;
+                frame_idx = (frame_idx + 1) % frames;
+            }
+        }
+        else
+        {
+            frame_idx = 0; // idle = frame 0
+            timer = 0;
+        }
+
+        // Desenhar personagem (sprite falso com draw)
+        draw_character(x, y, frame_idx, facing);
+
+        // Label
+        set_color(200, 200, 200);
+        draw_text("Setas: mover", x - 35, y - 50, 11);
+        draw_text("Frame: " + frame_idx, x - 20, y + 35, 10);
+
+        frame;
+    }
+}
+
+
+// ============================================================
+// Entidade que roda e muda de tamanho
+// ============================================================
+process spinning_entity(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    var t = 0.0;
+
+    loop
+    {
+        t = t + delta();
+
+        // Rotacao continua
+        angle = angle + 120 * delta(); // 120 graus/segundo
+
+        // Tamanho oscilante
+        var scale = 100 + sin(t * 3) * 30;
+
+        // Desenhar estrela com rotacao
+        var points = 5;
+        var _rad = angle * 3.14159 / 180;
+        var outer = 35 * scale / 100;
+        var inner = 15 * scale / 100;
+
+        var j = 0;
+        while (j < points)
+        {
+            var a1 = _rad + j * 3.14159 * 2 / points;
+            var a2 = _rad + (j + 0.5) * 3.14159 * 2 / points;
+            var a3 = _rad + (j + 1) * 3.14159 * 2 / points;
+
+            set_color(255, 200, 50);
+            draw_triangle(
+                x + cos(a1) * outer, y + sin(a1) * outer,
+                x + cos(a2) * inner, y + sin(a2) * inner,
+                x + cos(a3) * outer, y + sin(a3) * outer,
+                true
+            );
+            j = j + 1;
+        }
+
+        set_color(200, 200, 200);
+        draw_text("angle=" + int(angle) % 360, x - 25, y + 45, 10);
+        draw_text("size=" + int(scale), x - 20, y + 58, 10);
+
+        frame;
+    }
+}
+
+// ============================================================
+// Particulas (processos com vida curta)
+// ============================================================
+process particle_burst(cx, cy)
+{
+    loop
+    {
+        // SPACE = criar burst de particulas
+        if (key_pressed(32))
+        {
+            var j = 0;
+            while (j < 20)
+            {
+                particle(cx, cy);
+                j = j + 1;
+            }
+        }
+
+        set_color(150, 150, 150);
+        draw_text("[SPACE] = Particles!", cx - 50, cy + 60, 12);
+
+        frame;
+    }
+}
+
+process particle(px, py)
+{
+    x = px;
+    y = py;
+    var vx = math.rand(-200, 200);
+    var vy = math.rand(-300, -50);
+    var life = math.rand(0.5, 1.5);
+    var max_life = life;
+    var r = math.rand(200, 255);
+    var g = math.rand(50, 200);
+    var sz = math.rand(2, 6);
+
+    loop
+    {
+        var dt = delta();
+        vy = vy + 400 * dt; // gravidade
+        x = x + vx * dt;
+        y = y + vy * dt;
+        life = life - dt;
+
+        var alpha_val = math.clamp(life / max_life * 255, 0, 255);
+        set_alpha(alpha_val);
+        set_color(r, g, 50);
+        draw_circle(x, y, sz, true);
+        set_alpha(255);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+// ============================================================
+// HUD
+// ============================================================
+process hud()
+{
+    loop
+    {
+        set_color(15, 15, 30);
+        draw_rectangle(0, 0, 800, 70, true);
+
+        set_color(255, 255, 100);
+        draw_text("Tutorial 5: Sprites e Animacao", 10, 10, 20);
+        set_color(200, 200, 200);
+        draw_text("[Setas] Mover personagem  |  Estrela roda automaticamente  |  [SPACE] Particulas", 10, 40, 12);
+
+        set_color(100, 200, 100);
+        draw_text("DICA: com load_graph('file.png') + graph = id, o sprite e desenhado automaticamente!", 10, 55, 10);
+
+        frame;
+    }
+}
+
+
+
+
+hud();
+animated_character(200, 350);
+spinning_entity(500, 250);
+particle_burst(600, 450);
+
+
+ 

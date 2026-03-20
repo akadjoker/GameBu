@@ -1,0 +1,25 @@
+{
+  "autosave_enabled": false,
+  "autosave_interval_ms": 1500,
+  "bugl_path": "bugl",
+  "bytecode_output_path": "scripts/ice_coin.buc",
+  "console_visible": true,
+  "file_explorer_visible": true,
+  "font_choice": "default",
+  "font_path": "",
+  "font_scale": 1.0,
+  "last_file_path": "scripts/ice_coin.bu",
+  "minimap_visible": false,
+  "outline_side": "right",
+  "outline_visible": true,
+  "palette": "vscode_dark",
+  "runtime": {
+    "binary_path": "bugl",
+    "profile_name": "bugl"
+  },
+  "workspace": {
+    "bytecode_output_path": "scripts/ice_coin.buc",
+    "entry_script": "scripts/ice_coin.bu",
+    "root_path": ""
+  }
+}

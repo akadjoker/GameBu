@@ -218,7 +218,7 @@ std::string WINDOW_TITLE = "BuGameEngine";
 bool FULLSCREEN = false;
 bool CAN_RESIZE = true;
 bool CAN_CLOSE = false;
-Color BACKGROUND_COLOR = BLACK;
+extern Color BACKGROUND_COLOR;
 
 // ============================================================
 // Native Functions for Script Configuration
@@ -341,7 +341,6 @@ void onStart(Interpreter *vm, Process *proc)
     int z = (int)proc->privates[2].asNumber();
     int graph = proc->privates[3].asInt();
     int angle = proc->privates[4].asInt();
-    int size = proc->privates[5].asInt();
     int flags = proc->privates[6].asInt();
     int id = proc->privates[7].asInt();
     int father = proc->privates[8].asInt();
@@ -382,7 +381,8 @@ void onStart(Interpreter *vm, Process *proc)
     entity->procID = proc->id;
     entity->setPosition(x, y);
     entity->setAngle(angle);
-    entity->setSize(size);
+    entity->size_x = proc->privates[(int)PrivateIndex::SIZEX].asNumber();
+    entity->size_y = proc->privates[(int)PrivateIndex::SIZEY].asNumber();
     entity->color.r = (uint8)(red * 255.0);
     entity->color.g = (uint8)(green * 255.0);
     entity->color.b = (uint8)(blue * 255.0);
@@ -408,7 +408,6 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
     int z = proc->privates[2].asInt();
     int graph = proc->privates[3].asInt();
     int angle = proc->privates[4].asInt();
-    int size = proc->privates[5].asInt();
     int flags = proc->privates[6].asInt();
     int id = proc->privates[7].asInt();
     int father = proc->privates[8].asInt();
@@ -439,17 +438,12 @@ void onUpdate(Interpreter *vm, Process *proc, float dt)
     entity->z = z;
     entity->setPosition(x, y);
     entity->setAngle(angle);
-    entity->setSize(size);
+    entity->size_x = proc->privates[(int)PrivateIndex::SIZEX].asNumber();
+    entity->size_y = proc->privates[(int)PrivateIndex::SIZEY].asNumber();
     entity->color.r = (uint8)(red * 255.0);
     entity->color.g = (uint8)(green * 255.0);
     entity->color.b = (uint8)(blue * 255.0);
     entity->color.a = (uint8)(alpha * 255.0);
-
-    // proc->privates[0] = vm->makeDouble(entity->x);
-    // proc->privates[1] = vm->makeDouble(entity->y);
-    // proc->privates[4] = vm->makeInt(entity->angle);
-    // proc->privates[5] = vm->makeInt(entity->size);
-    // proc->privates[6] = vm->makeInt(flags);
 }
 void onDestroy(Interpreter *vm, Process *proc, int exitCode)
 {

@@ -158,6 +158,11 @@ namespace BindingsDraw
         GraphPartEx,
         Ellipse,
         Ring,
+        RoundedRect,
+        Arc,
+        Bezier,
+        Poly,
+        GradientRect,
         ClipBegin,
         ClipEnd
     };
@@ -179,6 +184,11 @@ namespace BindingsDraw
     struct GraphPartExCmd { int graphId; int srcX, srcY, srcW, srcH; int x, y; float rotation, sizeX, sizeY; bool flipX, flipY; };
     struct EllipseCmd { int x, y, radiusX, radiusY; bool fill; };
     struct RingCmd { int x, y; float innerRadius, outerRadius, startAngle, endAngle; bool fill; };
+    struct RoundedRectCmd { int x, y, width, height; float roundness; bool fill; };
+    struct ArcCmd { int x, y; float radius, startAngle, endAngle; bool fill; };
+    struct BezierCmd { int x1, y1, x2, y2; float thickness; };
+    struct PolyCmd { int x, y, sides; float radius, rotation; bool fill; };
+    struct GradientRectCmd { int x, y, width, height; Color color2; bool vertical; };
     struct ClipCmd { int x, y, width, height; };
 
     struct DrawCommand
@@ -220,6 +230,9 @@ namespace BindingsDraw
         bool fill = false;
         bool flipX = false;
         bool flipY = false;
+        Color color2 = WHITE;
+        int sides = 0;
+        bool vertical = true;
     };
 
     static std::vector<DrawCommand> screenCommands;
@@ -373,6 +386,50 @@ namespace BindingsDraw
         cmd.innerRadius = p.innerRadius; cmd.outerRadius = p.outerRadius;
         cmd.startAngle = p.startAngle; cmd.endAngle = p.endAngle;
         cmd.fill = p.fill;
+        applyCurrentRenderState(cmd);
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const RoundedRectCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height;
+        cmd.outerRadius = p.roundness; cmd.fill = p.fill;
+        applyCurrentRenderState(cmd);
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const ArcCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.outerRadius = p.radius;
+        cmd.startAngle = p.startAngle; cmd.endAngle = p.endAngle; cmd.fill = p.fill;
+        applyCurrentRenderState(cmd);
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const BezierCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x1; cmd.y1 = p.y1; cmd.x2 = p.x2; cmd.y2 = p.y2; cmd.thickness = p.thickness;
+        applyCurrentRenderState(cmd);
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const PolyCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.sides = p.sides;
+        cmd.outerRadius = p.radius; cmd.rotation = p.rotation; cmd.fill = p.fill;
+        applyCurrentRenderState(cmd);
+        screenCommands.push_back(std::move(cmd));
+    }
+    static void enqueueScreenCommand(DrawCommandType type, Color color, const GradientRectCmd &p)
+    {
+        DrawCommand cmd;
+        cmd.type = type; cmd.color = color;
+        cmd.x1 = p.x; cmd.y1 = p.y; cmd.width = p.width; cmd.height = p.height;
+        cmd.color2 = p.color2; cmd.vertical = p.vertical;
         applyCurrentRenderState(cmd);
         screenCommands.push_back(std::move(cmd));
     }
@@ -585,6 +642,33 @@ namespace BindingsDraw
                 DrawRing({(float)cmd.x1, (float)cmd.y1}, cmd.innerRadius, cmd.outerRadius, cmd.startAngle, cmd.endAngle, 64, cmd.color);
             else
                 DrawRingLines({(float)cmd.x1, (float)cmd.y1}, cmd.innerRadius, cmd.outerRadius, cmd.startAngle, cmd.endAngle, 64, cmd.color);
+            break;
+        case DrawCommandType::RoundedRect:
+            if (cmd.fill)
+                DrawRectangleRounded({(float)cmd.x1, (float)cmd.y1, (float)cmd.width, (float)cmd.height}, cmd.outerRadius, 8, cmd.color);
+            else
+                DrawRectangleRoundedLines({(float)cmd.x1, (float)cmd.y1, (float)cmd.width, (float)cmd.height}, cmd.outerRadius, 8, 2.0f, cmd.color);
+            break;
+        case DrawCommandType::Arc:
+            if (cmd.fill)
+                DrawCircleSector({(float)cmd.x1, (float)cmd.y1}, cmd.outerRadius, cmd.startAngle, cmd.endAngle, 36, cmd.color);
+            else
+                DrawCircleSectorLines({(float)cmd.x1, (float)cmd.y1}, cmd.outerRadius, cmd.startAngle, cmd.endAngle, 36, cmd.color);
+            break;
+        case DrawCommandType::Bezier:
+            DrawLineBezier({(float)cmd.x1, (float)cmd.y1}, {(float)cmd.x2, (float)cmd.y2}, cmd.thickness, cmd.color);
+            break;
+        case DrawCommandType::Poly:
+            if (cmd.fill)
+                DrawPoly({(float)cmd.x1, (float)cmd.y1}, cmd.sides, cmd.outerRadius, cmd.rotation, cmd.color);
+            else
+                DrawPolyLines({(float)cmd.x1, (float)cmd.y1}, cmd.sides, cmd.outerRadius, cmd.rotation, cmd.color);
+            break;
+        case DrawCommandType::GradientRect:
+            if (cmd.vertical)
+                DrawRectangleGradientV(cmd.x1, cmd.y1, cmd.width, cmd.height, cmd.color, cmd.color2);
+            else
+                DrawRectangleGradientH(cmd.x1, cmd.y1, cmd.width, cmd.height, cmd.color, cmd.color2);
             break;
         case DrawCommandType::ClipBegin:
             BeginScissorMode(cmd.x1, cmd.y1, cmd.width, cmd.height);
@@ -1089,6 +1173,169 @@ namespace BindingsDraw
             DRAW_IMMEDIATE(DrawTriangle(v1, v2, v3, currentColor));
         else
             DRAW_IMMEDIATE(DrawTriangleLines(v1, v2, v3, currentColor));
+        return 0;
+    }
+
+    // === New draw primitives ===
+
+    static int native_draw_rounded_rect(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 6)
+        {
+            Error("draw_rounded_rect expects 6 arguments (x, y, width, height, roundness, fill)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int width = (int)args[2].asNumber();
+        int height = (int)args[3].asNumber();
+        float roundness = (float)args[4].asNumber();
+        bool fill = args[5].asBool();
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::RoundedRect, currentColor, RoundedRectCmd{x, y, width, height, roundness, fill});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+
+        if (fill)
+            DRAW_IMMEDIATE(DrawRectangleRounded({(float)x, (float)y, (float)width, (float)height}, roundness, 8, currentColor));
+        else
+            DRAW_IMMEDIATE(DrawRectangleRoundedLines({(float)x, (float)y, (float)width, (float)height}, roundness, 8, 2.0f, currentColor));
+        return 0;
+    }
+
+    static int native_draw_arc(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 6)
+        {
+            Error("draw_arc expects 6 arguments (x, y, radius, startAngle, endAngle, fill)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        float radius = (float)args[2].asNumber();
+        float startAngle = (float)args[3].asNumber();
+        float endAngle = (float)args[4].asNumber();
+        bool fill = args[5].asBool();
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Arc, currentColor, ArcCmd{x, y, radius, startAngle, endAngle, fill});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+
+        if (fill)
+            DRAW_IMMEDIATE(DrawCircleSector({(float)x, (float)y}, radius, startAngle, endAngle, 36, currentColor));
+        else
+            DRAW_IMMEDIATE(DrawCircleSectorLines({(float)x, (float)y}, radius, startAngle, endAngle, 36, currentColor));
+        return 0;
+    }
+
+    static int native_draw_bezier(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 5)
+        {
+            Error("draw_bezier expects 5 arguments (x1, y1, x2, y2, thickness)");
+            return 0;
+        }
+
+        int x1 = (int)args[0].asNumber();
+        int y1 = (int)args[1].asNumber();
+        int x2 = (int)args[2].asNumber();
+        int y2 = (int)args[3].asNumber();
+        float thickness = (float)args[4].asNumber();
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Bezier, currentColor, BezierCmd{x1, y1, x2, y2, thickness});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x1 -= l.scroll_x;
+        y1 -= l.scroll_y;
+        x2 -= l.scroll_x;
+        y2 -= l.scroll_y;
+
+        DRAW_IMMEDIATE(DrawLineBezier({(float)x1, (float)y1}, {(float)x2, (float)y2}, thickness, currentColor));
+        return 0;
+    }
+
+    static int native_draw_poly(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 6)
+        {
+            Error("draw_poly expects 6 arguments (x, y, sides, radius, rotation, fill)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int sides = (int)args[2].asNumber();
+        float radius = (float)args[3].asNumber();
+        float rotation = (float)args[4].asNumber();
+        bool fill = args[5].asBool();
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::Poly, currentColor, PolyCmd{x, y, sides, radius, rotation, fill});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+
+        if (fill)
+            DRAW_IMMEDIATE(DrawPoly({(float)x, (float)y}, sides, radius, rotation, currentColor));
+        else
+            DRAW_IMMEDIATE(DrawPolyLines({(float)x, (float)y}, sides, radius, rotation, currentColor));
+        return 0;
+    }
+
+    static int native_draw_gradient_rect(Interpreter *vm, int argCount, Value *args)
+    {
+        if (argCount != 8)
+        {
+            Error("draw_gradient_rect expects 8 arguments (x, y, w, h, r2, g2, b2, vertical)");
+            return 0;
+        }
+
+        int x = (int)args[0].asNumber();
+        int y = (int)args[1].asNumber();
+        int width = (int)args[2].asNumber();
+        int height = (int)args[3].asNumber();
+        unsigned char r2 = (unsigned char)args[4].asInt();
+        unsigned char g2 = (unsigned char)args[5].asInt();
+        unsigned char b2 = (unsigned char)args[6].asInt();
+        bool vertical = args[7].asBool();
+        Color color2 = {r2, g2, b2, currentColor.a};
+
+        if (screen)
+        {
+            enqueueScreenCommand(DrawCommandType::GradientRect, currentColor, GradientRectCmd{x, y, width, height, color2, vertical});
+            return 0;
+        }
+
+        Layer &l = gScene.layers[layer];
+        x -= l.scroll_x;
+        y -= l.scroll_y;
+
+        if (vertical)
+            DRAW_IMMEDIATE(DrawRectangleGradientV(x, y, width, height, currentColor, color2));
+        else
+            DRAW_IMMEDIATE(DrawRectangleGradientH(x, y, width, height, currentColor, color2));
         return 0;
     }
 
@@ -1991,6 +2238,12 @@ namespace BindingsDraw
         vm.registerNative("draw_line_ex", native_line_ex, 5);
         vm.registerNative("draw_rotated_rectangle", native_rotated_rectangle, 6);
         vm.registerNative("draw_rotated_rectangle_ex", native_rotated_rectangle_ex, 8);
+
+        vm.registerNative("draw_rounded_rect", native_draw_rounded_rect, 6);
+        vm.registerNative("draw_arc", native_draw_arc, 6);
+        vm.registerNative("draw_bezier", native_draw_bezier, 5);
+        vm.registerNative("draw_poly", native_draw_poly, 6);
+        vm.registerNative("draw_gradient_rect", native_draw_gradient_rect, 8);
         
         vm.registerNative("set_draw_layer", native_set_draw_layer, 1);
         vm.registerNative("set_draw_screen", native_set_draw_screen, 1);

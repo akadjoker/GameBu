@@ -7,7 +7,7 @@
 extern Scene gScene;
 extern ParticleSystem gParticleSystem;
 extern CameraManager gCamera;
-extern Color BACKGROUND_COLOR;
+Color BACKGROUND_COLOR = BLACK;
 Renderer gRenderer;
 
 

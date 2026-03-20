@@ -1,0 +1,329 @@
+// === TESTE: Variáveis em Processos ===
+// Testa declaração de privates, locals, args e persistência
+
+import math;
+
+var W = 800;
+var H = 600;
+set_window_size(W, H);
+set_window_title("Test: Process Variables");
+set_design_resolution(W, H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+var LOG = [];
+var FRAME = 0;
+var TESTS_OK = 0;
+var TESTS_FAIL = 0;
+
+def trace(msg)
+{
+    var line = format("[F{}] {}", FRAME, msg);
+    LOG.push(line);
+    if (LOG.length() > 30) { LOG.remove(0); }
+    write(line);
+}
+
+def check(name, got, expected)
+{
+    if (got == expected)
+    {
+        trace(format("  OK: {} = {}", name, got));
+        TESTS_OK = TESTS_OK + 1;
+    }
+    else
+    {
+        trace(format("  FAIL: {} = {} (expected {})", name, got, expected));
+        TESTS_FAIL = TESTS_FAIL + 1;
+    }
+}
+
+// =====================================================
+// T1: Privates built-in - valores default e atribuição
+// =====================================================
+process test_privates()
+{
+    trace("--- T1: Privates built-in ---");
+
+    // Defaults do addProcess()
+    check("x default", x, 0);
+    check("y default", y, 0);
+    check("size default", size, 100);
+    check("angle default", angle, 0);
+    check("graph default", graph, -1);
+
+    // Atribuição antes do frame
+    x = 123;
+    y = 456;
+    size = 200;
+    angle = 45;
+    graph = 5;
+
+    check("x set", x, 123);
+    check("y set", y, 456);
+    check("size set", size, 200);
+    check("angle set", angle, 45);
+    check("graph set", graph, 5);
+
+    frame;
+
+    // Persistência depois do frame
+    check("x after frame", x, 123);
+    check("y after frame", y, 456);
+    check("size after frame", size, 200);
+    check("angle after frame", angle, 45);
+
+    // Mudar no loop
+    x = x + 10;
+    check("x += 10", x, 133);
+
+    frame;
+    check("x persists", x, 133);
+
+    loop { frame; }
+}
+
+// =====================================================
+// T2: Constructor args → privates mapping
+// =====================================================
+process test_args(x, y, size)
+{
+    trace("--- T2: Constructor args ---");
+
+    // Os args devem ter chegado aos privates correctos
+    check("arg x", x, 300);
+    check("arg y", y, 400);
+    check("arg size", size, 75);
+
+    // angle não foi passado como arg, deve manter o default
+    check("angle default", angle, 0);
+
+    frame;
+
+    // Persistência depois do frame
+    check("x after frame", x, 300);
+    check("y after frame", y, 400);
+    check("size after frame", size, 75);
+
+    loop { frame; }
+}
+
+// =====================================================
+// T3: Variáveis locais (var) dentro do process
+// =====================================================
+process test_locals()
+{
+    trace("--- T3: Locals ---");
+
+    var a = 10;
+    var b = 20;
+    var c = a + b;
+    check("a", a, 10);
+    check("b", b, 20);
+    check("c=a+b", c, 30);
+
+    var name = "hello";
+    check("string local", name, "hello");
+
+    var arr = [1, 2, 3];
+    check("array length", arr.length(), 3);
+    check("array[0]", arr[0], 1);
+
+    // Locals devem persistir no mesmo scope
+    a = 99;
+    check("a reassign", a, 99);
+
+    frame;
+
+    // Locals persistem entre frames? (deve sim, mesmo scope de loop)
+    check("a after frame", a, 99);
+    check("c after frame", c, 30);
+    check("name after frame", name, "hello");
+
+    // Alterar local e verificar no próximo frame
+    b = 777;
+    frame;
+    check("b after 2nd frame", b, 777);
+
+    loop { frame; }
+}
+
+// =====================================================
+// T4: Mix — privates + locals + args + expressões
+// =====================================================
+process test_mix(x, y)
+{
+    trace("--- T4: Mix privates + locals + args ---");
+
+    // Privates dos args
+    check("mix x", x, 100);
+    check("mix y", y, 200);
+
+    // Local calculado a partir de private
+    var dx = x * 2;
+    var dy = y + 50;
+    check("dx=x*2", dx, 200);
+    check("dy=y+50", dy, 250);
+
+    // Modificar private, local deve manter o seu valor
+    x = 999;
+    check("x changed", x, 999);
+    check("dx unchanged", dx, 200);  // dx NÃO deve mudar
+
+    // Private de cor
+    red = 128;
+    green = 64;
+    blue = 32;
+    alpha = 255;
+    check("red", red, 128);
+    check("green", green, 64);
+    check("blue", blue, 32);
+    check("alpha", alpha, 255);
+
+    frame;
+
+    check("red after frame", red, 128);
+    check("x after frame", x, 999);
+    check("dx after frame", dx, 200);
+
+    loop { frame; }
+}
+
+// =====================================================
+// T5: advance/xadvance antes do frame
+// =====================================================
+process test_advance()
+{
+    trace("--- T5: advance/xadvance antes do frame ---");
+
+    x = 100;
+    y = 100;
+    angle = 0;  // 0 graus = direita
+
+    // advance(10) com angle=0 deve mover x+10
+    advance(10);
+    check("advance x", x, 110);
+    check("advance y", y, 100);  // y nao muda com angle=0
+
+    // xadvance(5, 90) deve mover em angle=90 (cima)
+    var old_x = x;
+    var old_y = y;
+    xadvance(5, 90);
+    trace(format("  xadvance(5,90): x={} y={}", x, y));
+    // Com angle 90, x nao muda muito, y move
+    check("xadvance x ~= old_x", int(x + 0.5), int(old_x + 0.5));
+
+    // advance novamente para acumular
+    x = 200;
+    y = 200;
+    angle = 0;
+    advance(50);
+    check("advance acum x", x, 250);
+    check("advance acum y", y, 200);
+
+    frame;
+
+    // Depois do frame, as privates devem manter
+    check("x after frame", x, 250);
+    check("y after frame", y, 200);
+
+    // advance no loop
+    advance(10);
+    check("x after loop advance", x, 260);
+
+    frame;
+    check("x persists", x, 260);
+
+    loop { frame; }
+}
+
+// =====================================================
+// T6: Atribuição no loop — privates updated cada frame
+// =====================================================
+process test_loop_update()
+{
+    trace("--- T6: Loop update ---");
+    x = 0;
+    y = 0;
+    var counter = 0;
+
+    frame;
+
+    // Frame 1
+    x = x + 1;
+    counter = counter + 1;
+    check("x=1", x, 1);
+    check("counter=1", counter, 1);
+    frame;
+
+    // Frame 2
+    x = x + 1;
+    counter = counter + 1;
+    check("x=2", x, 2);
+    check("counter=2", counter, 2);
+    frame;
+
+    // Frame 3
+    x = x + 1;
+    counter = counter + 1;
+    check("x=3", x, 3);
+    check("counter=3", counter, 3);
+
+    trace(format("=== RESULTADO: {} OK, {} FAIL ===", TESTS_OK, TESTS_FAIL));
+
+    loop { frame; }
+}
+
+// =====================================================
+// HUD
+// =====================================================
+process hud()
+{
+    loop
+    {
+        FRAME = FRAME + 1;
+
+        set_color(20, 20, 30);
+        draw_rectangle(0, 0, W, H, true);
+
+        set_color(255, 255, 255);
+        draw_text("Process Variables Test", 20, 10, 22);
+
+        // Contadores
+        set_color(100, 255, 100);
+        draw_text(format("OK: {}", TESTS_OK), 20, 35, 18);
+        set_color(255, 100, 100);
+        draw_text(format("FAIL: {}", TESTS_FAIL), 120, 35, 18);
+
+        set_color(200, 200, 100);
+        var ty = 60;
+        var i = 0;
+        while (i < LOG.length())
+        {
+            draw_text(LOG[i], 20, ty, 13);
+            ty = ty + 15;
+            i = i + 1;
+        }
+
+        set_color(150, 150, 150);
+        draw_text(format("Frame: {}", FRAME), 20, H - 25, 14);
+
+        frame;
+    }
+}
+
+// =====================================================
+// MAIN
+// =====================================================
+init_collision(0, 0, W, H);
+
+trace("=== TEST SUITE: Process Variables ===");
+hud();
+
+test_privates();
+test_args(300, 400, 75);
+test_locals();
+test_mix(100, 200);
+test_advance();
+test_loop_update();

@@ -17,4 +17,32 @@
 //include "test_z_layer_order.bu";
 //include "test_draw_new_api.bu";
 //include "nn_digit_playground.bu";
-include "nn_digit_teacher.bu";
+//include "nn_digit_teacher.bu";
+
+//include "emoji_recognizer.bu";
+
+
+//include "lunar_lander_ai.bu";
+
+//include "meteor_defender_ai.bu";
+//include "test_process_lifecycle.bu";
+
+//include "test_audio.bu";
+
+//include "test_process_lifecycle.bu";
+//include "test_draw_primitives.bu";
+
+//include "tutorials/02_drawing.bu";
+//include "tutorials/03_processes.bu";
+
+//include "tutorials/04_input_movement.bu";
+
+//include "tutorials/05_sprites_animation.bu";
+
+//include "tutorials/06_collision.bu";
+
+include "tutorials/10_camera.bu";
+
+//include "tutorials/09_scroll_parallax.bu";
+
+//include "tutorials/08_mini_game.bu";

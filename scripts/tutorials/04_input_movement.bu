@@ -1,0 +1,232 @@
+// ============================================================
+// TUTORIAL 4: Input e Movimento
+// ============================================================
+// Aprende:
+//   - Teclado: key_down (contínuo), key_pressed (single)
+//   - Rato: get_mouse_x/y, mouse_down
+//   - delta() para movimento frame-independent
+//   - Movimento suave (velocidade + aceleracao)
+//   - Rotacao com angulo
+// ============================================================
+
+import math;
+
+set_window_size(800, 600);
+set_window_title("Tutorial 4: Input e Movimento");
+set_design_resolution(800, 600);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+// Key codes (GLFW)
+var KEY_W = 87;
+var KEY_A = 65;
+var KEY_S = 83;
+var KEY_D = 68;
+var KEY_UP = 265;
+var KEY_DOWN = 264;
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+var KEY_SPACE = 32;
+
+
+
+// ============================================================
+// EXEMPLO 1: Movimento directo com setas (simples)
+// ============================================================
+process arrow_mover()
+{
+    x = 200;
+    y = 200;
+    var speed = 200; // pixels/segundo
+
+    loop
+    {
+        var dt = delta();
+
+        // key_down = true ENQUANTO a tecla esta premida
+        if (key_down(KEY_UP))    y = y - speed * dt;
+        if (key_down(KEY_DOWN))  y = y + speed * dt;
+        if (key_down(KEY_LEFT))  x = x - speed * dt;
+        if (key_down(KEY_RIGHT)) x = x + speed * dt;
+
+        // Limitar ao ecra
+        x = math.clamp(x, 20, 780);
+        y = math.clamp(y, 80, 580);
+
+        // Desenhar quadrado
+        set_color(255, 100, 100);
+        draw_rectangle(x - 15, y - 15, 30, 30, true);
+        set_color(255, 200, 200);
+        draw_rectangle(x - 15, y - 15, 30, 30, false);
+
+        // Label
+        set_color(200, 200, 200);
+        draw_text("Setas", x - 15, y - 30, 12);
+
+        frame;
+    }
+}
+
+// ============================================================
+// EXEMPLO 2: Movimento suave com WASD (aceleracao + friccao)
+// ============================================================
+process wasd_mover()
+{
+    x = 400;
+    y = 300;
+    var vx = 0.0;
+    var vy = 0.0;
+    var accel = 800;   // aceleracao
+    var friction = 5;   // friccao (quanto maior, mais rapido para)
+    var max_speed = 250;
+
+    loop
+    {
+        var dt = delta();
+
+        // Input -> aceleracao
+        var ax = 0;
+        var ay = 0;
+        if (key_down(KEY_W)) ay = -1;
+        if (key_down(KEY_S)) ay = 1;
+        if (key_down(KEY_A)) ax = -1;
+        if (key_down(KEY_D)) ax = 1;
+
+        // Aplicar aceleracao
+        vx = vx + ax * accel * dt;
+        vy = vy + ay * accel * dt;
+
+        // Friccao (desacelerar quando nao ha input)
+        vx = vx * (1.0 - friction * dt);
+        vy = vy * (1.0 - friction * dt);
+
+        // Limitar velocidade maxima
+        var spd = sqrt(vx * vx + vy * vy);
+        if (spd > max_speed)
+        {
+            vx = vx / spd * max_speed;
+            vy = vy / spd * max_speed;
+        }
+
+        // Mover
+        x = x + vx * dt;
+        y = y + vy * dt;
+
+        // Limitar ao ecra
+        x = math.clamp(x, 20, 780);
+        y = math.clamp(y, 80, 580);
+
+        // Rotacao na direcao do movimento
+        if (spd > 10)
+        {
+            angle = atan2(vy, vx) * 180 / 3.14159;
+        }
+
+        // Desenhar circulo com indicador de direcao
+        set_color(100, 100, 255);
+        draw_circle(x, y, 18, true);
+        set_color(200, 200, 255);
+        draw_circle(x, y, 18, false);
+
+        // Seta de direcao
+        var _rad = angle * 3.14159 / 180;
+        set_color(255, 255, 100);
+        draw_line_ex(x, y, x + cos(_rad) * 25, y + sin(_rad) * 25, 3);
+
+        // Label
+        set_color(200, 200, 200);
+        draw_text("WASD", x - 15, y - 35, 12);
+        draw_text("v:" + int(spd), x - 15, y + 22, 10);
+
+        frame;
+    }
+}
+
+// ============================================================
+// EXEMPLO 3: Seguir o rato (smooth follow)
+// ============================================================
+process mouse_follower()
+{
+    x = 600;
+    y = 400;
+    var lerp_speed = 5.0; // quanto maior, mais rapido segue
+
+    loop
+    {
+        var dt = delta();
+        var mx = get_mouse_x();
+        var my = get_mouse_y();
+
+        // Lerp (interpolacao linear) para o rato
+        x = x + (mx - x) * math.min(1.0, lerp_speed * dt);
+        y = y + (my - y) * math.min(1.0, lerp_speed * dt);
+
+        // Calcular angulo para o rato
+        var dx = mx - x;
+        var dy = my - y;
+        if (abs(dx) > 1 || abs(dy) > 1)
+        {
+            angle = atan2(dy, dx) * 180 / 3.14159;
+        }
+
+        // Desenhar triangulo (nave)
+        var _rad = angle * 3.14159 / 180;
+        var cos_a = cos(_rad);
+        var sin_a = sin(_rad);
+
+        set_color(100, 255, 100);
+        draw_triangle(
+            x + cos_a * 20, y + sin_a * 20,
+            x + cos(_rad + 2.5) * 15, y + sin(_rad + 2.5) * 15,
+            x + cos(_rad - 2.5) * 15, y + sin(_rad - 2.5) * 15,
+            true
+        );
+
+        // Trail (linha do rato ate nave)
+        set_alpha(80);
+        set_color(100, 255, 100);
+        draw_line_ex(mx, my, x, y, 1);
+        set_alpha(255);
+
+        // Label
+        set_color(200, 200, 200);
+        draw_text("Mouse", x - 18, y - 30, 12);
+
+        frame;
+    }
+}
+
+// ============================================================
+// HUD
+// ============================================================
+process hud()
+{
+    loop
+    {
+        // Background
+        set_color(15, 15, 30);
+        draw_rectangle(0, 0, 800, 70, true);
+        set_color(30, 30, 50);
+        draw_line(0, 70, 800, 70);
+
+        set_color(255, 255, 100);
+        draw_text("Tutorial 4: Input e Movimento", 10, 10, 20);
+        set_color(200, 200, 200);
+        draw_text("[Setas] Directo  |  [WASD] Aceleracao + Friccao  |  [Rato] Smooth Follow", 10, 40, 13);
+
+        frame;
+    }
+}
+
+
+// Criar os 3 exemplos de movimento
+arrow_mover();
+wasd_mover();
+mouse_follower();
+hud();
+
+loop
+{
+    frame;
+}

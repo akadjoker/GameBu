@@ -1,0 +1,281 @@
+// ============================================================
+// TUTORIAL 9: Scroll & Parallax (Engine Scroll System)
+// ============================================================
+// Aprende:
+//   - set_scroll(x, y) para mover o "viewport" do mundo
+//   - set_layer_scroll_factor(layer, fx, fy) para parallax
+//   - set_layer_back_graph(layer, graph) para backgrounds
+//   - Diferença entre layers com scroll_factor diferente
+//   - Entities movem-se com o scroll automaticamente
+//   - HUD com set_draw_screen(true) ignora scroll
+// ============================================================
+// O sistema de SCROLL é interno ao engine:
+//   - Cada layer tem scroll_x/scroll_y (offset)
+//   - set_scroll(x,y) define o scroll global
+//   - Cada layer multiplica pelo seu scroll_factor
+//   - Entities: renderizam em (entity.x - layer.scroll_x)
+//   - Backgrounds: UV offset proporcional ao scroll
+//   - NAO tem zoom nem rotação - é só translação
+// ============================================================
+
+import math;
+
+// --- Constantes ---
+var SCREEN_W = 800;
+var SCREEN_H = 600;
+var WORLD_W = 3200;
+var KEY_LEFT = 263;
+var KEY_RIGHT = 262;
+var KEY_UP = 265;
+var KEY_DOWN = 264;
+var KEY_SPACE = 32;
+
+// --- Setup ---
+set_window_size(SCREEN_W, SCREEN_H);
+set_window_title("Tutorial 9: Scroll & Parallax");
+set_design_resolution(SCREEN_W, SCREEN_H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+
+// ============================================================
+// Criar graficos procedurais com Image API
+// ============================================================
+
+// --- Background distante (céu + estrelas) - Layer 0 ---
+var img_sky = Image(400, 300);
+// Gradiente céu
+var iy = 0;
+while (iy < 300)
+{
+    var r = 10 + iy / 5;
+    var g = 10 + iy / 8;
+    var b = 40 + iy / 3;
+    var ix = 0;
+    while (ix < 400)
+    {
+        img_sky.set_pixel(ix, iy, r, g, b, 255);
+        ix += 1;
+    }
+    iy += 1;
+}
+// Estrelas
+var i = 0;
+while (i < 60)
+{
+    var sx = math.rand(0, 399);
+    var sy = math.rand(0, 200);
+    var brightness = math.rand(150, 255);
+    img_sky.draw_circle(sx, sy, 1, brightness, brightness, brightness, 255, true);
+    i += 1;
+}
+var graph_sky = img_sky.to_graph("sky_bg");
+
+// --- Montanhas (médio plano) - Layer 1 ---
+var img_mountains = Image(800, 300);
+img_mountains.fill(0, 0, 0, 0);
+// Desenhar cadeia de montanhas
+var mx = 0;
+while (mx < 800)
+{
+    var peak = 80 + sin(mx * 0.008) * 60 + sin(mx * 0.02) * 30;
+    var my = int(peak);
+    while (my < 300)
+    {
+        var shade = 40 + (300 - my) / 4;
+        img_mountains.set_pixel(mx, my, shade, shade + 10, shade, 255);
+        my += 1;
+    }
+    // Neve nos topos
+    if (sin(mx * 0.008) * 60 + sin(mx * 0.02) * 30 > 50)
+    {
+        var snow_y = int(peak);
+        var sny = snow_y;
+        while (sny < snow_y + 5)
+        {
+            if (sny >= 0 && sny < 300)
+            {
+                img_mountains.set_pixel(mx, sny, 220, 225, 230, 255);
+            }
+            sny += 1;
+        }
+    }
+    mx += 1;
+}
+var graph_mountains = img_mountains.to_graph("mountains_bg");
+
+// --- Terreno (chão) - Layer 2 (principal) ---
+var img_ground = Image(64, 64);
+img_ground.fill(45, 80, 35, 255);
+// Textura de relva
+i = 0;
+while (i < 40)
+{
+    var gx = math.rand(0, 63);
+    var gy = math.rand(0, 63);
+    img_ground.set_pixel(gx, gy, 55, 100, 40, 255);
+    i += 1;
+}
+var graph_ground = img_ground.to_graph("ground_tile");
+
+// --- Grafico do player ---
+var img_player = Image(32, 48);
+img_player.fill(0, 0, 0, 0);
+// Corpo
+img_player.draw_rect(8, 16, 16, 28, 50, 120, 200, 255, true);
+// Cabeça
+img_player.draw_circle(16, 10, 8, 220, 180, 140, 255, true);
+// Olhos
+img_player.draw_circle(13, 8, 2, 40, 40, 40, 255, true);
+img_player.draw_circle(19, 8, 2, 40, 40, 40, 255, true);
+// Pés
+img_player.draw_rect(8, 44, 6, 4, 80, 50, 30, 255, true);
+img_player.draw_rect(18, 44, 6, 4, 80, 50, 30, 255, true);
+var graph_player = img_player.to_graph("player");
+
+// --- Grafico árvore ---
+var img_tree = Image(40, 60);
+img_tree.fill(0, 0, 0, 0);
+// Tronco
+img_tree.draw_rect(16, 30, 8, 30, 100, 70, 40, 255, true);
+// Copa
+img_tree.draw_circle(20, 20, 16, 30, 120, 40, 255, true);
+img_tree.draw_circle(12, 25, 10, 25, 100, 35, 255, true);
+img_tree.draw_circle(28, 25, 10, 25, 100, 35, 255, true);
+var graph_tree = img_tree.to_graph("tree");
+
+// ============================================================
+// Configurar Layers para Parallax
+// ============================================================
+// Layer 0: Céu (scroll_factor = 0.1 - quase parado)
+// Layer 1: Montanhas (scroll_factor = 0.4 - lento)
+// Layer 2: Mundo principal (scroll_factor = 1.0 - normal)
+
+set_layer_back_graph(0, graph_sky);
+set_layer_scroll_factor(0, 0.1, 0.0);
+
+set_layer_back_graph(1, graph_mountains);
+set_layer_scroll_factor(1, 0.4, 0.0);
+
+set_layer_scroll_factor(2, 1.0, 1.0);
+
+// ============================================================
+// Processes
+// ============================================================
+
+// --- Árvores decorativas no layer 2 ---
+process Tree(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_tree;
+    set_layer(2);
+    z = -1;
+    update_order();
+    loop { frame; }
+}
+
+// --- Blocos de chão ---
+process Ground(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_ground;
+    set_layer(2);
+    z = -10;
+    update_order();
+    loop { frame; }
+}
+
+// --- Player ---
+var scroll_x = 0;
+var scroll_y = 0;
+
+process Player(start_x, start_y)
+{
+    x = start_x;
+    y = start_y;
+    graph = graph_player;
+    set_layer(2);
+    z = 10;
+    update_order();
+
+    var speed = 200;
+
+    loop
+    {
+        // Movimento
+        if (key_down(KEY_LEFT))  x -= speed * delta();
+        if (key_down(KEY_RIGHT)) x += speed * delta();
+        if (key_down(KEY_UP))    y -= speed * delta();
+        if (key_down(KEY_DOWN))  y += speed * delta();
+
+        // Limitar ao mundo
+        if (x < 16) x = 16;
+        if (x > WORLD_W - 16) x = WORLD_W - 16;
+        if (y < 100) y = 100;
+        if (y > SCREEN_H - 60) y = SCREEN_H - 60;
+
+        // Scroll segue o player (centrado)
+        scroll_x = x - SCREEN_W / 2;
+        scroll_y = 0;
+
+        // Limitar scroll
+        if (scroll_x < 0) scroll_x = 0;
+        if (scroll_x > WORLD_W - SCREEN_W) scroll_x = WORLD_W - SCREEN_W;
+
+        // Aplicar scroll ao engine
+        set_scroll(scroll_x, scroll_y);
+
+        frame;
+    }
+}
+
+// ============================================================
+// Criar objectos do mundo
+// ============================================================
+
+// Chão contínuo
+var gx = 0;
+while (gx < WORLD_W)
+{
+    Ground(gx + 32, SCREEN_H - 32);
+    gx += 64;
+}
+
+// Árvores espalhadas
+Tree(200, SCREEN_H - 90);
+Tree(500, SCREEN_H - 90);
+Tree(900, SCREEN_H - 90);
+Tree(1300, SCREEN_H - 85);
+Tree(1700, SCREEN_H - 90);
+Tree(2100, SCREEN_H - 88);
+Tree(2600, SCREEN_H - 90);
+Tree(3000, SCREEN_H - 85);
+
+// Player
+Player(SCREEN_W / 2, SCREEN_H - 100);
+
+// ============================================================
+// HUD - Informação no ecrã (não afectado por scroll)
+// ============================================================
+loop
+{
+    set_draw_screen(true);
+    set_color(255, 255, 255);
+    draw_text("Tutorial 9: Scroll & Parallax", 10, 10, 18);
+    draw_text("Setas: mover player", 10, 35, 14);
+
+    set_color(200, 200, 100);
+    draw_text(format("scroll_x: {:.0f}", scroll_x), 10, 60, 14);
+
+    set_color(150, 150, 150);
+    draw_text("Layer 0 (céu):  factor=0.1 - quase parado", 10, 85, 12);
+    draw_text("Layer 1 (montanhas): factor=0.4 - lento", 10, 100, 12);
+    draw_text("Layer 2 (mundo): factor=1.0 - normal", 10, 115, 12);
+
+    set_color(100, 200, 255);
+    draw_text("O scroll move as layers com velocidades diferentes!", 10, SCREEN_H - 30, 14);
+
+    set_draw_screen(false);
+    frame;
+}

@@ -1,0 +1,266 @@
+// === TESTE: Audio Engine (bugl::audio) ===
+// Testa waveforms, noise, efeitos, pan, volume, pitch
+// Usa procedural audio — não precisa de ficheiros .wav
+
+import math;
+
+var W = 800;
+var H = 600;
+set_window_size(W, H);
+set_window_title("Test: Audio Engine");
+set_design_resolution(W, H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+set_draw_screen(true);
+
+// Waveform types
+var WAVE_SINE     = 0;
+var WAVE_SQUARE   = 1;
+var WAVE_TRIANGLE = 2;
+var WAVE_SAW      = 3;
+
+// Noise types
+var NOISE_WHITE    = 0;
+var NOISE_PINK     = 1;
+var NOISE_BROWNIAN = 2;
+
+var LOG = [];
+var current_handle = 0;
+var current_name = "none";
+
+def trace(msg)
+{
+    LOG.push(msg);
+    if (LOG.length() > 20) { LOG.remove(0); }
+    write(msg);
+}
+
+// Pre-create all sounds
+var snd_sine     = create_waveform(WAVE_SINE, 0.3, 440);
+var snd_square   = create_waveform(WAVE_SQUARE, 0.2, 330);
+var snd_triangle = create_waveform(WAVE_TRIANGLE, 0.3, 550);
+var snd_saw      = create_waveform(WAVE_SAW, 0.15, 220);
+var snd_white    = create_noise(NOISE_WHITE, 0, 0.15);
+var snd_pink     = create_noise(NOISE_PINK, 0, 0.2);
+var snd_brown    = create_noise(NOISE_BROWNIAN, 0, 0.3);
+
+trace(format("Created sounds: sine={} square={} tri={} saw={} white={} pink={} brown={}",
+    snd_sine, snd_square, snd_triangle, snd_saw, snd_white, snd_pink, snd_brown));
+
+// Musical notes (A4 scale)
+var notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+var note_names = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+var note_sounds = [];
+var i = 0;
+while (i < notes.length())
+{
+    note_sounds.push(create_waveform(WAVE_SINE, 0.25, notes[i]));
+    i = i + 1;
+}
+
+var delay_on = false;
+var lowpass_on = false;
+
+process hud()
+{
+    loop
+    {
+        // Background
+        set_color(15, 15, 25);
+        draw_rectangle(0, 0, W, H, true);
+
+        // Title
+        set_color(100, 200, 255);
+        draw_text("Audio Engine Test (bugl::audio)", 20, 10, 24);
+
+        // Instructions
+        set_color(200, 200, 200);
+        var ty = 45;
+        draw_text("--- Waveforms ---", 20, ty, 16); ty = ty + 20;
+        draw_text("[1] Sine 440Hz    [2] Square 330Hz", 20, ty, 14); ty = ty + 18;
+        draw_text("[3] Triangle 550Hz  [4] Saw 220Hz", 20, ty, 14); ty = ty + 18;
+
+        draw_text("--- Noise ---", 20, ty, 16); ty = ty + 20;
+        draw_text("[5] White  [6] Pink  [7] Brownian", 20, ty, 14); ty = ty + 18;
+
+        draw_text("--- Piano (QWERTY) ---", 20, ty, 16); ty = ty + 20;
+        draw_text("[Q]C4 [W]D4 [E]E4 [R]F4 [T]G4 [Y]A4 [U]B4 [I]C5", 20, ty, 14); ty = ty + 18;
+
+        draw_text("--- Controls ---", 20, ty, 16); ty = ty + 20;
+        draw_text("[S] Stop current  [0] Stop all", 20, ty, 14); ty = ty + 18;
+        draw_text("[LEFT/RIGHT] Pan  [UP/DOWN] Pitch", 20, ty, 14); ty = ty + 18;
+        draw_text("[+/-] Volume  [D] Delay effect  [L] Lowpass effect", 20, ty, 14); ty = ty + 18;
+
+        // Status
+        ty = ty + 10;
+        set_color(255, 255, 100);
+        draw_text(format("Playing: {} (handle={})", current_name, current_handle), 20, ty, 16); ty = ty + 20;
+        draw_text(format("Delay: {}  Lowpass: {}", delay_on, lowpass_on), 20, ty, 16); ty = ty + 20;
+
+        // Log
+        ty = ty + 10;
+        set_color(150, 150, 150);
+        var li = 0;
+        while (li < LOG.length())
+        {
+            draw_text(LOG[li], 20, ty, 12);
+            ty = ty + 14;
+            li = li + 1;
+        }
+
+        frame;
+    }
+}
+
+process controller()
+{
+    loop
+    {
+        // Waveform keys
+        if (key_pressed(49)) // 1
+        {
+            current_handle = play_sound(snd_sine, 0.3);
+            current_name = "Sine 440Hz";
+            trace(format("Play sine -> handle {}", current_handle));
+        }
+        if (key_pressed(50)) // 2
+        {
+            current_handle = play_sound(snd_square, 0.2);
+            current_name = "Square 330Hz";
+            trace(format("Play square -> handle {}", current_handle));
+        }
+        if (key_pressed(51)) // 3
+        {
+            current_handle = play_sound(snd_triangle, 0.3);
+            current_name = "Triangle 550Hz";
+            trace(format("Play triangle -> handle {}", current_handle));
+        }
+        if (key_pressed(52)) // 4
+        {
+            current_handle = play_sound(snd_saw, 0.15);
+            current_name = "Saw 220Hz";
+            trace(format("Play saw -> handle {}", current_handle));
+        }
+
+        // Noise keys
+        if (key_pressed(53)) // 5
+        {
+            current_handle = play_sound(snd_white, 0.15);
+            current_name = "White Noise";
+            trace(format("Play white noise -> handle {}", current_handle));
+        }
+        if (key_pressed(54)) // 6
+        {
+            current_handle = play_sound(snd_pink, 0.2);
+            current_name = "Pink Noise";
+            trace(format("Play pink noise -> handle {}", current_handle));
+        }
+        if (key_pressed(55)) // 7
+        {
+            current_handle = play_sound(snd_brown, 0.3);
+            current_name = "Brownian Noise";
+            trace(format("Play brownian -> handle {}", current_handle));
+        }
+
+        // Piano keys (Q=81, W=87, E=69, R=82, T=84, Y=89, U=85, I=73)
+        var piano_keys = [81, 87, 69, 82, 84, 89, 85, 73];
+        var pk = 0;
+        while (pk < piano_keys.length())
+        {
+            if (key_pressed(piano_keys[pk]))
+            {
+                current_handle = play_sound(note_sounds[pk], 0.25);
+                current_name = note_names[pk];
+                trace(format("Note {} -> handle {}", note_names[pk], current_handle));
+            }
+            pk = pk + 1;
+        }
+
+        // Stop current
+        if (key_pressed(83)) // S
+        {
+            if (current_handle > 0)
+            {
+                stop_sound(current_handle);
+                trace(format("Stopped handle {}", current_handle));
+                current_handle = 0;
+                current_name = "none";
+            }
+        }
+
+        // Stop all
+        if (key_pressed(48)) // 0
+        {
+            stop_all_sounds();
+            trace("Stopped ALL sounds");
+            current_handle = 0;
+            current_name = "none";
+        }
+
+        // Pan (left/right arrows)
+        if (key_down(263) && current_handle > 0) // LEFT
+        {
+            set_sound_pan(current_handle, -0.8);
+            trace("Pan LEFT");
+        }
+        if (key_down(262) && current_handle > 0) // RIGHT
+        {
+            set_sound_pan(current_handle, 0.8);
+            trace("Pan RIGHT");
+        }
+
+        // Pitch (up/down arrows)
+        if (key_pressed(265) && current_handle > 0) // UP
+        {
+            set_sound_pitch(current_handle, 1.5);
+            trace("Pitch UP (1.5x)");
+        }
+        if (key_pressed(264) && current_handle > 0) // DOWN
+        {
+            set_sound_pitch(current_handle, 0.5);
+            trace("Pitch DOWN (0.5x)");
+        }
+
+        // Volume (+/-)
+        if (key_pressed(61) && current_handle > 0) // + (=)
+        {
+            set_sound_volume(current_handle, 1.5);
+            trace("Volume UP (1.5)");
+        }
+        if (key_pressed(45) && current_handle > 0) // -
+        {
+            set_sound_volume(current_handle, 0.2);
+            trace("Volume DOWN (0.2)");
+        }
+
+        // Delay effect (D = 68)
+        if (key_pressed(68))
+        {
+            delay_on = !delay_on;
+            enable_sfx_delay(delay_on, 0.4);
+            trace(format("Delay: {}", delay_on));
+        }
+
+        // Lowpass effect (L = 76)
+        if (key_pressed(76))
+        {
+            lowpass_on = !lowpass_on;
+            enable_music_lowpass(lowpass_on, 800);
+            trace(format("Lowpass: {}", lowpass_on));
+        }
+
+        // Master volume (M = 77)
+        if (key_pressed(77))
+        {
+            set_master_volume(0.5);
+            trace("Master volume: 0.5");
+        }
+
+        frame;
+    }
+}
+
+// === MAIN ===
+hud();
+controller();
+trace("Audio Engine ready! Press keys to test.");

@@ -1,0 +1,502 @@
+// ============================================================
+// TUTORIAL 8: Mini-Jogo Completo - "Asteroid Dodge"
+// ============================================================
+// Joga com tudo o que aprendeste:
+//   - Processos (nave, asteroids, estrelas, explosoes)
+//   - Input (setas + espaco)
+//   - Colisao (rect/circle shapes, layers)
+//   - Desenhbo com primitivas (sem assets!)
+//   - Camera shake
+//   - Blend modes (additive para lasers/explosoes)
+//   - HUD com score overlay
+//   - Delta time para smooth movement
+// ============================================================
+
+import math;
+
+var W = 800;
+var H = 600;
+
+set_window_size(W, H);
+set_window_title("Asteroid Dodge!");
+set_design_resolution(W, H);
+set_virtual_screen_enabled(true);
+set_screen_scale_mode(3);
+init_collision(0, 0, W, H);
+
+// --- ESTADO GLOBAL DO JOGO ---
+var SCORE = 0;
+var LIVES = 3;
+var GAME_OVER = false;
+var DIFFICULTY = 1.0;
+var PLAYER_REF = nil;
+
+
+// ============================================================
+// ESTRELAS DE FUNDO
+// ============================================================
+process bg_star()
+{
+    x = math.rand(0, W);
+    y = math.rand(0, H);
+    var speed = math.rand(20, 80);
+    var brightness = math.rand(80, 200);
+    var sz = math.rand(1, 2);
+
+    loop
+    {
+        y = y + speed * delta();
+        if (y > H + 5)
+        {
+            y = -5;
+            x = math.rand(0, W);
+        }
+
+        set_draw_screen(true);
+        set_color(brightness, brightness, brightness + 30);
+        draw_point(x, y);
+        if (sz > 1) draw_point(x + 1, y);
+        set_draw_screen(false);
+
+        frame;
+    }
+}
+
+// ============================================================
+// JOGADOR
+// ============================================================
+process game_player(px, py)
+{
+    x = px;
+    y = py;
+    var speed = 350;
+    var fire_cd = 0.0;
+    var invincible = 1.0; // invencivel ao spawnar
+    var thrust = 0;
+
+    set_rect_shape(-12, -15, 24, 30);
+    set_collision_layer(1);
+    set_collision_mask(2); // colide com asteroids
+
+    loop
+    {
+        if (GAME_OVER) break;
+
+        var dt = delta();
+        invincible = invincible - dt;
+        fire_cd = fire_cd - dt;
+        thrust = thrust + dt * 15;
+
+        // Mover
+        if (key_down(263)) x = x - speed * dt;
+        if (key_down(262)) x = x + speed * dt;
+        if (key_down(265)) y = y - speed * dt * 0.5;
+        if (key_down(264)) y = y + speed * dt * 0.5;
+        x = math.clamp(x, 15, W - 15);
+        y = math.clamp(y, 100, H - 20);
+
+        // Disparar
+        if (key_down(32) && fire_cd <= 0) // SPACE
+        {
+            laser(x - 8, y - 10);
+            laser(x + 8, y - 10);
+            fire_cd = 0.12;
+        }
+
+        // Colisao com asteroids
+        if (invincible <= 0)
+        {
+            var hit = collision(type asteroid, x, y);
+            if (hit)
+            {
+                LIVES = LIVES - 1;
+                invincible = 1.5;
+                hit_explosion(x, y);
+                start_camera_shake(8, 0.3, 30, 1);
+
+                if (LIVES <= 0)
+                {
+                    big_explosion(x, y);
+                    GAME_OVER = true;
+                    PLAYER_REF = nil;
+                    break;
+                }
+            }
+        }
+
+        // Desenhar nave
+        set_draw_screen(true);
+        var visible = true;
+        if (invincible > 0 && int(invincible * 10) % 2 == 0)
+        {
+            visible = false; // piscar
+        }
+
+        if (visible)
+        {
+            // Corpo da nave
+            set_color(100, 180, 255);
+            draw_triangle(x, y - 18, x - 14, y + 12, x + 14, y + 12, true);
+
+            // Cockpit
+            set_color(150, 220, 255);
+            draw_triangle(x, y - 10, x - 6, y + 3, x + 6, y + 3, true);
+
+            // Asas
+            set_color(60, 120, 200);
+            draw_triangle(x - 14, y + 12, x - 22, y + 15, x - 8, y + 5, true);
+            draw_triangle(x + 14, y + 12, x + 22, y + 15, x + 8, y + 5, true);
+
+            // Motor (chama animada)
+            set_blend_mode(BLEND_ADDITIVE);
+            var flame_len = 8 + sin(thrust) * 4;
+            set_color(255, 150, 50);
+            draw_triangle(x - 5, y + 12, x + 5, y + 12, x, y + 12 + flame_len, true);
+            set_color(255, 255, 100);
+            draw_triangle(x - 3, y + 12, x + 3, y + 12, x, y + 12 + flame_len * 0.6, true);
+            reset_blend_mode();
+        }
+
+        set_draw_screen(false);
+        frame;
+    }
+}
+
+// ============================================================
+// LASER
+// ============================================================
+process laser(px, py)
+{
+    x = px;
+    y = py;
+    var speed = 700;
+
+    set_circle_shape(3);
+    set_collision_layer(4);
+    set_collision_mask(2); // colide com asteroids
+
+    loop
+    {
+        y = y - speed * delta();
+        if (y < -20) break;
+
+        var hit = collision(type asteroid, x, y);
+        if (hit)
+        {
+            hit.hp = hit.hp - 1;
+            SCORE = SCORE + 5;
+            small_spark(x, y);
+            break;
+        }
+
+        set_draw_screen(true);
+        set_blend_mode(BLEND_ADDITIVE);
+        set_color(100, 255, 100);
+        draw_line_ex(x, y, x, y + 12, 2);
+        set_color(200, 255, 200);
+        draw_point(x, y);
+        reset_blend_mode();
+        set_draw_screen(false);
+
+        frame;
+    }
+}
+
+// ============================================================
+// ASTEROID SPAWNER
+// ============================================================
+process asteroid_spawner()
+{
+    var spawn_cd = 1.0;
+
+    loop
+    {
+        var dt = delta();
+        spawn_cd = spawn_cd - dt;
+
+        if (spawn_cd <= 0 && !GAME_OVER)
+        {
+            var ax = math.rand(30, W - 30);
+            asteroid(ax, -40);
+            spawn_cd = math.max(0.3, 1.5 / DIFFICULTY);
+        }
+
+        frame;
+    }
+}
+
+// ============================================================
+// ASTEROID
+// ============================================================
+process asteroid(px, py)
+{
+    x = px;
+    y = py;
+
+    var speed = math.rand(80, 180) * DIFFICULTY;
+    var rot_speed = math.rand(-180, 180);
+    var sz = math.rand(15, 35);
+    var hp = 1;
+    if (sz > 25) hp = 2;
+    if (sz > 30) hp = 3;
+    var r = math.rand(120, 180);
+    var g = math.rand(80, 130);
+    var b = math.rand(60, 100);
+
+    set_circle_shape(sz);
+    set_collision_layer(2);
+    set_collision_mask(5); // jogador(1) + lasers(4)
+
+    angle = math.rand(0, 360);
+
+    loop
+    {
+        var dt = delta();
+        y = y + speed * dt;
+        angle = angle + rot_speed * dt;
+
+        if (y > H + 50) break; // fora do ecra
+
+        // Morrer
+        if (hp <= 0)
+        {
+            asteroid_explosion(x, y, sz);
+            SCORE = SCORE + int(sz) * 2;
+            // Partir em 2 se for grande
+            if (sz > 20)
+            {
+                asteroid(x - 10, y);
+                asteroid(x + 10, y);
+            }
+            break;
+        }
+
+        // Desenhar asteroid irregular
+        set_draw_screen(true);
+        set_color(r, g, b);
+        draw_poly(x, y, 7, sz, angle, true);
+        set_color(r - 30, g - 30, b - 20);
+        draw_poly(x, y, 7, sz, angle, false);
+
+        // Crateras
+        set_color(r - 40, g - 40, b - 30);
+        draw_circle(x + sz * 0.3, y - sz * 0.2, sz * 0.2, true);
+        draw_circle(x - sz * 0.2, y + sz * 0.3, sz * 0.15, true);
+
+        set_draw_screen(false);
+        frame;
+    }
+}
+
+// ============================================================
+// EFEITOS VISUAIS
+// ============================================================
+process hit_explosion(px, py)
+{
+    var life = 0.5;
+    loop
+    {
+        life = life - delta();
+        var t_val = 1.0 - life / 0.5;
+        var r = 40 * t_val;
+
+        set_draw_screen(true);
+        set_blend_mode(BLEND_ADDITIVE);
+        set_alpha(math.clamp((1.0 - t_val) * 200, 0, 255));
+        set_color(255, 100, 50);
+        draw_circle(px, py, r, true);
+        set_color(255, 200, 100);
+        draw_circle(px, py, r * 0.5, true);
+        set_alpha(255);
+        reset_blend_mode();
+        set_draw_screen(false);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+process big_explosion(px, py)
+{
+    var life = 1.5;
+    loop
+    {
+        life = life - delta();
+        var t_val = 1.0 - life / 1.5;
+        var r = 80 * t_val;
+
+        set_draw_screen(true);
+        set_blend_mode(BLEND_ADDITIVE);
+        set_alpha(math.clamp((1.0 - t_val) * 255, 0, 255));
+        set_color(255, 150, 50);
+        draw_circle(px, py, r, true);
+        set_color(255, 255, 100);
+        draw_circle(px, py, r * 0.4, true);
+        set_alpha(255);
+        reset_blend_mode();
+        set_draw_screen(false);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+process asteroid_explosion(px, py, sz)
+{
+    var n = 0;
+    while (n < 8)
+    {
+        debris_particle(px, py, sz);
+        n = n + 1;
+    }
+}
+
+process debris_particle(px, py, sz)
+{
+    x = px;
+    y = py;
+    var vx = math.rand(-150, 150);
+    var vy = math.rand(-150, 150);
+    var life = math.rand(0.3, 0.8);
+    var r = math.rand(150, 200);
+    var g = math.rand(100, 150);
+    var psz = math.rand(2, 5);
+
+    loop
+    {
+        var dt = delta();
+        x = x + vx * dt;
+        y = y + vy * dt;
+        life = life - dt;
+
+        set_draw_screen(true);
+        set_alpha(math.clamp(life / 0.8 * 255, 0, 255));
+        set_color(r, g, 60);
+        draw_circle(x, y, psz, true);
+        set_alpha(255);
+        set_draw_screen(false);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+process small_spark(px, py)
+{
+    var life = 0.2;
+    loop
+    {
+        life = life - delta();
+        var t_val = 1.0 - life / 0.2;
+
+        set_draw_screen(true);
+        set_blend_mode(BLEND_ADDITIVE);
+        set_alpha(math.clamp((1.0 - t_val) * 255, 0, 255));
+        set_color(200, 255, 200);
+        draw_circle(px, py, 6 * t_val, true);
+        reset_blend_mode();
+        set_alpha(255);
+        set_draw_screen(false);
+
+        if (life <= 0) break;
+        frame;
+    }
+}
+
+// ============================================================
+// HUD
+// ============================================================
+process game_hud()
+{
+    loop
+    {
+        set_draw_screen(true);
+
+        // Background do HUD
+        set_color(0, 0, 0);
+        set_alpha(100);
+        draw_rectangle(0, 0, W, 40, true);
+        set_alpha(255);
+
+        // Score
+        set_color(255, 255, 255);
+        draw_text("SCORE: " + SCORE, 10, 10, 18);
+
+        // Vidas
+        var v = 0;
+        while (v < LIVES)
+        {
+            set_color(255, 100, 100);
+            draw_triangle(
+                W - 30 - v * 25, 8,
+                W - 40 - v * 25, 28,
+                W - 20 - v * 25, 28,
+                true
+            );
+            v = v + 1;
+        }
+
+        // Dificuldade
+        set_color(150, 150, 150);
+        draw_text("Diff: x" + format("{:.1f}", DIFFICULTY), W / 2 - 30, 12, 12);
+
+        // Game Over
+        if (GAME_OVER)
+        {
+            set_color(0, 0, 0);
+            set_alpha(150);
+            draw_rectangle(0, 0, W, H, true);
+            set_alpha(255);
+
+            set_color(255, 50, 50);
+            draw_text("GAME OVER", W / 2 - 100, H / 2 - 40, 40);
+            set_color(255, 255, 255);
+            draw_text("Score: " + SCORE, W / 2 - 50, H / 2 + 20, 24);
+            set_color(200, 200, 200);
+            draw_text("[R] Recomecar", W / 2 - 55, H / 2 + 60, 16);
+        }
+
+        set_draw_screen(false);
+        frame;
+    }
+}
+
+
+
+// Criar estrelas de fundo
+var s = 0;
+while (s < 40)
+{
+    bg_star();
+    s = s + 1;
+}
+
+// Criar jogador
+PLAYER_REF = game_player(W / 2, H - 80);
+
+// Spawner de asteroids
+asteroid_spawner();
+
+// HUD
+game_hud();
+
+// Main loop
+loop
+{
+    if (GAME_OVER)
+    {
+        if (key_pressed(82)) // R = restart
+        {
+            SCORE = 0;
+            LIVES = 3;
+            GAME_OVER = false;
+            DIFFICULTY = 1.0;
+            PLAYER_REF = game_player(W / 2, H - 80);
+        }
+    }
+
+    // Aumentar dificuldade com o tempo
+    DIFFICULTY = DIFFICULTY + delta() * 0.02;
+
+    frame;
+}
