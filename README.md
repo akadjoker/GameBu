@@ -13,44 +13,20 @@ BUGame is strongly inspired by `DIV Games Studio`, especially in its scripting-f
 
 ## Gallery
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="./gif/bueditor_2026-03-21_11-45-52.gif" alt="BUGame editor" width="240"><br>
-      <sub>Editor</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/chaos.gif" alt="BUGame chaos demo" width="240"><br>
-      <sub>Chaos Demo</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/box2d_car.gif" alt="BUGame Box2D car demo" width="240"><br>
-      <sub>Box2D Car</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/aidefend.gif" alt="BUGame AI defend demo" width="240"><br>
-      <sub>AI Defend</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="./gif/bu_nn_1.gif" alt="BUGame neural network demo 1" width="240"><br>
-      <sub>Neural Net 1</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/nn.gif" alt="BUGame neural network demo 2" width="240"><br>
-      <sub>Neural Net 2</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/nn_flappy.gif" alt="BUGame flappy AI demo" width="240"><br>
-      <sub>Flappy AI</sub>
-    </td>
-    <td align="center">
-      <img src="./gif/nn_lunba_1.gif" alt="BUGame lunar lander AI demo" width="240"><br>
-      <sub>Lunar Lander AI</sub>
-    </td>
-  </tr>
-</table>
+|           Editor           |          Chaos Demo         |         Box2D Car         |
+| :------------------------: | :-------------------------: | :-----------------------: |
+| ![editor](gif/bueditor_2026-03-21_11-45-52.gif) | ![chaos](gif/chaos.gif) | ![box2d car](gif/box2d_car.gif) |
+| Script editing workflow | Arcade gameplay prototype | Vehicle physics demo |
+
+|          AI Defend         |        Neural Net 1        |        Neural Net 2       |
+| :------------------------: | :------------------------: | :-----------------------: |
+| ![ai defend](gif/aidefend.gif) | ![neural net 1](gif/bu_nn_1.gif) | ![neural net 2](gif/nn.gif) |
+| AI gameplay experiment | Neural-network demo | Additional NN experiment |
+
+|         Flappy AI         |      Lunar Lander AI      |        More Soon         |
+| :-----------------------: | :-----------------------: | :----------------------: |
+| ![flappy ai](gif/nn_flappy.gif) | ![lunar lander ai](gif/nn_lunba_1.gif) |  |
+| Neuroevolution gameplay | AI landing experiment | Add new GIFs here |
 
 
 ## What This Project Is
