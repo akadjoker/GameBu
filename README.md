@@ -3,7 +3,7 @@
 `BUGame` is a C++ workspace for building 2D games. This repository combines several parts in one project:
 
 - a game runtime built on top of `raylib`
-- a custom scripting language called `Bu` / `BuGL`
+- a custom scripting language called `Bu` 
 - a VM and bytecode compiler
 - a graphical script editor
 - a level/scene editor
@@ -16,23 +16,39 @@ BUGame is strongly inspired by `DIV Games Studio`, especially in its scripting-f
 <table>
   <tr>
     <td align="center">
-      <img src="./gif/bueditor_2026-03-21_11-45-52.gif" alt="BUGame editor" width="280">
+      <img src="./gif/bueditor_2026-03-21_11-45-52.gif" alt="BUGame editor" width="240"><br>
+      <sub>Editor</sub>
     </td>
     <td align="center">
-      <img src="./gif/bu_nn_1.gif" alt="BUGame neural network demo 1" width="280">
+      <img src="./gif/chaos.gif" alt="BUGame chaos demo" width="240"><br>
+      <sub>Chaos Demo</sub>
     </td>
     <td align="center">
-      <img src="./gif/nn.gif" alt="BUGame neural network demo 2" width="280">
+      <img src="./gif/box2d_car.gif" alt="BUGame Box2D car demo" width="240"><br>
+      <sub>Box2D Car</sub>
+    </td>
+    <td align="center">
+      <img src="./gif/aidefend.gif" alt="BUGame AI defend demo" width="240"><br>
+      <sub>AI Defend</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="./gif/nn_flappy.gif" alt="BUGame flappy AI demo" width="280">
+      <img src="./gif/bu_nn_1.gif" alt="BUGame neural network demo 1" width="240"><br>
+      <sub>Neural Net 1</sub>
     </td>
     <td align="center">
-      <img src="./gif/nn_lunba_1.gif" alt="BUGame lunar lander AI demo" width="280">
+      <img src="./gif/nn.gif" alt="BUGame neural network demo 2" width="240"><br>
+      <sub>Neural Net 2</sub>
     </td>
-    <td></td>
+    <td align="center">
+      <img src="./gif/nn_flappy.gif" alt="BUGame flappy AI demo" width="240"><br>
+      <sub>Flappy AI</sub>
+    </td>
+    <td align="center">
+      <img src="./gif/nn_lunba_1.gif" alt="BUGame lunar lander AI demo" width="240"><br>
+      <sub>Lunar Lander AI</sub>
+    </td>
   </tr>
 </table>
 
@@ -196,14 +212,6 @@ Good starting points:
 - [`scripts/tutorials/01_hello_world.bu`](./scripts/tutorials/01_hello_world.bu)
 - [`scripts/tutorials/03_processes.bu`](./scripts/tutorials/03_processes.bu)
 - [`scripts/tutorials/08_mini_game.bu`](./scripts/tutorials/08_mini_game.bu)
-
-## Current State
-
-This repository appears to be under active evolution. Several areas are already functional, but there are also signs of transition:
-
-- multiple names are used for the same stack (`BUGame`, `BuGL`, `GameBu`)
-- some tools still look like internal or evolving tooling
-- older documentation is more ambitious than what a top-level README should claim without qualification
 
 The safest short description is:
 

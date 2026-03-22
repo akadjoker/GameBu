@@ -43,7 +43,7 @@
 
 //include "tutorials/06_collision.bu";
 
-include "tutorials/10_camera.bu";
+//include "tutorials/10_camera.bu";
 
 //include "tutorials/09_scroll_parallax.bu";
 
@@ -51,4 +51,4 @@ include "tutorials/10_camera.bu";
 
 
 
-//include "chaos_dark.bu";
+include "chaos_dark.bu";
