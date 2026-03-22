@@ -1,0 +1,24 @@
+var DONE = false;
+
+process test_try()
+{
+    try
+    {
+        var x = 1 / 0;
+        print(format("bad {}", x));
+    }
+    catch (e)
+    {
+        print(format("caught {}", e));
+    }
+
+    DONE = true;
+}
+
+test_try();
+
+loop
+{
+    if (DONE) break;
+    frame;
+}

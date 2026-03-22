@@ -177,8 +177,8 @@ process sky_bg(px, py)
     x = px;
     y = py;
     graph = G_SKY;
-    size_x = WORLD_W;  // Esticar 1px de largura para cobrir mundo todo
-    size_y = 100;
+    sizex = WORLD_W;  // Esticar 1px de largura para cobrir mundo todo
+    sizey = 100;
     z = -100;          // Atras de tudo
     set_layer(0);
     update_order();

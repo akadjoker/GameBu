@@ -26,6 +26,7 @@ add_subdirectory(gameeditor)
 add_subdirectory(leveleditor)
 
 add_subdirectory(main)
+add_subdirectory(builder)
 
 
  

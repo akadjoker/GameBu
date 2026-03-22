@@ -1,0 +1,4 @@
+var X = 10;
+var Y = 20;
+
+print(format("simple {} {}", X, Y));

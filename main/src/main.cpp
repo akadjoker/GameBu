@@ -19,6 +19,7 @@
 extern Scene gScene;
 extern ParticleSystem gParticleSystem;
 extern CameraManager gCamera;
+extern Renderer gRenderer;
 
 
 struct FileLoaderContext
@@ -621,10 +622,44 @@ int main(int argc, char *argv[])
 
         if (code.empty())
         {
-            std::string msg = "No script file specified and no default found.";
-            TraceLog(LOG_ERROR, "%s", msg.c_str());
-            showFatalScreen(msg);
-            return 1;
+            static const char *defaultBytecodeCandidates[] = {
+#ifdef __EMSCRIPTEN__
+                "/scripts/main.buc",
+                "/scripts/main.bubc",
+                "/scripts/main.bytecode",
+#endif
+                "scripts/main.buc",
+                "./scripts/main.buc",
+                "scripts/main.bubc",
+                "./scripts/main.bubc",
+                "scripts/main.bytecode",
+                "./scripts/main.bytecode",
+                "main.buc",
+                "main.bubc",
+                "main.bytecode",
+                "../scripts/main.buc",
+                "../scripts/main.bubc",
+                "../scripts/main.bytecode",
+            };
+
+            for (const char *candidate : defaultBytecodeCandidates)
+            {
+                FileBuffer test;
+                if (test.load(candidate))
+                {
+                    scriptFile = candidate;
+                    mode = LaunchMode::RunBytecode;
+                    break;
+                }
+            }
+
+            if (mode == LaunchMode::RunSource)
+            {
+                std::string msg = "No script file specified and no default found.";
+                TraceLog(LOG_ERROR, "%s", msg.c_str());
+                showFatalScreen(msg);
+                return 1;
+            }
         }
     }
 #endif
@@ -771,6 +806,11 @@ int main(int argc, char *argv[])
     SetWindowState(flags);
     SetTargetFPS(60);
 
+    // O script pode mudar resolução/virtual screen depois do init inicial.
+    // Recalcular aqui evita viewport stale e offset visual incorrecto.
+    gCamera.onWindowResize();
+    gRenderer.onWindowResize();
+
 
     // gCamera.setZoom(1.0f);
     
@@ -786,6 +826,12 @@ int main(int argc, char *argv[])
 
     while (!CAN_CLOSE && vm.getTotalAliveProcesses() > 0)
     {
+        if (IsWindowResized())
+        {
+            gCamera.onWindowResize();
+            gRenderer.onWindowResize();
+        }
+
         if (WindowShouldClose())
         {
             CAN_CLOSE = true;

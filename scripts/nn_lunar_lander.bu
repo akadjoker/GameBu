@@ -1,0 +1,691 @@
+// === BU NN Lunar Lander ===
+// Supervised imitation learning using the nn module.
+// Train a small network to imitate a handcrafted landing policy.
+
+import math;
+import fs;
+import nn;
+
+// --- Window ---
+var VIEW_W = 1400;
+var VIEW_H = 840;
+
+// --- Field ---
+var FIELD_X = 24;
+var FIELD_Y = 70;
+var FIELD_W = 920;
+var FIELD_H = 740;
+
+var PANEL_X = 970;
+var PANEL_W = VIEW_W - PANEL_X - 18;
+
+// --- Keys ---
+var KEY_ESCAPE = 256;
+var KEY_SPACE = 32;
+var KEY_T = 84;
+var KEY_R = 82;
+var KEY_H = 72;
+var KEY_G = 71;
+var KEY_L = 76;
+var KEY_O = 79;
+
+// --- Physics ---
+var GRAVITY = 40.0;
+var THRUST_POWER = 118.0;
+var SIDE_THRUST_POWER = 75.0;
+var MAX_VEL = 250.0;
+var SAFE_VY = 45.0;
+var SAFE_VX = 30.0;
+var SIM_DT = 1.0 / 60.0;
+
+// --- Lander ---
+var LANDER_W = 24;
+var LANDER_H = 36;
+
+// --- Pad / terrain ---
+var PAD_W = 180;
+var PAD_H = 8;
+var PAD_X = 0;
+var PAD_Y = 0;
+var TERRAIN_POINTS = [];
+var TERRAIN_COUNT = 20;
+
+// --- Model ---
+var MODEL = nil;
+var MODEL_READY = false;
+var MODEL_FILE = "nn_lunar_lander.bunn";
+var NN_IN = 8;
+var NN_OUT = 3;
+var HUMAN_MODE = false;
+
+var MAIN_TRIGGER = 0.50;
+var SIDE_TRIGGER = 0.52;
+
+// --- Training ---
+var TRAIN_SAMPLES = 2400;
+var TRAIN_EPOCHS = 80;
+var TRAIN_BATCH = 32;
+
+// --- Live state ---
+var LIVE_X = 0.0;
+var LIVE_Y = 0.0;
+var LIVE_VX = 0.0;
+var LIVE_VY = 0.0;
+var LIVE_FUEL = 1.0;
+var LIVE_THRUST = false;
+var LIVE_LEFT = false;
+var LIVE_RIGHT = false;
+var LIVE_LANDED = false;
+var LIVE_CRASHED = false;
+var LIVE_SCORE = 0;
+var LIVE_BEST_SCORE = 0;
+
+// --- Visualisation ---
+var LAST_IN = [];
+var LAST_OUT = [];
+var STATUS_TEXT = "";
+var STATUS_TIMER = 0.0;
+var STARS = [];
+
+// --- Particles ---
+var PARTICLES = [];
+
+
+struct Particle
+{
+    var x;
+    var y;
+    var vx;
+    var vy;
+    var life;
+};
+
+struct Star
+{
+    var x;
+    var y;
+    var brightness;
+};
+
+// ============================================
+// Helpers
+// ============================================
+
+def clampf(v, a, b)
+{
+    if (v < a) return a;
+    if (v > b) return b;
+    return v;
+}
+
+def safe_ratio(n, d)
+{
+    if (!d) return 0.0;
+    return n / d;
+}
+
+def randf(a, b) { return math.rand(a, b); }
+
+def set_status(msg)
+{
+    STATUS_TEXT = msg;
+    STATUS_TIMER = 3.0;
+}
+
+def generate_terrain()
+{
+    TERRAIN_POINTS = [];
+    var ground_y = FIELD_Y + FIELD_H - 40;
+    var pad_center = FIELD_X + FIELD_W * 0.32 + randf(0, FIELD_W * 0.36);
+    PAD_X = pad_center - PAD_W * 0.5;
+    PAD_Y = ground_y;
+
+    var step_w = FIELD_W / (TERRAIN_COUNT - 1);
+    for (var i = 0; i < TERRAIN_COUNT; i = i + 1)
+    {
+        var tx = FIELD_X + i * step_w;
+        var ty = ground_y;
+        if (tx < PAD_X - 20 || tx > PAD_X + PAD_W + 20)
+            ty = ground_y - randf(0, 120);
+        TERRAIN_POINTS.push(tx);
+        TERRAIN_POINTS.push(ty);
+    }
+}
+
+def get_terrain_y_at(wx)
+{
+    var ground_y = FIELD_Y + FIELD_H - 40;
+    if (wx >= PAD_X && wx <= PAD_X + PAD_W) return PAD_Y;
+
+    var n = len(TERRAIN_POINTS) / 2;
+    for (var i = 0; i < n - 1; i = i + 1)
+    {
+        var x0 = TERRAIN_POINTS[i * 2];
+        var y0 = TERRAIN_POINTS[i * 2 + 1];
+        var x1 = TERRAIN_POINTS[(i + 1) * 2];
+        var y1 = TERRAIN_POINTS[(i + 1) * 2 + 1];
+        if (wx >= x0 && wx <= x1)
+        {
+            var t = 0.0;
+            if (x1 - x0 > 0.01) t = (wx - x0) / (x1 - x0);
+            return y0 + t * (y1 - y0);
+        }
+    }
+    return ground_y;
+}
+
+def generate_stars()
+{
+    STARS = [];
+    for (var i = 0; i < 90; i = i + 1)
+    {
+        var s = Star();
+        s.x = randf(FIELD_X, FIELD_X + FIELD_W);
+        s.y = randf(FIELD_Y, FIELD_Y + FIELD_H * 0.6);
+        s.brightness = math.irand(70, 230);
+        STARS.push(s);
+    }
+}
+
+def make_input(lx, ly, lvx, lvy, lfuel)
+{
+    var pad_cx = PAD_X + PAD_W * 0.5;
+    var ground_y = get_terrain_y_at(lx);
+    var clearance = clampf(safe_ratio(ground_y - ly, FIELD_H), 0.0, 1.0);
+    var vx_safe = clampf(1.0 - abs(lvx) / SAFE_VX, 0.0, 1.0);
+    return [
+        safe_ratio(lx - FIELD_X, FIELD_W),
+        safe_ratio(ly - FIELD_Y, FIELD_H),
+        safe_ratio(lvx, MAX_VEL),
+        safe_ratio(lvy, MAX_VEL),
+        safe_ratio(pad_cx - lx, FIELD_W),
+        clearance,
+        lfuel,
+        vx_safe
+    ];
+}
+
+def teacher_output(lx, ly, lvx, lvy, lfuel)
+{
+    var pad_cx = PAD_X + PAD_W * 0.5;
+    var dx = pad_cx - lx;
+    var ground_y = get_terrain_y_at(lx);
+    var clearance = ground_y - ly;
+
+    var thrust = 0.0;
+    var left = 0.0;
+    var right = 0.0;
+
+    if (lfuel > 0)
+    {
+        if (lvy > SAFE_VY * 0.60) thrust = 1.0;
+        if (clearance < 180 && lvy > SAFE_VY * 0.38) thrust = 1.0;
+        if (clearance < 90 && lvy > SAFE_VY * 0.26) thrust = 1.0;
+        if (clearance < 60 && lvy > SAFE_VY * 0.20) thrust = 1.0;
+        if (clearance < 40 && lvy > SAFE_VY * 0.12) thrust = 1.0;
+        if (clearance < 28) thrust = 1.0;
+    }
+
+    if (dx < -14)
+    {
+        if (lvx > -SAFE_VX * 0.75) left = 1.0;
+    }
+    else if (dx > 14)
+    {
+        if (lvx < SAFE_VX * 0.75) right = 1.0;
+    }
+    else
+    {
+        if (lvx > 6) left = 1.0;
+        if (lvx < -6) right = 1.0;
+    }
+
+    return [thrust, left, right];
+}
+
+def decide_output(pred)
+{
+    LAST_OUT = pred;
+    var thrust = false;
+    var left = false;
+    var right = false;
+    if (len(pred) >= 3)
+    {
+        thrust = pred[0] > MAIN_TRIGGER;
+        left = pred[1] > SIDE_TRIGGER && pred[1] > pred[2] + 0.02;
+        right = pred[2] > SIDE_TRIGGER && pred[2] > pred[1] + 0.02;
+    }
+    return [thrust, left, right];
+}
+
+def build_model()
+{
+    MODEL = Network();
+    MODEL.add(NN_IN, 20, "relu");
+    MODEL.add(20, 16, "relu");
+    MODEL.add(16, NN_OUT, "sigmoid");
+    MODEL.compile("adam", "mse", 0.01);
+    MODEL_READY = true;
+}
+
+def train_model()
+{
+    build_model();
+
+    var old_pad_x = PAD_X;
+    var old_pad_y = PAD_Y;
+    var old_terrain = TERRAIN_POINTS;
+
+    var X = [];
+    var Y = [];
+
+    for (var i = 0; i < TRAIN_SAMPLES; i = i + 1)
+    {
+        generate_terrain();
+        var lx = randf(FIELD_X + 20, FIELD_X + FIELD_W - 20);
+        var ly = randf(FIELD_Y + 30, FIELD_Y + FIELD_H - 180);
+        var lvx = randf(-MAX_VEL * 0.35, MAX_VEL * 0.35);
+        var lvy = randf(-30, MAX_VEL * 0.42);
+        var lfuel = randf(0.25, 1.0);
+
+        if (math.irand(0, 100) < 45)
+        {
+            var ground_y = get_terrain_y_at(lx);
+            ly = ground_y - randf(24, 160);
+            lvy = randf(8, MAX_VEL * 0.34);
+        }
+
+        X.push(make_input(lx, ly, lvx, lvy, lfuel));
+        Y.push(teacher_output(lx, ly, lvx, lvy, lfuel));
+    }
+
+    MODEL.fit(X, Y, TRAIN_EPOCHS, TRAIN_BATCH);
+
+    PAD_X = old_pad_x;
+    PAD_Y = old_pad_y;
+    TERRAIN_POINTS = old_terrain;
+
+    MODEL_READY = true;
+    set_status(format("NN trained: {} samples", TRAIN_SAMPLES));
+}
+
+def save_model()
+{
+    if (!MODEL_READY || !MODEL) { set_status("No model"); return; }
+    if (MODEL.save(MODEL_FILE)) set_status("Model saved");
+    else set_status("Save failed");
+}
+
+def load_model()
+{
+    build_model();
+    if (MODEL.load(MODEL_FILE))
+    {
+        MODEL_READY = true;
+        set_status("Model loaded");
+        return true;
+    }
+    MODEL_READY = false;
+    set_status("Load failed");
+    return false;
+}
+
+def reset_live()
+{
+    LIVE_X = FIELD_X + FIELD_W * 0.5 + randf(-100, 100);
+    LIVE_Y = FIELD_Y + 90;
+    LIVE_VX = randf(-10, 10);
+    LIVE_VY = 0.0;
+    LIVE_FUEL = 5.0;
+    LIVE_THRUST = false;
+    LIVE_LEFT = false;
+    LIVE_RIGHT = false;
+    LIVE_LANDED = false;
+    LIVE_CRASHED = false;
+    PARTICLES = [];
+}
+
+def spawn_particle(px, py, pvx, pvy)
+{
+    var p = Particle();
+    p.x = px;
+    p.y = py;
+    p.vx = pvx;
+    p.vy = pvy;
+    p.life = 1.0;
+    PARTICLES.push(p);
+}
+
+def update_particles(dt)
+{
+    var next_particles = [];
+    for (var i = 0; i < len(PARTICLES); i = i + 1)
+    {
+        var p = PARTICLES[i];
+        var life = p.life - dt * 2.4;
+        if (life > 0 && p)
+        {
+            var np = Particle();
+            np.x = p.x + p.vx * dt;
+            np.y = p.y + p.vy * dt;
+            np.vx = p.vx * 0.98;
+            np.vy = p.vy + 30 * dt;
+            np.life = life;
+            next_particles.push(np);
+        }
+    }
+    PARTICLES = next_particles;
+}
+
+def update_live(dt)
+{
+    if (LIVE_LANDED || LIVE_CRASHED) return;
+
+    LIVE_THRUST = false;
+    LIVE_LEFT = false;
+    LIVE_RIGHT = false;
+
+    if (HUMAN_MODE)
+    {
+        if (key_down(KEY_SPACE)) LIVE_THRUST = true;
+        if (key_down(263)) LIVE_LEFT = true;
+        if (key_down(262)) LIVE_RIGHT = true;
+    }
+    else if (MODEL_READY)
+    {
+        LAST_IN = make_input(LIVE_X, LIVE_Y, LIVE_VX, LIVE_VY, LIVE_FUEL);
+        var pred = MODEL.predict(LAST_IN);
+        var act = decide_output(pred);
+        LIVE_THRUST = act[0];
+        LIVE_LEFT = act[1];
+        LIVE_RIGHT = act[2];
+    }
+
+    if (LIVE_THRUST && LIVE_FUEL > 0)
+    {
+        LIVE_VY -= THRUST_POWER * dt;
+        LIVE_FUEL -= 0.002;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+
+        for (var p = 0; p < 2; p = p + 1)
+            spawn_particle(LIVE_X + randf(-4, 4), LIVE_Y + LANDER_H * 0.5 + randf(-2, 3), randf(-20, 20), randf(40, 120));
+    }
+
+    if (LIVE_LEFT && LIVE_FUEL > 0)
+    {
+        LIVE_VX -= SIDE_THRUST_POWER * dt;
+        LIVE_FUEL -= 0.0012;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+        for (var p = 0; p < 2; p = p + 1)
+            spawn_particle(LIVE_X + LANDER_W * 0.5, LIVE_Y + randf(-6, 6), randf(25, 80), randf(-18, 18));
+    }
+
+    if (LIVE_RIGHT && LIVE_FUEL > 0)
+    {
+        LIVE_VX += SIDE_THRUST_POWER * dt;
+        LIVE_FUEL -= 0.0012;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+        for (var p = 0; p < 2; p = p + 1)
+            spawn_particle(LIVE_X - LANDER_W * 0.5, LIVE_Y + randf(-6, 6), randf(-80, -25), randf(-18, 18));
+    }
+
+    LIVE_VY += GRAVITY * dt;
+    LIVE_VX = clampf(LIVE_VX, -MAX_VEL, MAX_VEL);
+    LIVE_VY = clampf(LIVE_VY, -MAX_VEL, MAX_VEL);
+    LIVE_X += LIVE_VX * dt;
+    LIVE_Y += LIVE_VY * dt;
+
+    if (LIVE_X < FIELD_X + 10) { LIVE_X = FIELD_X + 10; LIVE_VX = abs(LIVE_VX) * 0.3; }
+    if (LIVE_X > FIELD_X + FIELD_W - 10) { LIVE_X = FIELD_X + FIELD_W - 10; LIVE_VX = -abs(LIVE_VX) * 0.3; }
+    if (LIVE_Y < FIELD_Y + 10) { LIVE_Y = FIELD_Y + 10; LIVE_VY = abs(LIVE_VY) * 0.3; }
+
+    var ground_y = get_terrain_y_at(LIVE_X);
+    if (LIVE_Y >= ground_y - LANDER_H * 0.5)
+    {
+        LIVE_Y = ground_y - LANDER_H * 0.5;
+        var on_pad = (LIVE_X >= PAD_X && LIVE_X <= PAD_X + PAD_W);
+        var speed_ok = (abs(LIVE_VY) < SAFE_VY && abs(LIVE_VX) < SAFE_VX);
+        if (on_pad && speed_ok)
+        {
+            LIVE_LANDED = true;
+            LIVE_SCORE += 1;
+            if (LIVE_SCORE > LIVE_BEST_SCORE) LIVE_BEST_SCORE = LIVE_SCORE;
+            set_status(format("Landed! Score {}", LIVE_SCORE));
+        }
+        else
+        {
+            LIVE_CRASHED = true;
+            set_status("Crash");
+            for (var p = 0; p < 20; p = p + 1)
+                spawn_particle(LIVE_X + randf(-8, 8), LIVE_Y + randf(-8, 8), randf(-80, 80), randf(-120, -20));
+        }
+    }
+
+    update_particles(dt);
+}
+
+def draw_field()
+{
+    set_color(6, 8, 18);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, true);
+
+    for (var i = 0; i < len(STARS); i = i + 1)
+    {
+        var s = STARS[i];
+        var b = s.brightness;
+        set_color(b, b, b);
+        draw_circle(s.x, s.y, 1, true);
+    }
+
+    set_color(80, 70, 60);
+    var n = len(TERRAIN_POINTS) / 2;
+    for (var i = 0; i < n - 1; i = i + 1)
+    {
+        var x0 = TERRAIN_POINTS[i * 2];
+        var y0 = TERRAIN_POINTS[i * 2 + 1];
+        var x1 = TERRAIN_POINTS[(i + 1) * 2];
+        var y1 = TERRAIN_POINTS[(i + 1) * 2 + 1];
+        draw_line(x0, y0, x1, y1);
+        set_color(40, 35, 30);
+        var bottom = FIELD_Y + FIELD_H;
+        draw_triangle(x0, y0, x1, y1, x0, bottom, true);
+        draw_triangle(x1, y1, x1, bottom, x0, bottom, true);
+        set_color(80, 70, 60);
+    }
+
+    set_color(220, 220, 60);
+    draw_rectangle(PAD_X, PAD_Y - 4, PAD_W, PAD_H, true);
+    set_color(255, 255, 120);
+    draw_text("PAD", PAD_X + PAD_W * 0.5 - 18, PAD_Y + 6, 16);
+
+    for (var i = 0; i < len(PARTICLES); i = i + 1)
+    {
+        var p = PARTICLES[i];
+        var life = p.life;
+        set_alpha(int(life * 255));
+        set_color(int(255 * life), int(180 * life), int(60 * life));
+        draw_circle(p.x, p.y, 2 + life * 3, true);
+    }
+    set_alpha(255);
+
+    if (!LIVE_CRASHED)
+    {
+        var lx = LIVE_X;
+        var ly = LIVE_Y;
+        var hw = LANDER_W * 0.5;
+        var hh = LANDER_H * 0.5;
+        var tip_x = lx;
+        var tip_y = ly - hh;
+        var bl_x = lx - hw;
+        var bl_y = ly + hh;
+        var br_x = lx + hw;
+        var br_y = ly + hh;
+
+        set_color(180, 200, 230);
+        draw_triangle(tip_x, tip_y, bl_x, bl_y, br_x, br_y, true);
+        set_color(140, 150, 170);
+        draw_line(bl_x, bl_y, bl_x - 6, bl_y + 10);
+        draw_line(br_x, br_y, br_x + 6, br_y + 10);
+
+        if (LIVE_THRUST && LIVE_FUEL > 0)
+        {
+            set_color(255, 180, 50);
+            draw_triangle(lx - 5, ly + hh, lx + 5, ly + hh, lx, ly + hh + 14, true);
+        }
+        if (LIVE_LEFT && LIVE_FUEL > 0)
+        {
+            set_color(255, 170, 60);
+            draw_triangle(lx + hw, ly - 2, lx + hw, ly + 6, lx + hw + 12, ly + 2, true);
+        }
+        if (LIVE_RIGHT && LIVE_FUEL > 0)
+        {
+            set_color(255, 170, 60);
+            draw_triangle(lx - hw, ly - 2, lx - hw, ly + 6, lx - hw - 12, ly + 2, true);
+        }
+    }
+    else
+    {
+        set_color(255, 80, 60);
+        draw_text("X", LIVE_X - 8, LIVE_Y - 10, 28);
+    }
+
+    set_color(92, 118, 150);
+    draw_rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, false);
+
+    set_color(220, 238, 255);
+    draw_text("BU NN Lunar Lander", FIELD_X + 8, 18, 36);
+    set_color(165, 190, 220);
+    draw_text("Imitation learning with nn.Network()", FIELD_X + 8, 52, 18);
+
+    set_color(200, 220, 240);
+    draw_text(format("Fuel: {}%", int(LIVE_FUEL * 100)), FIELD_X + 10, FIELD_Y + 8, 18);
+    draw_text(format("Vel: {},{}", int(LIVE_VX), int(LIVE_VY)), FIELD_X + 160, FIELD_Y + 8, 18);
+    draw_text(format("Score: {} (best: {})", LIVE_SCORE, LIVE_BEST_SCORE), FIELD_X + 340, FIELD_Y + 8, 18);
+}
+
+def draw_panel()
+{
+    set_color(18, 26, 38);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, true);
+    set_color(92, 118, 150);
+    draw_rectangle(PANEL_X, FIELD_Y, PANEL_W, FIELD_H, false);
+
+    set_color(220, 238, 255);
+    draw_text("NN Panel", PANEL_X + 18, FIELD_Y + 14, 24);
+
+    set_color(205, 224, 245);
+    draw_text(format("Model ready: {}", MODEL_READY), PANEL_X + 18, FIELD_Y + 70, 18);
+    draw_text(format("Human: {}", HUMAN_MODE), PANEL_X + 18, FIELD_Y + 94, 18);
+    draw_text(format("File: {}", MODEL_FILE), PANEL_X + 18, FIELD_Y + 118, 16);
+
+    set_color(150, 180, 210);
+    draw_text("Controls:", PANEL_X + 18, FIELD_Y + 170, 16);
+    draw_text("T: train synthetic teacher", PANEL_X + 18, FIELD_Y + 190, 14);
+    draw_text("G/L: save/load .bunn", PANEL_X + 18, FIELD_Y + 208, 14);
+    draw_text("H: human mode", PANEL_X + 18, FIELD_Y + 226, 14);
+    draw_text("R: reset lander", PANEL_X + 18, FIELD_Y + 244, 14);
+    draw_text("O: new terrain", PANEL_X + 18, FIELD_Y + 262, 14);
+    draw_text("SPACE: main thrust (human)", PANEL_X + 18, FIELD_Y + 280, 14);
+    draw_text("LEFT/RIGHT: side thrust", PANEL_X + 18, FIELD_Y + 298, 14);
+
+    set_color(200, 224, 245);
+    draw_text("Last Inputs", PANEL_X + 18, FIELD_Y + 350, 18);
+    var in_labels = ["posX", "posY", "velX", "velY", "padDX", "clear", "fuel", "vxSafe"];
+    for (var i = 0; i < len(in_labels); i = i + 1)
+    {
+        var v = 0.0;
+        if (i < len(LAST_IN)) v = LAST_IN[i];
+        draw_text(format("{}: {}", in_labels[i], int(v * 100) / 100.0), PANEL_X + 18, FIELD_Y + 376 + i * 20, 13);
+    }
+
+    set_color(200, 224, 245);
+    draw_text("Last Outputs", PANEL_X + 18, FIELD_Y + 560, 18);
+    var out_labels = ["THRUST", "LEFT", "RIGHT"];
+    for (var j = 0; j < 3; j = j + 1)
+    {
+        var ov = 0.0;
+        if (j < len(LAST_OUT)) ov = LAST_OUT[j];
+        var by = FIELD_Y + 586 + j * 28;
+        var bw = int(clampf(ov, 0, 1) * 190);
+        set_color(80, 95, 120);
+        draw_rectangle(PANEL_X + 110, by, 190, 16, true);
+        if (ov > 0.5) set_color(100, 255, 140);
+        else set_color(180, 180, 200);
+        draw_rectangle(PANEL_X + 110, by, bw, 16, true);
+        set_color(190, 210, 235);
+        draw_text(out_labels[j], PANEL_X + 18, by + 1, 13);
+        draw_text(format("{}%", int(ov * 100)), PANEL_X + 308, by + 1, 13);
+    }
+
+    if (STATUS_TIMER > 0)
+    {
+        set_color(255, 230, 160);
+        draw_text(STATUS_TEXT, PANEL_X + 18, FIELD_Y + FIELD_H - 12, 16);
+    }
+}
+
+// ============================================
+// Main
+// ============================================
+
+set_window_size(VIEW_W, VIEW_H);
+set_window_title("BU NN Lunar Lander");
+set_design_resolution(VIEW_W, VIEW_H);
+set_virtual_screen_enabled(true);
+
+generate_terrain();
+generate_stars();
+reset_live();
+set_status("Press T to train nn model");
+
+var RESET_TIMER = 0.0;
+
+loop
+{
+    var dt = delta();
+    if (dt <= 0.0) dt = SIM_DT;
+    if (dt > 0.05) dt = 0.05;
+
+    if (key_pressed(KEY_ESCAPE)) close_window();
+    if (key_pressed(KEY_T)) train_model();
+    if (key_pressed(KEY_G)) save_model();
+    if (key_pressed(KEY_L)) load_model();
+    if (key_pressed(KEY_O)) { generate_terrain(); reset_live(); set_status("Terrain regenerated"); }
+    if (key_pressed(KEY_R)) { reset_live(); set_status("Reset"); }
+    if (key_pressed(KEY_H))
+    {
+        HUMAN_MODE = !HUMAN_MODE;
+        if (HUMAN_MODE) set_status("HUMAN: SPACE thrust, LEFT/RIGHT side thrust");
+        else set_status("AI mode");
+        reset_live();
+    }
+
+    update_live(dt);
+
+    if (LIVE_LANDED || LIVE_CRASHED)
+    {
+        RESET_TIMER += dt;
+        if (RESET_TIMER > 2.0)
+        {
+            RESET_TIMER = 0.0;
+            if (LIVE_LANDED) generate_terrain();
+            reset_live();
+        }
+    }
+    else
+    {
+        RESET_TIMER = 0.0;
+    }
+
+    if (STATUS_TIMER > 0) STATUS_TIMER -= dt;
+
+    set_draw_screen(true);
+    set_alpha(255);
+    set_color(8, 10, 20);
+    draw_rectangle(0, 0, VIEW_W, VIEW_H, true);
+
+    draw_field();
+    draw_panel();
+
+    frame;
+}

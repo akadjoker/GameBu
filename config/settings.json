@@ -9,7 +9,7 @@
   "font_path": "",
   "font_scale": 1.0,
   "last_file_path": "scripts/ice_coin.bu",
-  "minimap_visible": false,
+  "minimap_visible": true,
   "outline_side": "right",
   "outline_visible": true,
   "palette": "vscode_dark",

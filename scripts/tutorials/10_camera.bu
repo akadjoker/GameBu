@@ -3,7 +3,7 @@
 // ============================================================
 // Aprende:
 //   - set_camera_target(x, y) para seguir um ponto
-//   - set_camera_offset(x, y) para definir o centro do ecrã
+//   - set_camera_offset(x, y) para deslocar a câmara no ecrã
 //   - set_camera_zoom(zoom) para ampliar/reduzir
 //   - set_camera_rotation(degrees) para rodar a vista
 //   - start_camera_shake(ampX, ampY, freq, cycles)
@@ -13,7 +13,7 @@
 //   - Transforma TODO o rendering via matriz 2D
 //   - Suporta zoom e rotação (scroll NÃO suporta)
 //   - target = ponto do mundo que a câmara segue
-//   - offset = posição no ecrã desse ponto (centro)
+//   - offset = deslocamento extra no ecrã aplicado pelo runtime
 //   - NÃO afecta parallax por layer (scroll faz isso)
 //   - Ideal para: zoom in/out, rotação, screen shake
 // ============================================================
@@ -99,7 +99,9 @@ var player_y = WORLD_H / 2;
 var cam_mode = 1;  // 1 = seguir player, 2 = livre
 
 // Configurar camera inicial
-set_camera_offset(SCREEN_W / 2, SCREEN_H / 2);
+// Neste runtime a câmara já fica centrada automaticamente no ecrã,
+// por isso o offset aqui deve ser zero.
+set_camera_offset(0, 0);
 set_camera_target(player_x, player_y);
 
 // ============================================================
@@ -112,7 +114,7 @@ process FloorTile(start_x, start_y)
     x = start_x;
     y = start_y;
     graph = graph_floor;
-    z = -100;
+    z = 0;
     loop { frame; }
 }
 
@@ -150,10 +152,10 @@ process Player(start_x, start_y)
     x = start_x;
     y = start_y;
     graph = graph_player;
-    z = 50;
+    z = 1;
 
     var speed = 250;
-
+    update_order();
     loop
     {
         // Movimento
@@ -197,7 +199,7 @@ while (tx < WORLD_W)
 }
 
 // Estrelas espalhadas
-i = 0;
+var i = 0;
 while (i < 25)
 {
     Star(math.rand(100, WORLD_W - 100), math.rand(100, WORLD_H - 100));
@@ -266,13 +268,14 @@ loop
 
     if (cam_mode == 1)
     {
-        // Modo seguir: câmara segue o player suavemente
-        var (cx, cy) = get_camera_target();
-        var lerp_speed = 5.0;
-        var new_cx = cx + (player_x - cx) * lerp_speed * delta();
-        var new_cy = cy + (player_y - cy) * lerp_speed * delta();
-        set_camera_target(new_cx, new_cy);
+        // Modo seguir: manter a origem lógica do player no centro.
+        set_camera_target(player_x, player_y);
     }
+
+    // Marcador da origem lógica do player em world-space.
+    set_color(255, 80, 80);
+    draw_line(player_x - 10, player_y, player_x + 10, player_y);
+    draw_line(player_x, player_y - 10, player_x, player_y + 10);
 
     // --- HUD (não afectado pela câmara) ---
     set_draw_screen(true);
@@ -283,6 +286,11 @@ loop
     draw_text("Q/E: rodar câmara", 10, 69, 14);
     draw_text("SPACE: camera shake!", 10, 86, 14);
     draw_text("R: reset zoom/rotação", 10, 103, 14);
+
+    // Cruz fixa no centro do ecrã para comparar com o alvo da câmara.
+    set_color(80, 255, 80);
+    draw_line(SCREEN_W / 2 - 12, SCREEN_H / 2, SCREEN_W / 2 + 12, SCREEN_H / 2);
+    draw_line(SCREEN_W / 2, SCREEN_H / 2 - 12, SCREEN_W / 2, SCREEN_H / 2 + 12);
 
     set_color(200, 200, 100);
     draw_text(format("zoom: {:.2f}", cam_zoom), SCREEN_W - 180, 10, 14);

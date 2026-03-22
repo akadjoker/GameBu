@@ -1,0 +1,41 @@
+import nn;
+
+def print_predictions(name, net, X)
+{
+    print(format("{}\n", name));
+    for (var i = 0; i < len(X); i = i + 1)
+    {
+        var p = net.predict(X[i]);
+        print(format("  x={} -> [{}, {}]\n", i, p[0], p[1]));
+    }
+}
+
+var X = [
+    [0.0, 0.0],
+    [0.0, 1.0],
+    [1.0, 0.0],
+    [1.0, 1.0]
+];
+
+var Y = [
+    [1.0, 0.0],
+    [0.0, 1.0],
+    [0.0, 1.0],
+    [1.0, 0.0]
+];
+
+print("=== softmax + cross_entropy ===\n");
+var softmaxNet = Network();
+softmaxNet.add(2, 8, "relu");
+softmaxNet.add(8, 2, "softmax");
+softmaxNet.compile("adam", "cross_entropy", 0.01);
+softmaxNet.fit(X, Y, 200, 4);
+print_predictions("softmax", softmaxNet, X);
+
+print("\n=== sigmoid + mse ===\n");
+var sigmoidNet = Network();
+sigmoidNet.add(2, 8, "relu");
+sigmoidNet.add(8, 2, "sigmoid");
+sigmoidNet.compile("adam", "mse", 0.003);
+sigmoidNet.fit(X, Y, 200, 4);
+print_predictions("sigmoid", sigmoidNet, X);

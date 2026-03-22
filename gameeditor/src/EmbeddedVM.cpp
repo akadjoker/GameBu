@@ -400,6 +400,19 @@ bool EmbeddedVM::start(const std::string& sourceCode, const std::string& project
         return false;
     }
 
+    // Match standalone runner behavior: apply any script-requested window
+    // changes after top-level execution, then refresh camera/renderer state.
+    if (s_requestedWidth > 0 && s_requestedHeight > 0)
+    {
+        SetWindowSize(s_requestedWidth, s_requestedHeight);
+    }
+    if (!s_requestedTitle.empty())
+    {
+        SetWindowTitle(s_requestedTitle.c_str());
+    }
+    gCamera.onWindowResize();
+    gRenderer.onWindowResize();
+
     m_state = EmbeddedVMState::Running;
     return true;
 }
@@ -416,6 +429,12 @@ bool EmbeddedVM::frame()
     }
 
     float dt = GetFrameTime();
+
+    if (IsWindowResized())
+    {
+        gCamera.onWindowResize();
+        gRenderer.onWindowResize();
+    }
 
     // Update game systems
     BindingsInput::update();

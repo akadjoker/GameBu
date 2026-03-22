@@ -1342,35 +1342,7 @@ process enemy_spawner()
         frame;
     }
 }
-
-// ── WINTER: nevada a cair ──
-process weather_snow()
-{
-    var FLAKES = 130;
-    loop
-    {
-        var t = time();
-        set_draw_screen(true);
-        var i = 0;
-        while (i < FLAKES)
-        {
-            var sx = (i * 87 + int(t * 38 + i * 11)) % VIEW_W;
-            var sy = int(t * 48 + i * 19) % (VIEW_H + 40);
-            sx += int(sin(t * 0.55 + i * 0.48) * 9);
-            var sz = 1 + (i % 3);
-            if      (sz == 1) set_alpha(80);
-            elif    (sz == 2) set_alpha(130);
-            else              set_alpha(180);
-            set_color(218, 232, 252);
-            draw_circle(sx, sy, sz, true);
-            i += 1;
-        }
-        set_alpha(255);
-        set_draw_screen(false);
-        frame;
-    }
-}
-
+ 
 // ── WINTER: cores dos edifícios ──
 def build_world()
 {
@@ -1417,7 +1389,7 @@ def start_game()
     build_world();
     enemy_spawner();
     pickup_spawner();
-    weather_snow();
+    
     var player_wp = PLAYER_SPAWN_WPS[math.irand(0, PLAYER_SPAWN_COUNT - 1)];
     var spawn_x = NAV_X[player_wp];
     var spawn_y = NAV_Y[player_wp];

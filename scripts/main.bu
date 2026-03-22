@@ -23,6 +23,8 @@
 
 
 //include "lunar_lander_ai.bu";
+//include "nn_lunar_lander.bu";
+//include "nn_flappy.bu";
 
 //include "meteor_defender_ai.bu";
 //include "test_process_lifecycle.bu";
@@ -46,3 +48,7 @@ include "tutorials/10_camera.bu";
 //include "tutorials/09_scroll_parallax.bu";
 
 //include "tutorials/08_mini_game.bu";
+
+
+
+//include "chaos_dark.bu";

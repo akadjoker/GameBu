@@ -317,11 +317,13 @@ void Entity::render()
 
     Texture2D tex = gGraphLib.textures[g->texture];
 
-    // Inicializar centro se necessário
-    if (center_x == -1 && center_y == -1)
+    // Inicializar o pivot por defeito antes de calcular a matriz.
+    // Caso contrário a primeira matriz fica com center = (-1, -1),
+    // o que desloca o sprite em relação à posição lógica.
+    if (center_x == -1 && center_y == -1 && !g->points.empty())
     {
-         center_x = g->points[0].x;
-         center_y = g->points[0].y;
+        center_x = g->points[0].x;
+        center_y = g->points[0].y;
     }
 
     const Matrix2D &matrix = GetWorldTransformation();

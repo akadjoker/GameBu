@@ -1,0 +1,33 @@
+import nn;
+
+print("=== Softmax/CrossEntropy sanity ===\n");
+
+var X = [
+    [0.0, 0.0],
+    [0.0, 1.0],
+    [1.0, 0.0],
+    [1.0, 1.0]
+];
+
+var Y = [
+    [1.0, 0.0],
+    [0.0, 1.0],
+    [0.0, 1.0],
+    [1.0, 0.0]
+];
+
+var net = Network();
+net.add(2, 8, "relu");
+net.add(8, 2, "softmax");
+net.compile("adam", "cross_entropy", 0.01);
+
+for (var epoch = 0; epoch < 200; epoch = epoch + 1)
+{
+    net.fit(X, Y, 1, 4);
+    print(format("epoch {}\n", epoch + 1));
+    for (var i = 0; i < 4; i = i + 1)
+    {
+        var p = net.predict(X[i]);
+        print(format("  x={} -> [{}, {}]\n", i, p[0], p[1]));
+    }
+}

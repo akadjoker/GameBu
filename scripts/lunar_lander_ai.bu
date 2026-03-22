@@ -34,13 +34,14 @@ var KEY_P = 80;
 // --- Physics ---
 var GRAVITY = 40.0;
 var THRUST_POWER = 120.0;
-var ROTATE_SPEED = 2.5;
+var SIDE_THRUST_POWER = 75.0;
 var MAX_VEL = 250.0;
-var MAX_ANGULAR = 3.5;
 
 var SAFE_VY = 45.0;
 var SAFE_VX = 30.0;
-var SAFE_ANGLE = 0.4;
+var MAIN_THRUST_TRIGGER = 0.68;
+var SIDE_THRUST_TRIGGER = 0.53;
+var AI_MIN_FIT_TO_FLY = 80.0;
 
 var SIM_DT = 1.0 / 60.0;
 
@@ -94,7 +95,7 @@ var OFFLINE_BATCH_PER_FRAME = 120;
 var OFFLINE_MAX_EVALS = 16000;
 var OFFLINE_TARGET_FIT = 8.0;
 
-var WEIGHTS_FILE = "lander_best_genome.json";
+var WEIGHTS_FILE = "lander_best_genome_side.json";
 
 // --- GA state ---
 var POPULATION = [];
@@ -171,6 +172,21 @@ def set_status(msg)
 {
     STATUS_TEXT = msg;
     STATUS_TIMER = 2.8;
+}
+
+def decide_main_thrust(v)
+{
+    return v > MAIN_THRUST_TRIGGER;
+}
+
+def decide_side_left(vl, vr)
+{
+    return vl > SIDE_THRUST_TRIGGER && vl > vr + 0.03;
+}
+
+def decide_side_right(vl, vr)
+{
+    return vr > SIDE_THRUST_TRIGGER && vr > vl + 0.03;
 }
 
 // ============================================
@@ -313,8 +329,8 @@ def nn_forward(g, inp, store_vis)
 
 // Output interpretation:
 // out[0] > 0.5 => main thrust
-// out[1] > 0.5 => rotate left
-// out[2] > 0.5 => rotate right
+// out[1] > 0.5 => side thrust left
+// out[2] > 0.5 => side thrust right
 
 // ============================================
 // Save / Load
@@ -463,15 +479,18 @@ def reset_training()
 def make_nn_input(lx, ly, lvx, lvy, langle, lang_vel, lfuel, _pad_x, _pad_y)
 {
     var pad_cx = _pad_x + PAD_W * 0.5;
+    var ground_y = get_terrain_y_at(lx);
+    var clearance = clampf(safe_ratio(ground_y - ly, FIELD_H), 0.0, 1.0);
+    var vx_safe = clampf(1.0 - abs(lvx) / SAFE_VX, 0.0, 1.0);
     return [
         safe_ratio(lx - FIELD_X, FIELD_W),
         safe_ratio(ly - FIELD_Y, FIELD_H),
         safe_ratio(lvx, MAX_VEL),
         safe_ratio(lvy, MAX_VEL),
-        clampf(langle / 3.14159, -1.0, 1.0),
-        safe_ratio(lang_vel, MAX_ANGULAR),
+        safe_ratio(pad_cx - lx, FIELD_W),
+        clearance,
         lfuel,
-        safe_ratio(pad_cx - lx, FIELD_W)
+        vx_safe
     ];
 }
 
@@ -498,23 +517,29 @@ def simulate_episode(g)
         var inp = make_nn_input(lx, ly, lvx, lvy, langle, lang_vel, lfuel, PAD_X, PAD_Y);
         var out = nn_forward(g, inp, false);
 
-        var do_thrust = out[0] > 0.5;
-        var do_left = out[1] > 0.5;
-        var do_right = out[2] > 0.5;
-
-        // Apply rotation
-        if (do_left) lang_vel -= ROTATE_SPEED * SIM_DT;
-        if (do_right) lang_vel += ROTATE_SPEED * SIM_DT;
-        lang_vel = clampf(lang_vel, -MAX_ANGULAR, MAX_ANGULAR);
-        lang_vel = lang_vel * 0.97;
-        langle += lang_vel * SIM_DT;
+        var do_thrust = decide_main_thrust(out[0]);
+        var do_left = decide_side_left(out[1], out[2]);
+        var do_right = decide_side_right(out[1], out[2]);
 
         // Apply thrust
         if (do_thrust && lfuel > 0)
         {
-            lvx += sin(langle) * THRUST_POWER * SIM_DT * -1;
-            lvy -= cos(langle) * THRUST_POWER * SIM_DT;
+            lvy -= THRUST_POWER * SIM_DT;
             lfuel -= 0.002;
+            if (lfuel < 0) lfuel = 0;
+        }
+
+        if (do_left && lfuel > 0)
+        {
+            lvx -= SIDE_THRUST_POWER * SIM_DT;
+            lfuel -= 0.0012;
+            if (lfuel < 0) lfuel = 0;
+        }
+
+        if (do_right && lfuel > 0)
+        {
+            lvx += SIDE_THRUST_POWER * SIM_DT;
+            lfuel -= 0.0012;
             if (lfuel < 0) lfuel = 0;
         }
 
@@ -547,14 +572,12 @@ def simulate_episode(g)
             // Check if on pad
             var on_pad = (lx >= PAD_X && lx <= PAD_X + PAD_W);
             var speed_ok = (abs(lvy) < SAFE_VY && abs(lvx) < SAFE_VX);
-            var angle_ok = (abs(langle) < SAFE_ANGLE);
 
-            if (on_pad && speed_ok && angle_ok)
+            if (on_pad && speed_ok)
             {
                 landed = true;
                 fitness += 500.0;
                 fitness += lfuel * 50.0;
-                fitness += (1.0 - abs(langle) / SAFE_ANGLE) * 30.0;
                 fitness += (1.0 - abs(lvy) / SAFE_VY) * 20.0;
                 fitness += (1.0 - abs(lvx) / SAFE_VX) * 10.0;
             }
@@ -567,7 +590,6 @@ def simulate_episode(g)
                 fitness += close_bonus * 40.0;
                 if (on_pad) fitness += 30.0;
                 if (speed_ok) fitness += 15.0;
-                if (angle_ok) fitness += 10.0;
                 // Less penalty for slow crash
                 var crash_speed = abs(lvy) + abs(lvx);
                 if (crash_speed < 100) fitness += 5.0;
@@ -583,20 +605,44 @@ def simulate_episode(g)
 
         // Reward: be horizontally close to pad
         var hdist = abs(lx - pad_cx) / FIELD_W;
-        fitness += (1.0 - hdist) * 0.04;
+        fitness += (1.0 - hdist) * 0.10;
 
-        // Reward: stay upright (small)
-        var upright = 1.0 - abs(langle) / 3.14;
-        fitness += upright * 0.01;
+        // Reward moving toward the pad instead of hovering off target
+        var pad_dx = pad_cx - lx;
+        if (pad_dx > 12 && lvx > 0) fitness += 0.020;
+        if (pad_dx < -12 && lvx < 0) fitness += 0.020;
+        if (pad_dx > 12 && lvx < -4) fitness -= 0.030;
+        if (pad_dx < -12 && lvx > 4) fitness -= 0.030;
+
+        // Reward: keep lateral speed low while aligning with pad
+        var vx_control = clampf(1.0 - abs(lvx) / SAFE_VX, 0.0, 1.0);
+        fitness += vx_control * 0.015;
 
         // Reward: slow descent near ground
         if (altitude < 0.3 && lvy > 0 && lvy < SAFE_VY)
             fitness += 0.03;
 
-        // Penalize using too much fuel (hovering wastes fuel)
-        // This discourages hovering in place
-        if (do_thrust && altitude > 0.5)
+        // Penalize wasting thrust, climbing too much, and hovering away from the pad
+        if (do_thrust && altitude > 0.55)
+            fitness -= 0.03;
+        if (do_thrust && lvy < -8)
+            fitness -= 0.04;
+        if (lvy < -16)
+            fitness -= 0.05;
+        if (altitude > 0.45 && abs(lvy) < 8)
+            fitness -= 0.02;
+        if (hdist > 0.30 && altitude > 0.40 && do_thrust)
+            fitness -= 0.02;
+        if ((do_left || do_right) && hdist > 0.45)
             fitness -= 0.01;
+        if (hdist > 0.55 && abs(lvx) < 6)
+            fitness -= 0.015;
+        if (hdist > 0.18 && altitude < 0.40)
+            fitness -= 0.040;
+        if (hdist > 0.28 && altitude < 0.24)
+            fitness -= 0.060;
+        if (hdist > 0.10 && altitude < 0.18 && abs(lvx) > SAFE_VX * 0.65)
+            fitness -= 0.050;
 
         step += 1;
     }
@@ -767,41 +813,70 @@ def update_live_lander(dt)
     }
     else
     {
-        if (len(BEST_GENOME) >= GENE_COUNT)
+        if (len(BEST_GENOME) >= GENE_COUNT && BEST_FIT_ALL >= AI_MIN_FIT_TO_FLY)
         {
             var inp = make_nn_input(LIVE_X, LIVE_Y, LIVE_VX, LIVE_VY, LIVE_ANGLE, LIVE_ANG_VEL, LIVE_FUEL, PAD_X, PAD_Y);
             var out = nn_forward(BEST_GENOME, inp, true);
-            LIVE_THRUST = out[0] > 0.5;
-            LIVE_THRUST_LEFT = out[1] > 0.5;
-            LIVE_THRUST_RIGHT = out[2] > 0.5;
+            LIVE_THRUST = decide_main_thrust(out[0]);
+            LIVE_THRUST_LEFT = decide_side_left(out[1], out[2]);
+            LIVE_THRUST_RIGHT = decide_side_right(out[1], out[2]);
         }
     }
 
-    // Rotation
-    if (LIVE_THRUST_LEFT) LIVE_ANG_VEL -= ROTATE_SPEED * dt;
-    if (LIVE_THRUST_RIGHT) LIVE_ANG_VEL += ROTATE_SPEED * dt;
-    LIVE_ANG_VEL = clampf(LIVE_ANG_VEL, -MAX_ANGULAR, MAX_ANGULAR);
-    LIVE_ANG_VEL = LIVE_ANG_VEL * 0.97;
-    LIVE_ANGLE += LIVE_ANG_VEL * dt;
+    LIVE_ANGLE = 0.0;
+    LIVE_ANG_VEL = 0.0;
 
     // Thrust
     if (LIVE_THRUST && LIVE_FUEL > 0)
     {
-        LIVE_VX += sin(LIVE_ANGLE) * THRUST_POWER * dt * -1;
-        LIVE_VY -= cos(LIVE_ANGLE) * THRUST_POWER * dt;
+        LIVE_VY -= THRUST_POWER * dt;
         LIVE_FUEL -= 0.002;
         if (LIVE_FUEL < 0) LIVE_FUEL = 0;
 
         // Exhaust particles
-        var ex = LIVE_X + sin(LIVE_ANGLE) * LANDER_H * 0.5;
-        var ey = LIVE_Y + cos(LIVE_ANGLE) * LANDER_H * 0.5;
+        var ex = LIVE_X;
+        var ey = LIVE_Y + LANDER_H * 0.5;
         for (var p = 0; p < 2; p = p + 1)
         {
             spawn_particle(
                 ex + randf(-4, 4),
                 ey + randf(-2, 4),
-                sin(LIVE_ANGLE) * randf(20, 80) + randf(-20, 20),
-                cos(LIVE_ANGLE) * randf(40, 120) + randf(-15, 15)
+                randf(-20, 20),
+                randf(40, 120) + randf(-15, 15)
+            );
+        }
+    }
+
+    if (LIVE_THRUST_LEFT && LIVE_FUEL > 0)
+    {
+        LIVE_VX -= SIDE_THRUST_POWER * dt;
+        LIVE_FUEL -= 0.0012;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+
+        for (var p = 0; p < 2; p = p + 1)
+        {
+            spawn_particle(
+                LIVE_X + LANDER_W * 0.5,
+                LIVE_Y + randf(-6, 6),
+                randf(25, 80),
+                randf(-18, 18)
+            );
+        }
+    }
+
+    if (LIVE_THRUST_RIGHT && LIVE_FUEL > 0)
+    {
+        LIVE_VX += SIDE_THRUST_POWER * dt;
+        LIVE_FUEL -= 0.0012;
+        if (LIVE_FUEL < 0) LIVE_FUEL = 0;
+
+        for (var p = 0; p < 2; p = p + 1)
+        {
+            spawn_particle(
+                LIVE_X - LANDER_W * 0.5,
+                LIVE_Y + randf(-6, 6),
+                randf(-80, -25),
+                randf(-18, 18)
             );
         }
     }
@@ -826,9 +901,8 @@ def update_live_lander(dt)
         LIVE_Y = ground_y - LANDER_H * 0.5;
         var on_pad = (LIVE_X >= PAD_X && LIVE_X <= PAD_X + PAD_W);
         var speed_ok = (abs(LIVE_VY) < SAFE_VY && abs(LIVE_VX) < SAFE_VX);
-        var angle_ok = (abs(LIVE_ANGLE) < SAFE_ANGLE);
 
-        if (on_pad && speed_ok && angle_ok)
+        if (on_pad && speed_ok)
         {
             LIVE_LANDED = true;
             LIVE_SCORE += 1;
@@ -926,7 +1000,7 @@ def draw_field()
     {
         var lx = LIVE_X;
         var ly = LIVE_Y;
-        var a = LIVE_ANGLE;
+        var a = 0.0;
         var hw = LANDER_W * 0.5;
         var hh = LANDER_H * 0.5;
 
@@ -950,23 +1024,39 @@ def draw_field()
         // Thrust flame
         if (LIVE_THRUST && LIVE_FUEL > 0)
         {
-            var fx = lx + sin(a) * hh;
-            var fy = ly + cos(a) * hh;
+            var fx = lx;
+            var fy = ly + hh;
             var flen = 10 + randf(0, 15);
             set_color(255, 180, 50);
             draw_triangle(
-                fx - cos(a) * 5, fy + sin(a) * 5,
-                fx + cos(a) * 5, fy - sin(a) * 5,
-                fx + sin(a) * flen, fy + cos(a) * flen,
+                fx - 5, fy,
+                fx + 5, fy,
+                fx, fy + flen,
                 true
             );
             set_color(255, 255, 150);
             draw_triangle(
-                fx - cos(a) * 2, fy + sin(a) * 2,
-                fx + cos(a) * 2, fy - sin(a) * 2,
-                fx + sin(a) * flen * 0.6, fy + cos(a) * flen * 0.6,
+                fx - 2, fy,
+                fx + 2, fy,
+                fx, fy + flen * 0.6,
                 true
             );
+        }
+
+        if (LIVE_THRUST_LEFT && LIVE_FUEL > 0)
+        {
+            var lfx = lx + hw;
+            var lfy = ly + 2;
+            set_color(255, 170, 60);
+            draw_triangle(lfx, lfy - 4, lfx, lfy + 4, lfx + 12, lfy, true);
+        }
+
+        if (LIVE_THRUST_RIGHT && LIVE_FUEL > 0)
+        {
+            var rfx = lx - hw;
+            var rfy = ly + 2;
+            set_color(255, 170, 60);
+            draw_triangle(rfx, rfy - 4, rfx, rfy + 4, rfx - 12, rfy, true);
         }
 
         // Landed indicator
@@ -997,7 +1087,7 @@ def draw_field()
     set_color(200, 220, 240);
     draw_text(format("Fuel: {}%", int(LIVE_FUEL * 100)), FIELD_X + 10, FIELD_Y + 8, 18);
     draw_text(format("Vel: {},{}", int(LIVE_VX), int(LIVE_VY)), FIELD_X + 160, FIELD_Y + 8, 18);
-    draw_text(format("Angle: {}", int(LIVE_ANGLE * 57.3)), FIELD_X + 340, FIELD_Y + 8, 18);
+    draw_text(format("Drift: {}", int(abs(LIVE_VX))), FIELD_X + 340, FIELD_Y + 8, 18);
     draw_text(format("Score: {} (best: {})", LIVE_SCORE, LIVE_BEST_SCORE), FIELD_X + 520, FIELD_Y + 8, 18);
 
     if (HUMAN_MODE)
@@ -1067,7 +1157,7 @@ def draw_network_panel()
     set_alpha(255);
 
     // Input nodes
-    var labels_in = ["posX", "posY", "velX", "velY", "angle", "angVel", "fuel", "padDX"];
+    var labels_in = ["posX", "posY", "velX", "velY", "padDX", "ground", "fuel", "vxSafe"];
     var ii = 0;
     while (ii < NN_IN)
     {
@@ -1096,7 +1186,7 @@ def draw_network_panel()
     }
 
     // Output nodes
-    var labels_out = ["THRUST", "ROT L", "ROT R"];
+    var labels_out = ["THRUST", "LEFT", "RIGHT"];
     o = 0;
     while (o < NN_OUT)
     {
@@ -1191,13 +1281,7 @@ generate_terrain();
 generate_stars();
 reset_training();
 reset_live_lander();
-
-if (auto_load_weights())
-{
-    RUNNER_MODE = true;
-    TRAINING_ACTIVE = false;
-    set_status("Loaded weights: runner mode");
-}
+set_status("Training from scratch");
 
 var RESET_TIMER = 0.0;
 
@@ -1217,7 +1301,7 @@ loop
     if (key_pressed(KEY_H))
     {
         HUMAN_MODE = !HUMAN_MODE;
-        if (HUMAN_MODE) set_status("HUMAN mode: SPACE=thrust, LEFT/RIGHT=rotate");
+        if (HUMAN_MODE) set_status("HUMAN mode: SPACE=thrust, LEFT/RIGHT=side thrust");
         else set_status("AI mode");
         reset_live_lander();
     }

@@ -297,7 +297,7 @@ def draw_arena()
         draw_line(lx, ARENA_Y, lx, ARENA_Y + ARENA_H);
         lx += 20;
     }
-    set_alpha(255);
+    set_alpha(25);
 
     // Target rings
     set_alpha(70);

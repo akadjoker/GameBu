@@ -1,0 +1,24 @@
+import math;
+
+var DID_RUN = false;
+
+process smoke(px, py)
+{
+    var a = math.rand(0, 360);
+    var sp = math.rand(10, 20);
+    var vx = get_distx(a, sp);
+    var vy = get_disty(a, sp);
+    var dt = delta();
+
+    print(format("smoke {} {} {} {} {}", px, py, a, vx, vy));
+    print(format("dt {}", dt));
+    DID_RUN = true;
+}
+
+smoke(10, 20);
+
+loop
+{
+    if (DID_RUN) break;
+    frame;
+}
