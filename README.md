@@ -15,7 +15,7 @@ BUGame is strongly inspired by `DIV Games Studio`, especially in its scripting-f
 
 |           Editor           |          Chaos Demo         |         Box2D Car         |
 | :------------------------: | :-------------------------: | :-----------------------: |
-| ![editor](gif/bueditor_2026-03-21_11-45-52.gif) | ![chaos](gif/chaos.gif) | ![box2d car](gif/box2d_car.gif) |
+| ![editor](gif/editor.gif) | ![chaos](gif/chaos.gif) | ![box2d car](gif/box2d_car.gif) |
 | Script editing workflow | Arcade gameplay prototype | Vehicle physics demo |
 
 |          AI Defend         |        Neural Net 1        |        Neural Net 2       |
@@ -26,7 +26,7 @@ BUGame is strongly inspired by `DIV Games Studio`, especially in its scripting-f
 |         Flappy AI         |      Lunar Lander AI      |        More Soon         |
 | :-----------------------: | :-----------------------: | :----------------------: |
 | ![flappy ai](gif/nn_flappy.gif) | ![lunar lander ai](gif/nn_lunba_1.gif) |  |
-| Neuroevolution gameplay | AI landing experiment | Add new GIFs here |
+| Neuroevolution gameplay | AI landing experiment |                        |
 
 
 ## What This Project Is
